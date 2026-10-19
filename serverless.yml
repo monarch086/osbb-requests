@@ -1,0 +1,44 @@
+service: osbb-requests
+frameworkVersion: '4'
+configValidationMode: error
+
+plugins:
+  - ./serverless-dotnet-package.js
+
+provider:
+  name: aws
+  runtime: dotnet10
+  architecture: arm64
+  region: ${opt:region, 'eu-central-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 10
+  logRetentionInDays: 14
+  environment:
+    STAGE: ${sls:stage}
+  httpApi:
+    payload: '2.0'
+  # No data permissions until repositories and access patterns are implemented.
+  iam:
+    role:
+      statements: []
+
+package:
+  individually: true
+
+functions:
+  telegramWebhook:
+    handler: OsbbRequests.Bot::OsbbRequests.Bot.Function::FunctionHandler
+    description: Telegram webhook placeholder; HTTP event intentionally not registered.
+    package:
+      artifact: artifacts/OsbbRequests.Bot/bot.zip
+    # Enable POST /telegram/webhook only after secret validation and durable deduplication.
+  adminApi:
+    handler: OsbbRequests.AdminApi::OsbbRequests.AdminApi.Function::FunctionHandler
+    description: Administration API scaffold; exposes only a health endpoint.
+    package:
+      artifact: artifacts/OsbbRequests.AdminApi/admin-api.zip
+    events:
+      - httpApi:
+          method: GET
+          path: /health

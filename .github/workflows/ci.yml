@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: dotnet restore OsbbRequests.sln --locked-mode
+      - run: npm run build -- --no-restore
+      - run: npm run check
+      - run: npm run package:dotnet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lambda-packages
+          path: artifacts/**/*.zip

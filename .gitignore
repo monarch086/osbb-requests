@@ -1,0 +1,31 @@
+# .NET
+**/bin/
+**/obj/
+**/publish/
+artifacts/
+TestResults/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Node / Serverless
+node_modules/
+.serverless/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.aws/
+.agents/
+.codex/
+*.local.json
+*.pem
+*.key
+
+# OS / editor / logs
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
