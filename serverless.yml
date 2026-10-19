@@ -5,6 +5,12 @@ configValidationMode: error
 plugins:
   - ./serverless-dotnet-package.js
 
+custom:
+  # These are parameter names, never resolved secret values.
+  parameterPrefix: /${self:service}/${sls:stage}
+  botUsername: ${env:TELEGRAM_BOT_USERNAME, 'OsbbRequestsBot'}
+  buildingId: ${env:BUILDING_ID, '${self:service}-${sls:stage}'}
+
 provider:
   name: aws
   runtime: dotnet10
@@ -18,7 +24,6 @@ provider:
     STAGE: ${sls:stage}
   httpApi:
     payload: '2.0'
-  # No data permissions until repositories and access patterns are implemented.
   iam:
     role:
       statements: []
@@ -29,10 +34,43 @@ package:
 functions:
   telegramWebhook:
     handler: OsbbRequests.Bot::OsbbRequests.Bot.Function::FunctionHandler
-    description: Telegram webhook placeholder; HTTP event intentionally not registered.
+    description: Authenticates private Telegram updates and queues command processing.
+    role:
+      Fn::GetAtt: [WebhookRole, Arn]
+    environment:
+      WEBHOOK_SECRET_PARAMETER: ${self:custom.parameterPrefix}/telegram-webhook-secret
+      COMMAND_QUEUE_URL:
+        Ref: CommandQueue
+      TELEGRAM_BOT_USERNAME: ${self:custom.botUsername}
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
-    # Enable POST /telegram/webhook only after secret validation and durable deduplication.
+    events:
+      - httpApi:
+          method: POST
+          path: /telegram/webhook
+  commandProcessor:
+    handler: OsbbRequests.Bot::OsbbRequests.Bot.CommandFunction::FunctionHandler
+    description: Processes resident commands and delivers persisted replies.
+    timeout: 30
+    role:
+      Fn::GetAtt: [CommandProcessorRole, Arn]
+    environment:
+      BOT_TOKEN_PARAMETER: ${self:custom.parameterPrefix}/telegram-bot-token
+      COMMAND_DATA_TABLE:
+        Ref: CommandDataTable
+      COMMAND_QUEUE_URL:
+        Ref: CommandQueue
+      ADMIN_TELEGRAM_CHAT_ID: ${env:ADMIN_TELEGRAM_CHAT_ID, ''}
+      TELEGRAM_BOT_USERNAME: ${self:custom.botUsername}
+      BUILDING_ID: ${self:custom.buildingId}
+    package:
+      artifact: artifacts/OsbbRequests.Bot/bot.zip
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [CommandQueue, Arn]
+          batchSize: 1
+          functionResponseType: ReportBatchItemFailures
   adminApi:
     handler: OsbbRequests.AdminApi::OsbbRequests.AdminApi.Function::FunctionHandler
     description: Administration API scaffold; exposes only a health endpoint.
@@ -42,3 +80,114 @@ functions:
       - httpApi:
           method: GET
           path: /health
+
+resources:
+  Resources:
+    CommandDataTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      Properties:
+        TableName: ${self:service}-${sls:stage}-command-data
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        TimeToLiveSpecification:
+          AttributeName: expiresAt
+          Enabled: true
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        SSESpecification:
+          SSEEnabled: true
+    CommandDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-commands-dlq.fifo
+        FifoQueue: true
+        SqsManagedSseEnabled: true
+        MessageRetentionPeriod: 1209600
+    CommandQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-commands.fifo
+        FifoQueue: true
+        SqsManagedSseEnabled: true
+        VisibilityTimeout: 180
+        MessageRetentionPeriod: 345600
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [CommandDeadLetterQueue, Arn]
+          maxReceiveCount: 5
+    WebhookRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: Webhook
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action: sqs:SendMessage
+                  Resource:
+                    Fn::GetAtt: [CommandQueue, Arn]
+                - Effect: Allow
+                  Action: ssm:GetParameter
+                  Resource:
+                    Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${self:custom.parameterPrefix}/telegram-webhook-secret
+                - Effect: Allow
+                  Action: [logs:CreateLogStream, logs:PutLogEvents]
+                  Resource:
+                    Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-telegramWebhook:*
+    CommandProcessorRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: CommandProcessor
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                  Resource:
+                    Fn::GetAtt: [CommandQueue, Arn]
+                - Effect: Allow
+                  Action: [dynamodb:GetItem, dynamodb:Query, dynamodb:PutItem, dynamodb:UpdateItem]
+                  Resource:
+                    Fn::GetAtt: [CommandDataTable, Arn]
+                - Effect: Allow
+                  Action: ssm:GetParameter
+                  Resource:
+                    Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${self:custom.parameterPrefix}/telegram-bot-token
+                - Effect: Allow
+                  Action: [logs:CreateLogStream, logs:PutLogEvents]
+                  Resource:
+                    Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-commandProcessor:*
+  Outputs:
+    CommandDataTableName:
+      Value:
+        Ref: CommandDataTable
+    CommandDeadLetterQueueUrl:
+      Value:
+        Ref: CommandDeadLetterQueue

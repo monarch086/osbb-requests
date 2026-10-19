@@ -12,7 +12,8 @@
     "package:dotnet": "bash scripts/package-dotnet.sh",
     "package": "serverless package",
     "deploy": "serverless deploy",
-    "remove": "serverless remove"
+    "remove": "serverless remove",
+    "test": "dotnet test OsbbRequests.sln --configuration Release"
   },
   "devDependencies": {
     "serverless": "4.44.0"
