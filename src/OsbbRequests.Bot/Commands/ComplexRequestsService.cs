@@ -28,7 +28,8 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
         return $"№{request.Id} — {CommandHandler.StatusLabel(request.Status)}\n" +
             $"Подано: {date:dd.MM.yyyy HH:mm} (Київ)\n" +
             $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor)}\n" +
-            $"{Limit(request.Category, 80)}: {Limit(request.Location, 200)}";
+            $"{Limit(request.Category, 80)}" +
+            (string.IsNullOrEmpty(request.Location) ? "" : ": " + Limit(request.Location, 200));
     }
 
     private static string Limit(string value, int length) => value.Length <= length ? value : value[..length] + "…";

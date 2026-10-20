@@ -21,7 +21,12 @@
       </div>
       <div class="modal-body">
         <p class="fw-semibold">{{ locationLabel(draft) }}</p>
-        <p class="eyebrow">{{ draft.category }} · {{ draft.location }}</p>
+        <p class="eyebrow">
+          {{ draft.category }}
+          @if (draft.location) {
+            · {{ draft.location }}
+          }
+        </p>
         <p class="description">{{ draft.description }}</p>
         @if (error) {
           <div class="alert alert-danger" role="alert">{{ error }}</div>

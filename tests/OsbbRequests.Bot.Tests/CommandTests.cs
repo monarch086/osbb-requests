@@ -34,17 +34,18 @@ public sealed class CommandTests
         Assert.Null(BotCommand.Parse(text, "OsbbBot"));
 
     [Fact]
-    public async Task CreatesPrivateNewRequest()
+    public async Task CreatesPublicNewRequest()
     {
         var outcome = await Handler(new MemoryRepository()).HandleAsync(
-            Command("/new 4В | 12 | сантехніка | під’їзд 2 | Протікає труба"), CancellationToken.None);
+            Command("/new 4В | 12 | сантехніка | Протікає труба"), CancellationToken.None);
         var request = Assert.IsType<MaintenanceRequest>(outcome.NewRequest);
         Assert.Equal(42, request.OwnerId);
         Assert.Equal("building", request.BuildingId);
         Assert.Equal("4В", request.BuildingNumber);
         Assert.Equal(12, request.Floor);
         Assert.Equal(RequestStatus.New, request.Status);
-        Assert.Equal(RequestVisibility.Private, request.Visibility);
+        Assert.Equal(RequestVisibility.Public, request.Visibility);
+        Assert.Empty(request.Location);
         Assert.Equal("Протікає труба", request.Description);
         Assert.Contains("№100", outcome.Reply);
     }
@@ -108,7 +109,7 @@ public sealed class CommandTests
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
         var processor = new CommandProcessor(repository, Handler(repository), telegram);
-        var command = Command("/new 4В | 12 | сантехніка | двір | Протікає труба");
+        var command = Command("/new 4В | 12 | сантехніка | Протікає труба");
         await processor.ProcessAsync(command, CancellationToken.None);
         await processor.ProcessAsync(command, CancellationToken.None);
         Assert.Single(repository.Requests);
@@ -122,7 +123,7 @@ public sealed class CommandTests
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram { Fail = true };
         var processor = new CommandProcessor(repository, Handler(repository), telegram);
-        var command = Command("/new 4В | 12 | сантехніка | двір | Протікає труба");
+        var command = Command("/new 4В | 12 | сантехніка | Протікає труба");
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(command, CancellationToken.None));
         Assert.Single(repository.Requests);
         Assert.False(repository.Replies[100].Delivered);

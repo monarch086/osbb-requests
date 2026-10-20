@@ -18,7 +18,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
     public const string Help = "Бот ЖК «Зелений острів 2».\n" +
         "/start — початок роботи\n/help — довідка\n/register — реєстрація для доступу до комплексу\n" +
         "/cancel — скасувати поточний діалог\n/categories — категорії\n" +
-        "/new — створити приватну заявку: будинок або весь комплекс → поверх → категорія → місце → опис\n" +
+        "/new — створити заявку для всіх мешканців комплексу: будинок або весь комплекс → поверх → категорія → опис\n" +
         "/my — власні заявки\n/complex — відкриті заявки для мешканців комплексу\n" +
         "/request номер — деталі власної заявки\n/delete номер — видалити власну нову заявку з підтвердженням\n" +
         "Номер можна ввести одразу або наступним повідомленням після /request або /delete.\n\n" +
@@ -85,7 +85,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         if (page.Items.Count == 0)
             return new CommandOutcome("Заявок на цій сторінці немає. Створити заявку: /new.");
 
-        var lines = page.Items.Where(r => r.BuildingId == buildingId).Select(r => $"№{r.Id} — {StatusLabel(r.Status)}\n{ComplexLayout.Label(r.Scope, r.BuildingNumber, r.Floor)}\n{r.Category}: {r.Location}\n/request {r.Id}");
+        var lines = page.Items.Where(r => r.BuildingId == buildingId).Select(r => $"№{r.Id} — {StatusLabel(r.Status)}\n{ComplexLayout.Label(r.Scope, r.BuildingNumber, r.Floor)}\n{r.Category}{(string.IsNullOrEmpty(r.Location) ? "" : ": " + r.Location)}\n/request {r.Id}");
         var reply = "Ваші заявки:\n\n" + string.Join("\n\n", lines);
         if (page.NextBeforeId is { } next)
             reply += $"\n\nНаступна сторінка: /my {next}";

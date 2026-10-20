@@ -3,7 +3,7 @@
     <div
       class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
     >
-      <span>У списку</span><strong class="fs-3">{{ tickets.length }}</strong>
+      <span>Всього</span><strong class="fs-3">{{ tickets.length }}</strong>
     </div>
   </div>
   <div class="col-4">
@@ -140,7 +140,9 @@
             >№{{ item.request.id }} · {{ item.request.category }}</span
           >
           <p class="small mt-2 mb-1">{{ locationLabel(item.request) }}</p>
-          <h3 class="h6 mt-2">{{ item.request.location }}</h3>
+          @if (item.request.location) {
+            <h3 class="h6 mt-2">{{ item.request.location }}</h3>
+          }
           <p class="ticket-description text-body-secondary small mb-0">
             {{ item.request.description }}
           </p>

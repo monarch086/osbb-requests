@@ -106,7 +106,8 @@ public sealed class RequestLookupService(ICommandRepository repository, string c
             return new CommandOutcome("Заявку не знайдено серед ваших заявок.");
         var localDate = TimeZoneInfo.ConvertTime(request.CreatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         var text = $"Заявка №{request.Id}\nСтатус: {CommandHandler.StatusLabel(request.Status)}\n" +
-            $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor)}\nКатегорія: {request.Category}\nМісце: {request.Location}\n" +
+            $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor)}\nКатегорія: {request.Category}\n" +
+            (string.IsNullOrEmpty(request.Location) ? "" : $"Місце: {request.Location}\n") +
             $"Подано: {localDate:dd.MM.yyyy HH:mm} (Київ)\n\n{request.Description}";
         if (!string.IsNullOrWhiteSpace(request.Resolution))
             text += "\n\nПояснення адміністратора: " + request.Resolution;

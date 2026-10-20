@@ -10,11 +10,11 @@ public sealed class RequestCreationService(ICommandRepository repository, string
 {
     public const string Categories = "сантехніка, електрика, прибирання, місця загального користування, інше";
     public const string Usage = "Створити заявку для ЖК «Зелений острів 2»: /new.\n" +
-        "Бот запитає будинок або весь комплекс, поверх (для будинку), категорію, місце та опис. Скасувати: /cancel.\n\n" +
-        "Або однією командою:\n/new 4В | 12 | сантехніка | біля ліфта | Протікає труба\n" +
-        "/new комплекс | - | електрика | двір | Не працює освітлення\n\n" +
+        "Бот запитає будинок або весь комплекс, поверх (для будинку), категорію та опис. Скасувати: /cancel.\n\n" +
+        "Або однією командою:\n/new 4В | 12 | сантехніка | Протікає труба\n" +
+        "/new комплекс | - | електрика | Не працює освітлення\n\n" +
         "Будинки: 4Б, 4В, 4Г, 4Д. Поверхи: 1–25; «-» — без поверху. Категорії: " + Categories +
-        ". Місце: до 200 символів. Опис: 10–2000 символів. Заявка буде приватною.";
+        ". Опис: 10–2000 символів. Заявка буде видимою для всіх мешканців комплексу.";
     public static bool IsActive(RequestDraft draft) => draft.Stage is not (RequestDraftStage.Completed or RequestDraftStage.Cancelled);
 
     public async Task<CommandOutcome> StartAsync(CommandEnvelope command, string arguments, CancellationToken ct)
@@ -23,13 +23,18 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         if (current is not null && current.ComplexId != complexId) throw new InvalidOperationException("Draft complex mismatch.");
         if (arguments.Length > 0)
         {
-            var parts = arguments.Split('|', 5, StringSplitOptions.TrimEntries);
-            if (parts.Length != 5 || !TryScope(parts[0], out var scope, out var building) ||
+            var parts = arguments.Split('|', 4, StringSplitOptions.TrimEntries);
+            if (parts.Length != 4 || !TryScope(parts[0], out var scope, out var building) ||
                 !TryFloor(parts[1], out var floor) || !ComplexLayout.IsValid(scope, building, floor) ||
-                !ValidCategory(parts[2]) || parts[3].Length is < 1 or > 200 || parts[4].Length is < 10 or > 2000)
+                !ValidCategory(parts[2]) || parts[3].Length is < 10 or > 2000)
                 return new(Usage);
             return Finish(command, new(command.UserId, complexId, RequestDraftStage.Description, current?.Version ?? 0,
-                scope, building, floor, parts[2].ToLowerInvariant(), parts[3]), current?.Version, parts[4]);
+                scope, building, floor, parts[2].ToLowerInvariant()), current?.Version, parts[3]);
+        }
+        if (current is { Stage: RequestDraftStage.Location })
+        {
+            var resumed = current with { Stage = RequestDraftStage.Description, Version = current.Version + 1 };
+            return Prompt(resumed) with { Draft = new(resumed, current.Version) };
         }
         if (current is not null && IsActive(current)) return Prompt(current);
         var draft = new RequestDraft(command.UserId, complexId, RequestDraftStage.Scope, (current?.Version ?? 0) + 1);
@@ -61,11 +66,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
                 break;
             case RequestDraftStage.Category:
                 if (!ValidCategory(text)) return Prompt(current);
-                next = current with { Category = text.ToLowerInvariant(), Stage = RequestDraftStage.Location };
-                break;
-            case RequestDraftStage.Location:
-                if (text.Length is < 1 or > 200) return Prompt(current);
-                next = current with { Location = text, Stage = RequestDraftStage.Description };
+                next = current with { Category = text.ToLowerInvariant(), Stage = RequestDraftStage.Description };
                 break;
             default:
                 if (text.Length is < 10 or > 2000) return Prompt(current);
@@ -86,11 +87,11 @@ public sealed class RequestCreationService(ICommandRepository repository, string
 
     private CommandOutcome Finish(CommandEnvelope command, RequestDraft draft, int? expectedVersion, string description)
     {
-        if (!ComplexLayout.IsValid(draft.Scope, draft.BuildingNumber, draft.Floor) || draft.Category is null || draft.Location is null)
+        if (!ComplexLayout.IsValid(draft.Scope, draft.BuildingNumber, draft.Floor) || draft.Category is null)
             throw new InvalidOperationException("Incomplete request draft.");
-        var request = new MaintenanceRequest(command.UpdateId, command.UserId, complexId, draft.Category, draft.Location,
-            description, clock.GetUtcNow(), Scope: draft.Scope, BuildingNumber: draft.BuildingNumber, Floor: draft.Floor);
-        return new($"Заявку №{request.Id} створено. Статус: Нова. Видимість: приватна.\n" +
+        var request = new MaintenanceRequest(command.UpdateId, command.UserId, complexId, draft.Category, draft.Location ?? "",
+            description, clock.GetUtcNow(), Visibility: RequestVisibility.Public, Scope: draft.Scope, BuildingNumber: draft.BuildingNumber, Floor: draft.Floor);
+        return new($"Заявку №{request.Id} створено. Статус: Нова. Видимість: для всіх мешканців комплексу.\n" +
             ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor) + $"\nДеталі: /request {request.Id}",
             request, Keyboard: ReplyKeyboard.Remove,
             Draft: new(new(command.UserId, complexId, RequestDraftStage.Completed, (expectedVersion ?? 0) + 1), expectedVersion));
@@ -121,8 +122,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
             "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «Весь комплекс». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
         RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Вкажіть поверх від 1 до 25 або оберіть «Без поверху» " +
             "для фасаду, підвалу, входу чи проблеми всього будинку. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),
-        RequestDraftStage.Category => new("Оберіть категорію: " + Categories + ". Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestCategory),
-        RequestDraftStage.Location => new("Уточніть місце: під’їзд, ліфт, коридор, двір тощо (1–200 символів). Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove),
-        _ => new("Опишіть проблему (10–2000 символів). Після цього заявку буде створено. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove)
+        RequestDraftStage.Category => new("Оберіть категорію: " + Categories + ". Заявка буде видимою для всіх мешканців комплексу. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestCategory),
+        _ => new("Опишіть проблему (10–2000 символів). Після цього заявку буде створено для всіх мешканців комплексу. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove)
     };
 }
