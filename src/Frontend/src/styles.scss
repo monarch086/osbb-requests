@@ -1,3 +1,5 @@
+@use 'theme';
+
 body {
   position: relative;
   background: var(--bs-tertiary-bg);
@@ -100,9 +102,11 @@ main {
   height: 38px;
 }
 
-.ng-select.ng-select-focused:not(.ng-select-opened) > .ng-select-container {
-  border-color: #86b7fe;
-  box-shadow: 0 0 0 0.25rem rgb(13 110 253 / 25%);
+.ng-select.ng-select-focused:not(.ng-select-opened) > .ng-select-container,
+.ng-select.ng-select-opened > .ng-select-container,
+.ng-select.ng-select-opened > .ng-select-container:hover {
+  border-color: var(--osbb-focus-border);
+  box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
 }
 
 /* Dialog selects append to body to avoid clipping inside the scrollable modal. */
@@ -110,9 +114,11 @@ body > .ng-dropdown-panel {
   z-index: 1060;
 }
 
-.ng-dropdown-panel .ng-dropdown-panel-items .ng-option.ng-option-marked {
+.ng-dropdown-panel .ng-dropdown-panel-items .ng-option.ng-option-marked,
+.ng-dropdown-panel .ng-dropdown-panel-items .ng-option.ng-option-selected,
+.ng-dropdown-panel .ng-dropdown-panel-items .ng-option.ng-option-selected.ng-option-marked {
   background-color: var(--bs-primary-bg-subtle);
-  color: var(--bs-body-color);
+  color: var(--bs-primary-text-emphasis);
 }
 
 @media (width <=575.98px) {

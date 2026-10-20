@@ -1,0 +1,97 @@
+// Override Bootstrap's compiled component variables alongside its global palette.
+:root {
+  --bs-primary: #244d39;
+  --bs-primary-rgb: 36, 77, 57;
+  --bs-primary-text-emphasis: #173b2a;
+  --bs-primary-bg-subtle: #eaf1e4;
+  --bs-primary-border-subtle: #b9cbb0;
+  --bs-body-color: #203e30;
+  --bs-body-color-rgb: 32, 62, 48;
+  --bs-emphasis-color: #173b2a;
+  --bs-emphasis-color-rgb: 23, 59, 42;
+  --bs-secondary-color: #6e7c70;
+  --bs-secondary-color-rgb: 110, 124, 112;
+  --bs-secondary-bg: #edf2e8;
+  --bs-secondary-bg-rgb: 237, 242, 232;
+  --bs-tertiary-bg: #f6f8f3;
+  --bs-tertiary-bg-rgb: 246, 248, 243;
+  --bs-border-color: #dce5d6;
+  --bs-link-color: #315b42;
+  --bs-link-color-rgb: 49, 91, 66;
+  --bs-link-hover-color: #1d3e2e;
+  --bs-link-hover-color-rgb: 29, 62, 46;
+  --bs-focus-ring-color: rgb(36 77 57 / 25%);
+  --osbb-primary-hover: #1d3e2e;
+  --osbb-primary-active: #183326;
+  --osbb-focus-border: #799366;
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+  --bs-btn-hover-bg: var(--osbb-primary-hover);
+  --bs-btn-hover-border-color: var(--osbb-primary-hover);
+  --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+  --bs-btn-active-bg: var(--osbb-primary-active);
+  --bs-btn-active-border-color: var(--osbb-primary-active);
+  --bs-btn-disabled-bg: var(--bs-primary);
+  --bs-btn-disabled-border-color: var(--bs-primary);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+  --bs-btn-hover-bg: var(--bs-primary);
+  --bs-btn-hover-border-color: var(--bs-primary);
+  --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+  --bs-btn-active-bg: var(--osbb-primary-active);
+  --bs-btn-active-border-color: var(--osbb-primary-active);
+  --bs-btn-disabled-color: var(--bs-primary);
+  --bs-btn-disabled-border-color: var(--bs-primary);
+}
+
+.btn-outline-secondary {
+  --bs-btn-color: #4b6251;
+  --bs-btn-border-color: #879781;
+  --bs-btn-hover-color: var(--bs-primary);
+  --bs-btn-hover-bg: #e5edde;
+  --bs-btn-hover-border-color: #879781;
+  --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+  --bs-btn-active-color: var(--bs-primary);
+  --bs-btn-active-bg: #d5e1cb;
+  --bs-btn-active-border-color: #799366;
+  --bs-btn-disabled-color: #6e7c70;
+  --bs-btn-disabled-border-color: #b9cbb0;
+}
+
+.btn-link {
+  --bs-btn-color: var(--bs-link-color);
+  --bs-btn-hover-color: var(--bs-link-hover-color);
+  --bs-btn-active-color: var(--bs-link-hover-color);
+  --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+}
+
+.nav-pills {
+  --bs-nav-pills-link-active-bg: var(--bs-primary);
+}
+
+.nav-link:focus-visible {
+  box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--osbb-focus-border);
+  box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+}
+
+.btn-close {
+  --bs-btn-close-focus-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+}
+
+.list-group {
+  --bs-list-group-active-bg: var(--bs-primary);
+  --bs-list-group-active-border-color: var(--bs-primary);
+  --bs-list-group-action-hover-bg: #f0f5eb;
+  --bs-list-group-action-active-bg: #e5edde;
+}
