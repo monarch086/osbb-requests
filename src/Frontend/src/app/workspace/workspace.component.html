@@ -1,0 +1,31 @@
+@if (error) { <div class="alert error" role="alert">{{ error }}</div> }
+@if (notice) { <div class="alert success" role="status">{{ notice }}</div> }
+  @if (!me) { <section class="panel empty"><h2>{{ loading ? 'Завантажуємо робочий простір…' : 'Не вдалося завантажити профіль' }}</h2><button class="secondary" (click)="workspace()" [disabled]="loading">Спробувати ще раз</button></section> }
+  @if (me; as user) {
+    @if (!user.isActive) { <section class="panel empty"><span class="round-icon">✓</span><p class="eyebrow">ОБЛІКОВИЙ ЗАПИС СТВОРЕНО</p><h1>Очікуємо надання доступу</h1><p>Повідомте голові ОСББ вашу електронну адресу: <strong>{{ user.email }}</strong>.<br>Після підтвердження ви зможете працювати зі зверненнями мешканців.</p><button class="secondary" (click)="workspace()" [disabled]="loading">Перевірити доступ</button></section> }
+    @else {
+      <div class="workspace-heading"><div><p class="eyebrow">РОБОЧИЙ ПРОСТІР</p><h1>{{ tab === 'requests' ? 'Заявки будинку' : tab === 'residents' ? 'Реєстрації мешканців' : 'Команда адміністраторів' }}</h1><p class="muted">{{ tab === 'requests' ? 'Від першого повідомлення до вирішеної проблеми.' : tab === 'residents' ? 'Перевірте дані мешканців і надайте доступ до бота.' : 'Надавайте або відкликайте доступ до роботи зі зверненнями.' }}</p></div><button class="secondary" (click)="load()" [disabled]="loading || saving">↻ Оновити</button></div>
+      <nav class="page-nav" aria-label="Розділи панелі"><button [class.active]="tab === 'requests'" (click)="switchTab('requests')">Заявки</button><button [class.active]="tab === 'residents'" (click)="switchTab('residents')">Мешканці</button>@if (user.isSuperAdmin) { <button [class.active]="tab === 'admins'" (click)="switchTab('admins')">Адміністратори</button> }</nav>
+      @if (tab === 'requests') {
+        <app-requests [tickets]="tickets" [filters]="filters" [loading]="loading" [saving]="saving"
+          (applyFilters)="filters = $event; load()" (openTicket)="open($event)" />
+      }
+      @if (tab === 'residents') {
+        <app-residents [residents]="residents" [loading]="loading" [saving]="saving"
+          (approve)="decide($event, true)" (reject)="rejecting = $event" />
+      }
+      @if (tab === 'admins' && user.isSuperAdmin) {
+        <app-administrators [admins]="admins" [saving]="saving" (toggleAccess)="setAccess($event)" />
+      }
+      @if (loading) { <p class="loading" role="status">Завантажуємо…</p> }
+      @if (cursor) { <button class="secondary more" (click)="load(true)" [disabled]="loading || saving">Завантажити ще</button> }
+    }
+  }
+@if (rejecting; as registration) {
+  <app-registration-rejection-dialog [registration]="registration" [saving]="saving" [error]="error"
+    (rejected)="decide(registration, false, $event)" (closed)="closeDialog()" />
+}
+@if (selected && draft) {
+  <app-ticket-dialog [draft]="draft" [assignees]="assignees" [history]="history" [saving]="saving" [error]="error"
+    (saved)="saveTicket($event)" (closed)="closeDialog()" />
+}
