@@ -1,6 +1,7 @@
 import type { Ticket } from '../api.service';
 
 export interface TicketFilters {
+  showCompleted: boolean;
   target: string;
   floor: string;
   status: string;

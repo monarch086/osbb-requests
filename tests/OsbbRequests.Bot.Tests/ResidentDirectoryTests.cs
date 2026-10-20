@@ -100,6 +100,38 @@ public sealed class ResidentDirectoryTests
         Assert.Contains("attribute_not_exists(requestTarget)", db.Query.FilterExpression);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompletedVisibilityIsFilteredByDynamoBeforePagination(bool showCompleted)
+    {
+        using var db = new RecordingDynamo();
+        db.Result = new()
+        {
+            Items = [],
+            LastEvaluatedKey = new()
+            {
+                ["pk"] = new("USER#1"),
+                ["sk"] = new("REQUEST#1"),
+                ["requestBuildingId"] = new("complex"),
+                ["requestCreatedAt"] = new("date")
+            }
+        };
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var page = await store.ListRequestsAsync(new(null, "електрика", null, null, null, "Building4Б", 25, showCompleted), null, default);
+        Assert.Equal("BuildingRequestsIndex", db.Query!.IndexName);
+        Assert.Contains("requestCategory = :requestCategory", db.Query.FilterExpression);
+        if (showCompleted) Assert.DoesNotContain(":completed", db.Query.FilterExpression);
+        else
+        {
+            Assert.Contains("requestStatus <> :completed", db.Query.FilterExpression);
+            Assert.Equal("Completed", db.Query.ExpressionAttributeValues[":completed"].S);
+        }
+        Assert.Empty(page.Items);
+        Assert.NotNull(page.Cursor);
+        await store.ListRequestsAsync(new(null, null, null, null, null, ShowCompleted: showCompleted), page.Cursor, default);
+        Assert.Equal("REQUEST#1", db.Query.ExclusiveStartKey["sk"].S);
+    }
     private sealed class RecordingDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public Dictionary<string, AttributeValue>? Snapshot;

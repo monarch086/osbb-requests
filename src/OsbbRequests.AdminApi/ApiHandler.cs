@@ -70,6 +70,9 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         }
         if (method == "GET" && path == "/admin/requests")
         {
+            var showCompleted = false;
+            if (query.TryGetValue("showCompleted", out var showCompletedText) && !bool.TryParse(showCompletedText, out showCompleted))
+                throw new ApiError(400, "Параметр showCompleted має бути true або false.");
             var status = query.GetValueOrDefault("status");
             if (status is { Length: > 0 } && !Enum.TryParse<RequestStatus>(status, out _)) throw new ApiError(400, "Некоректний статус.");
             var from = Date(query.GetValueOrDefault("from")); var to = Date(query.GetValueOrDefault("to"));
@@ -86,7 +89,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 floor = floorNumber;
             }
             return Reply(200, await store.ListRequestsAsync(new(status, query.GetValueOrDefault("category"),
-                query.GetValueOrDefault("search"), from, to, target, floor), cursor, ct));
+                query.GetValueOrDefault("search"), from, to, target, floor, showCompleted), cursor, ct));
         }
         if (segments.Length is 4 or 5 && segments[0] == "admin" && segments[1] == "requests" &&
             long.TryParse(segments[2], NumberStyles.None, CultureInfo.InvariantCulture, out var owner) && owner > 0 &&

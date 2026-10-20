@@ -10,6 +10,7 @@ import {
   Ticket,
   Page,
 } from '../api.service';
+import { TicketFilters } from '../shared/ticket-presentation';
 import { errorMessage } from '../error-message';
 import { RequestsComponent } from '../requests/requests.component';
 import { ResidentsComponent, ResidentView } from '../residents/residents.component';
@@ -52,7 +53,16 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   draft: Ticket | null = null;
   history: Record<string, string>[] = [];
   rejecting: Registration | null = null;
-  filters = { status: '', category: '', search: '', from: '', to: '', target: '', floor: '' };
+  filters: TicketFilters = {
+    showCompleted: false,
+    status: '',
+    category: '',
+    search: '',
+    from: '',
+    to: '',
+    target: '',
+    floor: '',
+  };
   private subscription?: Subscription;
   private epoch = 0;
   ngOnInit(): void {
@@ -70,6 +80,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private clear(): void {
     this.tab = 'requests';
     this.filters = {
+      showCompleted: false,
       status: '',
       category: '',
       search: '',
@@ -147,6 +158,13 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.notice = '';
     await this.load();
   }
+  async applyRequestFilters(filters: TicketFilters): Promise<void> {
+    if (this.loading || this.saving) return;
+    this.filters = { ...filters };
+    this.cursor = null;
+    this.tickets = [];
+    await this.load();
+  }
   async load(more = false): Promise<void> {
     if (!this.me?.isActive || this.saving) return;
     const epoch = this.epoch;
@@ -156,8 +174,12 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.error = '';
     const params = new URLSearchParams();
     if (more && this.cursor) params.set('cursor', this.cursor);
-    if (tab === 'requests')
-      for (const [key, value] of Object.entries(this.filters)) if (value) params.set(key, value);
+    if (tab === 'requests') {
+      for (const [key, value] of Object.entries(this.filters)) {
+        if (typeof value === 'string' && value) params.set(key, value);
+        else if (value === true) params.set(key, 'true');
+      }
+    }
     const path =
       tab === 'requests'
         ? '/requests'
@@ -256,6 +278,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       });
       selected.request = { ...draft };
       selected.version++;
+      if (draft.status === 'Completed' && !this.filters.showCompleted)
+        this.tickets = this.tickets.filter((ticket) => ticket !== selected);
       this.selected = null;
       this.draft = null;
       this.notice = 'Зміни заявки збережено.';

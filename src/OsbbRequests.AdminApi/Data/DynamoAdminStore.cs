@@ -229,6 +229,11 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
             condition += " AND requestCreatedAt BETWEEN :from AND :to";
         }
         var parts = new List<string>();
+        if (!filters.ShowCompleted)
+        {
+            values[":completed"] = S("Completed");
+            parts.Add("requestStatus <> :completed");
+        }
         foreach (var (field, value) in new[] { ("requestStatus", filters.Status), ("requestCategory", filters.Category) })
             if (!string.IsNullOrEmpty(value)) { values[":" + field] = S(value); parts.Add(field + " = :" + field); }
         if (!string.IsNullOrWhiteSpace(filters.Search)) { values[":search"] = S(filters.Search.ToLowerInvariant()); parts.Add("contains(searchText, :search)"); }

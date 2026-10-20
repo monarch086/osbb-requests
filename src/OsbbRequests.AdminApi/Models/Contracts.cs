@@ -11,7 +11,7 @@ public sealed record RegistrationDecision(bool Approved, string? Reason, int Ver
 public sealed record RequestChange(string Status, string Visibility, string? Resolution, string? AssignedTo,
     string Priority, string? PlannedDate, int Version, string? Scope = null, string? BuildingNumber = null, int? Floor = null);
 public sealed record ManagedRequest(MaintenanceRequest Request, int Version);
-public sealed record RequestFilters(string? Status, string? Category, string? Search, string? From, string? To, string? Target = null, int? Floor = null);
+public sealed record RequestFilters(string? Status, string? Category, string? Search, string? From, string? To, string? Target = null, int? Floor = null, bool ShowCompleted = false);
 public sealed class ApiError(int status, string message) : Exception(message)
 {
     public int Status { get; } = status;

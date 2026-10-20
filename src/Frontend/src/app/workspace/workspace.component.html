@@ -75,7 +75,7 @@
         [filters]="filters"
         [loading]="loading"
         [saving]="saving"
-        (applyFilters)="filters = $event; load()"
+        (applyFilters)="applyRequestFilters($event)"
         (openTicket)="open($event)"
       />
     }
