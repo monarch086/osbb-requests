@@ -1,12 +1,18 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ManagedTicket } from '../api.service';
-import { TicketFilters, ticketStatuses, ticketCategories, statusLabels, formatDate } from '../shared/ticket-presentation';
+import {
+  TicketFilters,
+  ticketStatuses,
+  ticketCategories,
+  statusLabels,
+  formatDate,
+} from '../shared/ticket-presentation';
 
 @Component({
   selector: 'app-requests',
   imports: [FormsModule],
-  templateUrl: './requests.component.html'
+  templateUrl: './requests.component.html',
 })
 export class RequestsComponent {
   @Input() tickets: ManagedTicket[] = [];
@@ -19,7 +25,13 @@ export class RequestsComponent {
   readonly categories = ticketCategories;
   readonly labels = statusLabels;
   readonly date = formatDate;
-  get newCount(): number { return this.tickets.filter(t => t.request.status === 'New').length; }
-  get progressCount(): number { return this.tickets.filter(t => t.request.status === 'InProgress').length; }
-  submitFilters(): void { this.applyFilters.emit({ ...this.filters }); }
+  get newCount(): number {
+    return this.tickets.filter((t) => t.request.status === 'New').length;
+  }
+  get progressCount(): number {
+    return this.tickets.filter((t) => t.request.status === 'InProgress').length;
+  }
+  submitFilters(): void {
+    this.applyFilters.emit({ ...this.filters });
+  }
 }

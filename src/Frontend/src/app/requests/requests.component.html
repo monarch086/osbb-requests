@@ -1,6 +1,65 @@
-<section class="stats" aria-label="Завантажені заявки"><div class="panel"><span>У списку</span><strong>{{ tickets.length }}</strong></div><div class="panel"><span>Нові</span><strong>{{ newCount }}</strong></div><div class="panel"><span>В роботі</span><strong>{{ progressCount }}</strong></div><p class="muted">Показники для завантажених заявок</p></section>
-        <form class="panel filters" (ngSubmit)="submitFilters()"><label class="search">Пошук<input name="search" [(ngModel)]="filters.search" placeholder="Місце або опис проблеми" maxlength="200"></label><label>Статус<select name="status" [(ngModel)]="filters.status"><option value="">Усі статуси</option>@for (s of statuses; track s) { <option [value]="s">{{ labels[s] }}</option> }</select></label><label>Категорія<select name="category" [(ngModel)]="filters.category"><option value="">Усі категорії</option>@for (c of categories; track c) { <option [value]="c">{{ c }}</option> }</select></label><label>Від дати<input type="date" name="from" [(ngModel)]="filters.from"></label><label>До дати<input type="date" name="to" [(ngModel)]="filters.to"></label><button type="submit" [disabled]="loading || saving">Знайти</button></form>
-        <section class="panel list"><div class="list-title"><h2>Звернення мешканців</h2><span class="muted">Від новіших до старіших</span></div>
-        @for (item of tickets; track item.request.id) { <button class="ticket-row" (click)="openTicket.emit(item)" [disabled]="saving"><div><span class="ticket-number">№{{ item.request.id }} · {{ item.request.category }}</span><h3>{{ item.request.location }}</h3><p>{{ item.request.description }}</p></div><div class="row-meta"><span class="badge" [class.new]="item.request.status === 'New'">{{ labels[item.request.status] }}</span><small>{{ date(item.request.createdAt) }}</small><span class="arrow">↗</span></div></button> }
-        @if (!tickets.length && !loading) { <div class="empty"><h3>Заявок за цими умовами немає</h3><p>Змініть фільтри або завантажте наступну сторінку, якщо вона доступна.</p></div> }
-        </section>
+<section class="stats" aria-label="Завантажені заявки">
+  <div class="panel">
+    <span>У списку</span><strong>{{ tickets.length }}</strong>
+  </div>
+  <div class="panel">
+    <span>Нові</span><strong>{{ newCount }}</strong>
+  </div>
+  <div class="panel">
+    <span>В роботі</span><strong>{{ progressCount }}</strong>
+  </div>
+  <p class="muted">Показники для завантажених заявок</p>
+</section>
+<form class="panel filters" (ngSubmit)="submitFilters()">
+  <label class="search"
+    >Пошук<input
+      name="search"
+      [(ngModel)]="filters.search"
+      placeholder="Місце або опис проблеми"
+      maxlength="200" /></label
+  ><label
+    >Статус<select name="status" [(ngModel)]="filters.status">
+      <option value="">Усі статуси</option>
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ labels[s] }}</option>
+      }
+    </select></label
+  ><label
+    >Категорія<select name="category" [(ngModel)]="filters.category">
+      <option value="">Усі категорії</option>
+      @for (c of categories; track c) {
+        <option [value]="c">{{ c }}</option>
+      }
+    </select></label
+  ><label>Від дати<input type="date" name="from" [(ngModel)]="filters.from" /></label
+  ><label>До дати<input type="date" name="to" [(ngModel)]="filters.to" /></label
+  ><button type="submit" [disabled]="loading || saving">Знайти</button>
+</form>
+<section class="panel list">
+  <div class="list-title">
+    <h2>Звернення мешканців</h2>
+    <span class="muted">Від новіших до старіших</span>
+  </div>
+  @for (item of tickets; track item.request.id) {
+    <button class="ticket-row" (click)="openTicket.emit(item)" [disabled]="saving">
+      <div>
+        <span class="ticket-number">№{{ item.request.id }} · {{ item.request.category }}</span>
+        <h3>{{ item.request.location }}</h3>
+        <p>{{ item.request.description }}</p>
+      </div>
+      <div class="row-meta">
+        <span class="badge" [class.new]="item.request.status === 'New'">{{
+          labels[item.request.status]
+        }}</span
+        ><small>{{ date(item.request.createdAt) }}</small
+        ><span class="arrow">↗</span>
+      </div>
+    </button>
+  }
+  @if (!tickets.length && !loading) {
+    <div class="empty">
+      <h3>Заявок за цими умовами немає</h3>
+      <p>Змініть фільтри або завантажте наступну сторінку, якщо вона доступна.</p>
+    </div>
+  }
+</section>

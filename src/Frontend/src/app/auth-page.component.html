@@ -5,9 +5,7 @@
   </div>
 
   <div class="auth-card panel">
-    <button class="back" type="button" (click)="accountClosed.emit()">
-      ← На головну
-    </button>
+    <button class="back" type="button" (click)="accountClosed.emit()">← На головну</button>
 
     @if (mode === 'sign-in') {
       <h2>ВХІД</h2>
@@ -32,11 +30,7 @@
           {{ busy ? 'Входимо…' : 'Увійти' }}
         </button>
       </form>
-      <button
-        class="text-button"
-        type="button"
-        (click)="show('forgot-password')"
-      >
+      <button class="text-button" type="button" (click)="show('forgot-password')">
         Забули пароль?
       </button>
       <p class="switch">
@@ -107,18 +101,11 @@
           {{ busy ? 'Перевіряємо…' : 'Підтвердити' }}
         </button>
       </form>
-      <button
-        class="text-button"
-        type="button"
-        (click)="resendConfirmation()"
-        [disabled]="busy"
-      >
+      <button class="text-button" type="button" (click)="resendConfirmation()" [disabled]="busy">
         Надіслати код ще раз
       </button>
       <p class="switch">
-        <button type="button" (click)="show('sign-in')">
-          Повернутися до входу
-        </button>
+        <button type="button" (click)="show('sign-in')">Повернутися до входу</button>
       </p>
     }
 
@@ -140,9 +127,7 @@
         </button>
       </form>
       <p class="switch">
-        <button type="button" (click)="show('sign-in')">
-          Повернутися до входу
-        </button>
+        <button type="button" (click)="show('sign-in')">Повернутися до входу</button>
       </p>
     }
 
@@ -183,9 +168,7 @@
         </button>
       </form>
       <p class="switch">
-        <button type="button" (click)="show('sign-in')">
-          Повернутися до входу
-        </button>
+        <button type="button" (click)="show('sign-in')">Повернутися до входу</button>
       </p>
     }
 

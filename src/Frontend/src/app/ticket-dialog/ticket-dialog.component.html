@@ -1,1 +1,83 @@
-<div class="backdrop"><section class="dialog wide panel" role="dialog" aria-modal="true" tabindex="-1" (keydown.escape)="closed.emit()" aria-labelledby="ticket-title"><div class="list-title"><h2 id="ticket-title">Заявка №{{ draft.id }}</h2><button class="quiet" aria-label="Закрити" [disabled]="saving" (click)="closed.emit()">✕</button></div><p class="eyebrow">{{ draft.category }} · {{ draft.location }}</p><p class="description">{{ draft.description }}</p>@if (error) { <div class="alert error" role="alert">{{ error }}</div> }<form (ngSubmit)="saved.emit(draft)"><div class="form-grid"><label>Статус<select name="editStatus" [(ngModel)]="draft.status">@for (s of statuses; track s) { <option [value]="s">{{ labels[s] }}</option> }</select></label><label>Пріоритет<select name="priority" [(ngModel)]="draft.priority"><option value="Low">Низький</option><option value="Normal">Звичайний</option><option value="High">Високий</option><option value="Urgent">Терміновий</option></select></label><label>Відповідальний<select name="assignee" [(ngModel)]="draft.assignedTo"><option [ngValue]="null">Не призначено</option>@for (a of assignees; track a.userId) { <option [value]="a.userId">{{ a.email }}</option> }</select></label><label>Планова дата<input type="date" name="planned" [(ngModel)]="draft.plannedDate"></label><label>Видимість<select name="visibility" [(ngModel)]="draft.visibility"><option value="Private">Приватна</option><option value="Public">Для мешканців будинку</option></select></label></div><label>Пояснення для мешканця<textarea name="resolution" [(ngModel)]="draft.resolution" maxlength="1000" [required]="draft.status === 'Completed' || draft.status === 'Rejected'" placeholder="Обов’язково для виконаних і відхилених заявок"></textarea></label><div class="actions"><button type="button" class="secondary" (click)="closed.emit()" [disabled]="saving">Скасувати</button><button type="submit" [disabled]="saving">{{ saving ? 'Зберігаємо…' : 'Зберегти зміни' }}</button></div></form><h3 class="history-title">Історія змін</h3>@for (event of history; track $index) { <div class="history-event"><strong>{{ event['status'] ? labels[event['status']] : 'Оновлення заявки' }}</strong><small>{{ event['createdAt'] ? date(event['createdAt']) : '' }} · {{ event['actor'] || 'Мешканець' }}</small>@if (event['resolution']) { <p>{{ event['resolution'] }}</p> }</div> }</section></div>
+<div class="backdrop">
+  <section
+    class="dialog wide panel"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    (keydown.escape)="closed.emit()"
+    aria-labelledby="ticket-title"
+  >
+    <div class="list-title">
+      <h2 id="ticket-title">Заявка №{{ draft.id }}</h2>
+      <button class="quiet" aria-label="Закрити" [disabled]="saving" (click)="closed.emit()">
+        ✕
+      </button>
+    </div>
+    <p class="eyebrow">{{ draft.category }} · {{ draft.location }}</p>
+    <p class="description">{{ draft.description }}</p>
+    @if (error) {
+      <div class="alert error" role="alert">{{ error }}</div>
+    }
+    <form (ngSubmit)="saved.emit(draft)">
+      <div class="form-grid">
+        <label
+          >Статус<select name="editStatus" [(ngModel)]="draft.status">
+            @for (s of statuses; track s) {
+              <option [value]="s">{{ labels[s] }}</option>
+            }
+          </select></label
+        ><label
+          >Пріоритет<select name="priority" [(ngModel)]="draft.priority">
+            <option value="Low">Низький</option>
+            <option value="Normal">Звичайний</option>
+            <option value="High">Високий</option>
+            <option value="Urgent">Терміновий</option>
+          </select></label
+        ><label
+          >Відповідальний<select name="assignee" [(ngModel)]="draft.assignedTo">
+            <option [ngValue]="null">Не призначено</option>
+            @for (a of assignees; track a.userId) {
+              <option [value]="a.userId">{{ a.email }}</option>
+            }
+          </select></label
+        ><label
+          >Планова дата<input type="date" name="planned" [(ngModel)]="draft.plannedDate" /></label
+        ><label
+          >Видимість<select name="visibility" [(ngModel)]="draft.visibility">
+            <option value="Private">Приватна</option>
+            <option value="Public">Для мешканців будинку</option>
+          </select></label
+        >
+      </div>
+      <label
+        >Пояснення для мешканця<textarea
+          name="resolution"
+          [(ngModel)]="draft.resolution"
+          maxlength="1000"
+          [required]="draft.status === 'Completed' || draft.status === 'Rejected'"
+          placeholder="Обов’язково для виконаних і відхилених заявок"
+        ></textarea>
+      </label>
+      <div class="actions">
+        <button type="button" class="secondary" (click)="closed.emit()" [disabled]="saving">
+          Скасувати</button
+        ><button type="submit" [disabled]="saving">
+          {{ saving ? 'Зберігаємо…' : 'Зберегти зміни' }}
+        </button>
+      </div>
+    </form>
+    <h3 class="history-title">Історія змін</h3>
+    @for (event of history; track $index) {
+      <div class="history-event">
+        <strong>{{ event['status'] ? labels[event['status']] : 'Оновлення заявки' }}</strong
+        ><small
+          >{{ event['createdAt'] ? date(event['createdAt']) : '' }} ·
+          {{ event['actor'] || 'Мешканець' }}</small
+        >
+        @if (event['resolution']) {
+          <p>{{ event['resolution'] }}</p>
+        }
+      </div>
+    }
+  </section>
+</div>

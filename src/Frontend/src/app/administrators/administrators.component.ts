@@ -4,7 +4,7 @@ import { Admin } from '../api.service';
 @Component({
   selector: 'app-administrators',
   imports: [],
-  templateUrl: './administrators.component.html'
+  templateUrl: './administrators.component.html',
 })
 export class AdministratorsComponent {
   @Input() admins: Admin[] = [];

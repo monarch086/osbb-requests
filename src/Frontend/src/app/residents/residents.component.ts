@@ -5,7 +5,7 @@ import { formatDate } from '../shared/ticket-presentation';
 @Component({
   selector: 'app-residents',
   imports: [],
-  templateUrl: './residents.component.html'
+  templateUrl: './residents.component.html',
 })
 export class ResidentsComponent {
   @Input() residents: Registration[] = [];

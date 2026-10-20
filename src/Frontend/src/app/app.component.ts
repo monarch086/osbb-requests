@@ -9,7 +9,7 @@ import { WorkspaceComponent } from './workspace/workspace.component';
 @Component({
   selector: 'app-root',
   imports: [AsyncPipe, AuthPageComponent, WorkspaceComponent],
-  templateUrl: './app.component.html'
+  templateUrl: './app.component.html',
 })
 export class AppComponent implements OnInit {
   readonly auth = inject(AuthService);
@@ -18,23 +18,23 @@ export class AppComponent implements OnInit {
   saving = false;
   showAuth = false;
   error = '';
-  async ngOnInit(): Promise<void> {
-    this.auth.user$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
-      if (!user)
-        this.saving = false;
+  ngOnInit(): void {
+    void this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    this.auth.user$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((user) => {
+      if (!user) this.saving = false;
     });
     try {
       await this.auth.initialize();
-    }
-    catch (e) {
+    } catch (e) {
       this.error = errorMessage(e);
-    }
-    finally {
+    } finally {
       this.ready = true;
     }
   }
   async logout(): Promise<void> {
-    if (!this.saving)
-      await this.auth.signOut();
+    if (!this.saving) await this.auth.signOut();
   }
 }

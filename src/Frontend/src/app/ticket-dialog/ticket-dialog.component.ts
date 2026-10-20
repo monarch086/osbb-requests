@@ -6,7 +6,7 @@ import { ticketStatuses, statusLabels, formatDate } from '../shared/ticket-prese
 @Component({
   selector: 'app-ticket-dialog',
   imports: [FormsModule],
-  templateUrl: './ticket-dialog.component.html'
+  templateUrl: './ticket-dialog.component.html',
 })
 export class TicketDialogComponent {
   @Input({ required: true }) draft!: Ticket;

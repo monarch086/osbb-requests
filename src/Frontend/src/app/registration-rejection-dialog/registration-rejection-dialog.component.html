@@ -1,1 +1,33 @@
-<div class="backdrop"><section class="dialog panel" role="dialog" aria-modal="true" tabindex="-1" (keydown.escape)="closed.emit()" aria-labelledby="reject-title"><p class="eyebrow">РЕЄСТРАЦІЯ МЕШКАНЦЯ</p><h2 id="reject-title">Відхилити запит?</h2><p>{{ registration.firstName }} {{ registration.lastName }}</p>@if (error) { <div class="alert error" role="alert">{{ error }}</div> }<form (ngSubmit)="rejected.emit(reason.trim())"><label>Причина<textarea name="reason" [(ngModel)]="reason" maxlength="500" required placeholder="Пояснення для мешканця"></textarea></label><div class="actions"><button class="secondary" type="button" (click)="closed.emit()" [disabled]="saving">Скасувати</button><button type="submit" [disabled]="saving || !reason.trim()">Відхилити</button></div></form></section></div>
+<div class="backdrop">
+  <section
+    class="dialog panel"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    (keydown.escape)="closed.emit()"
+    aria-labelledby="reject-title"
+  >
+    <p class="eyebrow">РЕЄСТРАЦІЯ МЕШКАНЦЯ</p>
+    <h2 id="reject-title">Відхилити запит?</h2>
+    <p>{{ registration.firstName }} {{ registration.lastName }}</p>
+    @if (error) {
+      <div class="alert error" role="alert">{{ error }}</div>
+    }
+    <form (ngSubmit)="rejected.emit(reason.trim())">
+      <label
+        >Причина<textarea
+          name="reason"
+          [(ngModel)]="reason"
+          maxlength="500"
+          required
+          placeholder="Пояснення для мешканця"
+        ></textarea>
+      </label>
+      <div class="actions">
+        <button class="secondary" type="button" (click)="closed.emit()" [disabled]="saving">
+          Скасувати</button
+        ><button type="submit" [disabled]="saving || !reason.trim()">Відхилити</button>
+      </div>
+    </form>
+  </section>
+</div>

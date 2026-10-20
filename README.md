@@ -52,6 +52,7 @@ POST /telegram/webhook
 ```bash
 npm ci
 npm ci --prefix src/Frontend
+npm run check --prefix src/Frontend
 npm run build --prefix src/Frontend
 dotnet restore OsbbRequests.sln --locked-mode
 npm run build
@@ -68,6 +69,8 @@ GitHub Actions запускає restore, build, тести, перевірку �
 ## Вебпанель адміністраторів
 
 Angular-застосунок у `src/Frontend` побудований за прикладом `~/projects/PingLight/src/Frontend`: Cognito для входу, підтвердження email, відновлення пароля, sessionStorage для сесії, зелена палітра та сторінки робочого простору. Це SPA; приватні дані завантажуються лише з авторизованого API. Статичні файли зберігаються у приватному S3 і доступні через CloudFront HTTPS.
+
+Якість фронтенду перевіряють ESLint (рекомендовані правила TypeScript із перевіркою типів, Angular і доступності шаблонів), Stylelint (`standard-scss`) та Prettier. Команда `npm run check --prefix src/Frontend` запускає всі перевірки; вона також виконується в CI. Для автоматичних виправлень: `npm run lint:fix --prefix src/Frontend`, потім `npm run format --prefix src/Frontend`. Збірки, кеші та залежності виключено з перевірок.
 
 Розділи: **Заявки**, **Мешканці**, **Адміністратори** (тільки для супер адміністратора). У заявках є пошук за входженням у місце/опис, фільтри статусу, категорії й UTC-дат подання, пагінація, відповідальний, пріоритет, планова дата, видимість і пояснення. Пояснення є обов'язковим для виконаних і відхилених заявок. В історії показуються до 100 останніх записів. Фото, коментарі й зв'язування дублікатів ще не додані.
 

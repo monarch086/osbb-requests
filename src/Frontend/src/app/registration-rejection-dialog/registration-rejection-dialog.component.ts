@@ -5,7 +5,7 @@ import { Registration } from '../api.service';
 @Component({
   selector: 'app-registration-rejection-dialog',
   imports: [FormsModule],
-  templateUrl: './registration-rejection-dialog.component.html'
+  templateUrl: './registration-rejection-dialog.component.html',
 })
 export class RegistrationRejectionDialogComponent {
   @Input({ required: true }) registration!: Registration;

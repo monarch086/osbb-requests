@@ -35,9 +35,7 @@ export class AuthService {
       );
     const config = (await response.json()) as AppConfig;
     if (!config.apiUrl || !config.clientId || !config.userPoolId)
-      throw new UserFacingError(
-        'Доступ до облікового запису поки недоступний. Спробуйте пізніше.',
-      );
+      throw new UserFacingError('Доступ до облікового запису поки недоступний. Спробуйте пізніше.');
     const apiUrl = new URL(config.apiUrl);
     if (
       apiUrl.protocol !== 'https:' &&
@@ -78,10 +76,8 @@ export class AuthService {
           );
       }
     } catch (error) {
-      if (errorName(error) === 'UserNotConfirmedException')
-        return 'CONFIRM_SIGN_UP';
-      if (errorName(error) === 'PasswordResetRequiredException')
-        return 'RESET_PASSWORD';
+      if (errorName(error) === 'UserNotConfirmedException') return 'CONFIRM_SIGN_UP';
+      if (errorName(error) === 'PasswordResetRequiredException') return 'RESET_PASSWORD';
       throw authError(error);
     }
   }
@@ -129,11 +125,7 @@ export class AuthService {
     }
   }
 
-  async confirmPasswordReset(
-    email: string,
-    code: string,
-    newPassword: string,
-  ): Promise<void> {
+  async confirmPasswordReset(email: string, code: string, newPassword: string): Promise<void> {
     this.ensureConfigured();
     try {
       await this.cognito.confirmResetPassword({
@@ -175,10 +167,7 @@ export class AuthService {
   }
 
   private ensureConfigured(): void {
-    if (!this.config)
-      throw new UserFacingError(
-        'Доступ до облікового запису поки недоступний.',
-      );
+    if (!this.config) throw new UserFacingError('Доступ до облікового запису поки недоступний.');
   }
 }
 
@@ -187,9 +176,7 @@ function normalizeEmail(email: string): string {
 }
 
 function errorName(error: unknown): string {
-  return typeof error === 'object' && error !== null && 'name' in error
-    ? String(error.name)
-    : '';
+  return typeof error === 'object' && error !== null && 'name' in error ? String(error.name) : '';
 }
 
 function isNoCurrentUser(error: unknown): boolean {
@@ -198,21 +185,16 @@ function isNoCurrentUser(error: unknown): boolean {
 
 function authError(error: unknown): UserFacingError {
   const messages: Record<string, string> = {
-    AliasExistsException:
-      'Обліковий запис із цією електронною адресою вже існує.',
-    CodeMismatchException:
-      'Код неправильний. Перевірте його та спробуйте ще раз.',
+    AliasExistsException: 'Обліковий запис із цією електронною адресою вже існує.',
+    CodeMismatchException: 'Код неправильний. Перевірте його та спробуйте ще раз.',
     ExpiredCodeException: 'Термін дії коду минув. Запросіть новий код.',
     InvalidPasswordException: 'Пароль не відповідає вимогам безпеки.',
-    LimitExceededException:
-      'Забагато спроб. Зачекайте трохи та спробуйте ще раз.',
+    LimitExceededException: 'Забагато спроб. Зачекайте трохи та спробуйте ще раз.',
     NotAuthorizedException: 'Неправильна електронна адреса або пароль.',
     PasswordResetRequiredException: 'Потрібно створити новий пароль.',
-    TooManyRequestsException:
-      'Забагато спроб. Зачекайте трохи та спробуйте ще раз.',
+    TooManyRequestsException: 'Забагато спроб. Зачекайте трохи та спробуйте ще раз.',
     UserAlreadyAuthenticatedException: 'Ви вже ввійшли до облікового запису.',
-    UsernameExistsException:
-      'Обліковий запис із цією електронною адресою вже існує.',
+    UsernameExistsException: 'Обліковий запис із цією електронною адресою вже існує.',
     UserNotFoundException: 'Неправильна електронна адреса або пароль.',
   };
   return new UserFacingError(
