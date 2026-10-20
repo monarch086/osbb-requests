@@ -24,6 +24,42 @@
 </section>
 <form class="card card-body mb-4" (ngSubmit)="submitFilters()">
   <div class="row g-3 align-items-end">
+    <div class="col-12 col-sm-6 col-lg-4">
+      <label class="form-label" for="request-target">Будинок / комплекс</label>
+      <ng-select
+        labelForId="request-target"
+        name="target"
+        [(ngModel)]="filters.target"
+        (ngModelChange)="filters.floor = ''"
+        [clearable]="false"
+        [searchable]="false"
+        [disabled]="loading || saving"
+      >
+        <ng-option value="">Усі будинки й комплекс</ng-option>
+        @for (target of targets; track target.value) {
+          <ng-option [value]="target.value">{{ target.label }}</ng-option>
+        }
+        <ng-option value="Unspecified">Будинок не уточнено</ng-option>
+      </ng-select>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+      <label class="form-label" for="request-floor">Поверх</label>
+      <ng-select
+        labelForId="request-floor"
+        name="floor"
+        [(ngModel)]="filters.floor"
+        [clearable]="false"
+        [disabled]="
+          loading || saving || filters.target === 'Complex' || filters.target === 'Unspecified'
+        "
+        notFoundText="Нічого не знайдено"
+      >
+        <ng-option value="">Усі поверхи</ng-option>
+        @for (floor of floors; track floor) {
+          <ng-option [value]="floor.toString()">{{ floor }}</ng-option>
+        }
+      </ng-select>
+    </div>
     <div class="col-12 col-lg-4">
       <label class="form-label" for="request-search">Пошук</label>
       <input
@@ -104,6 +140,7 @@
           <span class="text-body-secondary small"
             >№{{ item.request.id }} · {{ item.request.category }}</span
           >
+          <p class="small mt-2 mb-1">{{ locationLabel(item.request) }}</p>
           <h3 class="h6 mt-2">{{ item.request.location }}</h3>
           <p class="ticket-description text-body-secondary small mb-0">
             {{ item.request.description }}

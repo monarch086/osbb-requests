@@ -11,6 +11,8 @@ internal sealed class MemoryRepository : ICommandRepository
     public HashSet<long> Residents { get; } = [42];
     public Dictionary<long, StoredReply> Replies { get; } = [];
     public List<MaintenanceRequest> Requests { get; } = [];
+    public Dictionary<long, RequestDraft> Drafts { get; } = [];
+    public Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Drafts.GetValueOrDefault(userId));
     public Dictionary<long, ResidentRegistration> Registrations { get; } = [];
     public Task<ResidentRegistration?> GetRegistrationAsync(long userId, CancellationToken cancellationToken) =>
         Task.FromResult(Registrations.GetValueOrDefault(userId));
@@ -46,6 +48,12 @@ internal sealed class MemoryRepository : ICommandRepository
             if (Registrations.GetValueOrDefault(command.UserId)?.Version != change.ExpectedVersion)
                 throw new InvalidOperationException("Registration version conflict.");
             Registrations[command.UserId] = change.Value;
+        }
+        if (outcome.Draft is { } draft)
+        {
+            if (Drafts.GetValueOrDefault(command.UserId)?.Version != draft.ExpectedVersion)
+                throw new InvalidOperationException("Draft version conflict.");
+            Drafts[command.UserId] = draft.Value;
         }
         CommitCount++;
         if (outcome.NewRequest is { } request)

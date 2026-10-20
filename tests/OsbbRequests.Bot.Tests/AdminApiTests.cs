@@ -22,10 +22,11 @@ public sealed class AdminApiTests
 
     private static readonly AdminUser Super = new("super", "head@example.org", "Head", true, true, 1);
     private static readonly AdminUser Regular = new("regular", "admin@example.org", "Admin", true, false, 1);
-    private static APIGatewayHttpApiV2ProxyRequest Request(string path, string method = "GET", string? user = "regular", object? body = null, string tokenUse = "access") =>
+    private static APIGatewayHttpApiV2ProxyRequest Request(string path, string method = "GET", string? user = "regular", object? body = null, string tokenUse = "access", Dictionary<string, string>? query = null) =>
         JsonSerializer.Deserialize<APIGatewayHttpApiV2ProxyRequest>(JsonSerializer.Serialize(new
         {
             rawPath = path,
+            queryStringParameters = query,
             headers = new { authorization = "Bearer example" },
             body = body is null ? null : JsonSerializer.Serialize(body),
             requestContext = new { http = new { method }, authorizer = user is null ? null : new { jwt = new { claims = new Dictionary<string, string> { ["sub"] = user, ["token_use"] = tokenUse } } } }
@@ -145,11 +146,81 @@ public sealed class AdminApiTests
         Assert.Equal(400, error.Status);
         Assert.Equal(0, store.RequestWrites);
     }
+    [Theory]
+    [InlineData("Building", "4Б", 1)]
+    [InlineData("Building", "4Д", 25)]
+    [InlineData("Building", "4В", null)]
+    [InlineData("Building", "4Г", 15)]
+    [InlineData("Complex", null, null)]
+    public async Task AdminCanAssignAnExplicitValidTargetToLegacyRequest(string scope, string? building, int? floor)
+    {
+        var store = new FakeStore();
+        var result = await Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "New", visibility = "Private", priority = "Normal", version = 1, scope, buildingNumber = building, floor }), default);
+        Assert.Equal(200, result.StatusCode);
+        Assert.NotNull(store.LastRequest);
+        Assert.Equal(scope, store.LastRequest.Scope.ToString());
+        Assert.Equal(building, store.LastRequest.BuildingNumber);
+        Assert.Equal(floor, store.LastRequest.Floor);
+    }
+    [Theory]
+    [InlineData(null, null, null)]
+    [InlineData("Building", null, 1)]
+    [InlineData("Building", "4А", 1)]
+    [InlineData("Building", "1", 1)]
+    [InlineData("Building", "4B", 1)]
+    [InlineData("Building", "4Б", 0)]
+    [InlineData("Building", "4Б", 26)]
+    [InlineData("Complex", "4Б", null)]
+    [InlineData("Complex", null, 1)]
+    public async Task ApiRejectsInvalidOrMissingTarget(string? scope, string? building, int? floor)
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "New", visibility = "Private", priority = "Normal", version = 1, scope, buildingNumber = building, floor }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Equal(0, store.RequestWrites);
+    }
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task ApiRejectsNumericOrdinalBuildingNumber(int building)
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "New", visibility = "Private", priority = "Normal", version = 1, scope = "Building", buildingNumber = building, floor = 1 }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Equal(0, store.RequestWrites);
+    }
+    [Fact]
+    public async Task ApiPassesBuildingAndFloorFiltersToStore()
+    {
+        var store = new FakeStore();
+        await Handler(store).HandleAsync(Request("/admin/requests", query: new() { ["target"] = "Building4Д", ["floor"] = "25" }), default);
+        Assert.Equal("Building4Д", store.LastFilters!.Target);
+        Assert.Equal(25, store.LastFilters.Floor);
+    }
+    [Theory]
+    [InlineData("Building5", "1")]
+    [InlineData("Building1", "1")]
+    [InlineData("Building4А", "1")]
+    [InlineData("Building4Б", "0")]
+    [InlineData("Building4Б", "26")]
+    public async Task ApiRejectsInvalidLocationFilters(string target, string floor)
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests", query:
+            new() { ["target"] = target, ["floor"] = floor }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Null(store.LastFilters);
+    }
     private sealed class FakeIdentity : IIdentityProvider
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
     private sealed class FakeStore : IAdminStore
     {
         public Dictionary<string, AdminUser> Users { get; } = new() { ["super"] = Super, ["regular"] = Regular, ["target"] = new("target", "new@example.org", "New", false, false, 1) };
+        public MaintenanceRequest? LastRequest;
+        public RequestFilters? LastFilters;
         public int PrivateReads; public int AccessWrites; public int RequestWrites;
         public Task<AdminUser?> GetAdminAsync(string user, CancellationToken ct) => Task.FromResult(Users.GetValueOrDefault(user));
         public Task<AdminUser> RegisterAccountAsync(Identity identity, CancellationToken ct)
@@ -162,9 +233,9 @@ public sealed class AdminApiTests
         public Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new Page<RegisteredResident>([new("reference", "Олена", "Ковальчук", "+380500000000", DateTimeOffset.UnixEpoch)], "next-page")); }
         public Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct) => Task.CompletedTask;
-        public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) => Task.FromResult(new Page<ManagedRequest>([], null));
+        public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) { LastFilters = filters; return Task.FromResult(new Page<ManagedRequest>([], null)); }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
-        public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; return Task.CompletedTask; }
+        public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
         public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(long id, CancellationToken ct) => Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]);
     }
 }

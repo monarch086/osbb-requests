@@ -28,6 +28,9 @@ export interface RegisteredResident {
 export interface Ticket {
   id: number;
   ownerId: number;
+  scope: 'Complex' | 'Building' | null;
+  buildingNumber: string | null;
+  floor: number | null;
   category: string;
   location: string;
   description: string;

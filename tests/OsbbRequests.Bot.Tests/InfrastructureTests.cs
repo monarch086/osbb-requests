@@ -1,4 +1,5 @@
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Domain;
 using System.Net;
 using System.Reflection;
 using System.Text;
@@ -64,7 +65,7 @@ public sealed class InfrastructureTests
         using var client = new CapturingDynamo();
         var repository = new DynamoCommandRepository(client, "data");
         var command = new CommandEnvelope(100, 42, 42, "/new");
-        var request = new MaintenanceRequest(100, 42, "building", "інше", "двір", "Зламано освітлення", DateTimeOffset.UtcNow);
+        var request = new MaintenanceRequest(100, 42, "building", "інше", "двір", "Зламано освітлення", DateTimeOffset.UtcNow, Scope: RequestScope.Complex);
         await repository.CommitAsync(command, new CommandOutcome("Створено", request), CancellationToken.None);
         var transaction = Assert.IsType<TransactWriteItemsRequest>(client.Transaction);
         Assert.Equal(3, transaction.TransactItems.Count);
@@ -74,6 +75,41 @@ public sealed class InfrastructureTests
         Assert.Equal("USER#42", transaction.TransactItems[1].Put.Item["pk"].S);
         Assert.Equal("REQUEST#100", transaction.TransactItems[2].Put.Item["pk"].S);
         Assert.All(transaction.TransactItems.Skip(1), item => Assert.False(item.Put.Item.ContainsKey("expiresAt")));
+    }
+
+    [Fact]
+    public async Task WizardFinalizationCommitsDraftVersionRequestTargetHistoryAndReplyAtomically()
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        var request = new MaintenanceRequest(100, 42, "complex", "інше", "ліфт", "Ліфт не працює", DateTimeOffset.UtcNow,
+            Scope: RequestScope.Building, BuildingNumber: "4В", Floor: 25);
+        var draft = new RequestDraft(42, "complex", RequestDraftStage.Completed, 7);
+        await repository.CommitAsync(new(100, 42, 42, "Ліфт не працює"), new("Створено", request, Draft: new(draft, 6)), default);
+        var writes = client.Transaction!.TransactItems;
+        Assert.Equal(4, writes.Count);
+        var stored = Assert.Single(writes, w => w.Put.Item["sk"].S.StartsWith("REQUEST#", StringComparison.Ordinal)).Put.Item;
+        Assert.Equal("Building4В", stored["requestTarget"].S);
+        using var payload = JsonDocument.Parse(stored["payload"].S);
+        Assert.Equal(JsonValueKind.String, payload.RootElement.GetProperty("BuildingNumber").ValueKind);
+        Assert.Equal("4В", payload.RootElement.GetProperty("BuildingNumber").GetString());
+        Assert.Equal("25", stored["requestFloor"].N);
+        var state = Assert.Single(writes, w => w.Put.Item["sk"].S == "REQUEST_DRAFT").Put;
+        Assert.Equal("6", state.ExpressionAttributeValues[":expected"].N);
+        Assert.Contains(":expected", state.ConditionExpression);
+        Assert.False(stored.ContainsKey("expiresAt"));
+    }
+
+    [Fact]
+    public async Task WizardDraftPersistsAdministrativeBuildingNumberAsString()
+    {
+        using var client = new CapturingDynamo();
+        var draft = new RequestDraft(42, "complex", RequestDraftStage.Floor, 2, RequestScope.Building, "4Г");
+        await new DynamoCommandRepository(client, "data").CommitAsync(new(2, 42, 42, "Будинок 4Г"),
+            new("Поверх", Draft: new(draft, 1)), default);
+        var stored = Assert.Single(client.Transaction!.TransactItems, w => w.Put.Item["sk"].S == "REQUEST_DRAFT").Put.Item;
+        using var payload = JsonDocument.Parse(stored["payload"].S);
+        Assert.Equal("4Г", payload.RootElement.GetProperty("BuildingNumber").GetString());
     }
 
     [Fact]
@@ -146,6 +182,28 @@ public sealed class InfrastructureTests
         Assert.False(body.RootElement.TryGetProperty("parse_mode", out _));
         Assert.Equal("<b>Місце</b>", body.RootElement.GetProperty("text").GetString());
         Assert.True(body.RootElement.GetProperty("link_preview_options").GetProperty("is_disabled").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData(ReplyKeyboard.RequestScope, "Будинок 4Д")]
+    [InlineData(ReplyKeyboard.RequestFloor, "Без поверху")]
+    [InlineData(ReplyKeyboard.RequestCategory, "сантехніка")]
+    public async Task WizardChoicesAreDeliveredAsReplyKeyboardButtons(ReplyKeyboard keyboard, string choice)
+    {
+        string? sent = null;
+        using var http = new HttpClient(new HttpStub(async request =>
+        {
+            sent = await request.Content!.ReadAsStringAsync();
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"ok\":true}") };
+        }));
+        await new TelegramClient(http, new FakeSecret("token")).SendMessageAsync(42, "Оберіть", default, keyboard);
+        using var body = JsonDocument.Parse(Assert.IsType<string>(sent));
+        var markup = body.RootElement.GetProperty("reply_markup");
+        var labels = markup.GetProperty("keyboard").EnumerateArray().SelectMany(row => row.EnumerateArray())
+            .Select(button => button.GetProperty("text").GetString()).ToList();
+        Assert.Contains(choice, labels);
+        Assert.True(markup.GetProperty("resize_keyboard").GetBoolean());
+        Assert.True(markup.GetProperty("one_time_keyboard").GetBoolean());
     }
 
     [Fact]

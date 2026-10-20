@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using OsbbRequests.Bot.Models;
+using OsbbRequests.Bot.Commands;
+using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.Bot.Telegram;
 
@@ -24,6 +26,16 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
+        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory)
+        {
+            var rows = keyboard switch
+            {
+                ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { "Весь комплекс" }).ToArray(),
+                ReplyKeyboard.RequestFloor => [["Без поверху"]],
+                _ => RequestCreationService.Categories.Split(", ").Select(category => new[] { category }).ToArray()
+            };
+            payload["reply_markup"] = new { keyboard = rows.Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = true };
+        }
         else if (keyboard == ReplyKeyboard.Remove)
             payload["reply_markup"] = new { remove_keyboard = true };
         // No parse_mode: all resident content is plain text, never Telegram HTML.

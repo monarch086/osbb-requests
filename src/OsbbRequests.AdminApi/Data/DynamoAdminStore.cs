@@ -5,6 +5,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
@@ -231,6 +232,9 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
         foreach (var (field, value) in new[] { ("requestStatus", filters.Status), ("requestCategory", filters.Category) })
             if (!string.IsNullOrEmpty(value)) { values[":" + field] = S(value); parts.Add(field + " = :" + field); }
         if (!string.IsNullOrWhiteSpace(filters.Search)) { values[":search"] = S(filters.Search.ToLowerInvariant()); parts.Add("contains(searchText, :search)"); }
+        if (filters.Target == "Unspecified") parts.Add("attribute_not_exists(requestTarget)");
+        else if (!string.IsNullOrEmpty(filters.Target)) { values[":target"] = S(filters.Target); parts.Add("requestTarget = :target"); }
+        if (filters.Floor is { } floor) { values[":floor"] = N(floor); parts.Add("requestFloor = :floor"); }
         var result = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,
@@ -253,18 +257,21 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
     }
     public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
     {
+        if (!ComplexLayout.IsValid(next.Scope, next.BuildingNumber, next.Floor)) throw new ApiError(400, "Некоректна прив’язка заявки.");
         var now = DateTimeOffset.UtcNow.ToString("O");
         var audit = Key("REQUEST#" + next.Id.ToString(CultureInfo.InvariantCulture), "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
         audit["actor"] = S(actor.Email); audit["createdAt"] = S(now); audit["status"] = S(next.Status.ToString());
         audit["previousStatus"] = S(current.Request.Status.ToString()); audit["resolution"] = S(next.Resolution ?? "");
-        audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility }));
+        audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility, next.Scope, next.BuildingNumber, next.Floor }));
         await Transact([ActorCheck(actor), new() { Update = new() {
             TableName = dataTable, Key = Key("USER#" + next.OwnerId.ToString(CultureInfo.InvariantCulture), RequestKey(next.Id)),
-            UpdateExpression = "SET #payload = :payload, #v = :next, requestStatus = :status",
+            UpdateExpression = "SET #payload = :payload, #v = :next, requestStatus = :status, requestTarget = :target, requestFloor = :floor",
             ConditionExpression = "#v = :expected",
             ExpressionAttributeNames = new() { ["#payload"] = "payload", ["#v"] = "version" },
             ExpressionAttributeValues = new() { [":payload"] = S(JsonSerializer.Serialize(next)), [":next"] = N(current.Version + 1),
-                [":expected"] = N(current.Version), [":status"] = S(next.Status.ToString()) }
+                [":expected"] = N(current.Version), [":status"] = S(next.Status.ToString()),
+                [":target"] = S(ComplexLayout.Target(next.Scope, next.BuildingNumber)),
+                [":floor"] = next.Floor is { } floor ? N(floor) : new() { NULL = true } }
         } }, Put(dataTable, audit)], ct);
     }
     public async Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(long requestId, CancellationToken ct)

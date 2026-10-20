@@ -47,7 +47,7 @@ public sealed class RegistrationTests
         Assert.Equal("Ковальчук", registration.LastName);
         Assert.Equal(RegistrationStage.Pending, registration.Stage);
         Assert.DoesNotContain(99, repository.Residents);
-        await processor.ProcessAsync(Message(5, "/new сантехніка | двір | Протікає труба"), CancellationToken.None);
+        await processor.ProcessAsync(Message(5, "/new 4В | 12 | сантехніка | двір | Протікає труба"), CancellationToken.None);
         Assert.Empty(repository.Requests);
         Assert.Contains("очікує", telegram.Messages[^1].Text);
         Assert.DoesNotContain("Telegram ID", telegram.Messages[^1].Text);
@@ -143,7 +143,7 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
         Assert.DoesNotContain("Telegram ID", Assert.Single(telegram.Messages).Text);
         Assert.Empty(repository.Registrations);
-        await processor.ProcessAsync(Message(2, "/new сантехніка | двір | Протікає труба"), CancellationToken.None);
+        await processor.ProcessAsync(Message(2, "/new 4В | 12 | сантехніка | двір | Протікає труба"), CancellationToken.None);
         Assert.Single(repository.Requests);
     }
 

@@ -2,7 +2,15 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
 import { Ticket } from '../api.service';
-import { ticketStatuses, statusLabels, formatDate } from '../shared/ticket-presentation';
+import {
+  ticketStatuses,
+  statusLabels,
+  formatDate,
+  requestTargets,
+  buildingFloors,
+  requestTarget,
+  requestLocationLabel,
+} from '../shared/ticket-presentation';
 
 @Component({
   selector: 'app-ticket-dialog',
@@ -20,6 +28,19 @@ export class TicketDialogComponent {
   @Input() error = '';
   @Output() saved = new EventEmitter<Ticket>();
   @Output() closed = new EventEmitter<void>();
+  readonly targets = requestTargets;
+  readonly floors = buildingFloors;
+  readonly locationLabel = requestLocationLabel;
+  get target(): string | null {
+    return requestTarget(this.draft);
+  }
+  set target(value: string | null) {
+    this.draft.scope = value === 'Complex' ? 'Complex' : value ? 'Building' : null;
+    this.draft.buildingNumber = value?.startsWith('Building')
+      ? value.slice('Building'.length)
+      : null;
+    this.draft.floor = null;
+  }
   readonly statuses = ticketStatuses;
   readonly labels = statusLabels;
   readonly date = formatDate;

@@ -75,8 +75,18 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             var from = Date(query.GetValueOrDefault("from")); var to = Date(query.GetValueOrDefault("to"));
             if (from is not null && to is not null && string.CompareOrdinal(from, to) > 0) throw new ApiError(400, "Некоректний період.");
             if (query.GetValueOrDefault("search")?.Length > 200) throw new ApiError(400, "Пошук: до 200 символів.");
+            var target = query.GetValueOrDefault("target");
+            if (target is { Length: > 0 } && target is not ("Complex" or "Unspecified") && !ComplexLayout.BuildingNumbers.Any(number => target == "Building" + number))
+                throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або весь комплекс.");
+            int? floor = null;
+            if (query.GetValueOrDefault("floor") is { Length: > 0 } floorText)
+            {
+                if (!int.TryParse(floorText, NumberStyles.None, CultureInfo.InvariantCulture, out var floorNumber) || floorNumber is < 1 or > ComplexLayout.FloorCount)
+                    throw new ApiError(400, "Поверх: від 1 до 25.");
+                floor = floorNumber;
+            }
             return Reply(200, await store.ListRequestsAsync(new(status, query.GetValueOrDefault("category"),
-                query.GetValueOrDefault("search"), from, to), cursor, ct));
+                query.GetValueOrDefault("search"), from, to, target, floor), cursor, ct));
         }
         if (segments.Length is 4 or 5 && segments[0] == "admin" && segments[1] == "requests" &&
             long.TryParse(segments[2], NumberStyles.None, CultureInfo.InvariantCulture, out var owner) && owner > 0 &&
@@ -94,11 +104,16 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     change.Priority is not ("Low" or "Normal" or "High" or "Urgent")) throw new ApiError(400, "Некоректні параметри заявки.");
                 if (change.Resolution?.Length > 1000 || status is RequestStatus.Completed or RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
                     throw new ApiError(400, "Для виконання або відхилення потрібне пояснення до 1000 символів.");
+                if (!Enum.TryParse<RequestScope>(change.Scope, out var scope) || !ComplexLayout.IsValid(scope, change.BuildingNumber, change.Floor))
+                    throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або весь комплекс. Поверх може бути лише 1–25 і лише для будинку.");
                 var date = Date(change.PlannedDate);
                 if (!string.IsNullOrEmpty(change.AssignedTo) && (await store.GetAdminAsync(change.AssignedTo, ct))?.IsActive != true)
                     throw new ApiError(400, "Оберіть активного адміністратора.");
                 var next = current.Request with
                 {
+                    Scope = scope,
+                    BuildingNumber = change.BuildingNumber,
+                    Floor = change.Floor,
                     Status = status,
                     Visibility = visibility,
                     Resolution = change.Resolution?.Trim(),

@@ -85,6 +85,21 @@ public sealed class ResidentDirectoryTests
         Assert.Null(db.Query);
     }
 
+    [Fact]
+    public async Task RequestBuildingAndFloorFiltersRemainQueriesWithinTheComplex()
+    {
+        using var db = new RecordingDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        await store.ListRequestsAsync(new(null, null, null, null, null, "Building4В", 25), null, default);
+        Assert.Equal("complex", db.Query!.ExpressionAttributeValues[":building"].S);
+        Assert.Equal("Building4В", db.Query.ExpressionAttributeValues[":target"].S);
+        Assert.Equal("25", db.Query.ExpressionAttributeValues[":floor"].N);
+        Assert.Contains("requestTarget = :target", db.Query.FilterExpression);
+        Assert.Contains("requestFloor = :floor", db.Query.FilterExpression);
+        await store.ListRequestsAsync(new(null, null, null, null, null, "Unspecified"), null, default);
+        Assert.Contains("attribute_not_exists(requestTarget)", db.Query.FilterExpression);
+    }
+
     private sealed class RecordingDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public Dictionary<string, AttributeValue>? Snapshot;

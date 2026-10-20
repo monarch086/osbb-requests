@@ -52,7 +52,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   draft: Ticket | null = null;
   history: Record<string, string>[] = [];
   rejecting: Registration | null = null;
-  filters = { status: '', category: '', search: '', from: '', to: '' };
+  filters = { status: '', category: '', search: '', from: '', to: '', target: '', floor: '' };
   private subscription?: Subscription;
   private epoch = 0;
   ngOnInit(): void {
@@ -69,7 +69,15 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   }
   private clear(): void {
     this.tab = 'requests';
-    this.filters = { status: '', category: '', search: '', from: '', to: '' };
+    this.filters = {
+      status: '',
+      category: '',
+      search: '',
+      from: '',
+      to: '',
+      target: '',
+      floor: '',
+    };
     this.me = null;
     this.tickets = [];
     this.residents = [];
@@ -235,6 +243,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     if (!selected) return;
     await this.write(async () => {
       await this.api.request(this.ticketPath(selected), 'PATCH', {
+        scope: draft.scope,
+        buildingNumber: draft.buildingNumber,
+        floor: draft.floor,
         status: draft.status,
         visibility: draft.visibility,
         resolution: draft.resolution,

@@ -20,13 +20,52 @@
         ></button>
       </div>
       <div class="modal-body">
+        <p class="fw-semibold">{{ locationLabel(draft) }}</p>
         <p class="eyebrow">{{ draft.category }} · {{ draft.location }}</p>
         <p class="description">{{ draft.description }}</p>
         @if (error) {
           <div class="alert alert-danger" role="alert">{{ error }}</div>
         }
-        <form (ngSubmit)="saved.emit(draft)">
+        <form #ticketForm="ngForm" (ngSubmit)="ticketForm.valid && saved.emit(draft)">
           <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="ticket-target">Будинок / комплекс</label>
+              <ng-select
+                labelForId="ticket-target"
+                name="target"
+                [(ngModel)]="target"
+                [clearable]="false"
+                [searchable]="false"
+                [disabled]="saving"
+                appendTo="body"
+                placeholder="Уточніть будинок або комплекс"
+                required
+              >
+                @for (item of targets; track item.value) {
+                  <ng-option [value]="item.value">{{ item.label }}</ng-option>
+                }
+              </ng-select>
+            </div>
+            @if (draft.scope === 'Building') {
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="ticket-floor">Поверх</label>
+                <ng-select
+                  labelForId="ticket-floor"
+                  name="floor"
+                  [(ngModel)]="draft.floor"
+                  [clearable]="false"
+                  [disabled]="saving"
+                  appendTo="body"
+                  notFoundText="Нічого не знайдено"
+                >
+                  <ng-option [value]="null">Без поверху</ng-option>
+                  @for (floor of floors; track floor) {
+                    <ng-option [value]="floor">{{ floor }}</ng-option>
+                  }
+                </ng-select>
+              </div>
+            }
+
             <div class="col-12 col-md-6">
               <label class="form-label" for="ticket-status">Статус</label>
               <ng-select
@@ -102,7 +141,7 @@
                 required
               >
                 <ng-option value="Private">Приватна</ng-option
-                ><ng-option value="Public">Для мешканців будинку</ng-option>
+                ><ng-option value="Public">Для мешканців комплексу</ng-option>
               </ng-select>
             </div>
           </div>
@@ -126,7 +165,11 @@
               [disabled]="saving"
             >
               Скасувати</button
-            ><button class="btn btn-primary" type="submit" [disabled]="saving">
+            ><button
+              class="btn btn-primary"
+              type="submit"
+              [disabled]="saving || ticketForm.invalid"
+            >
               {{ saving ? 'Зберігаємо…' : 'Зберегти зміни' }}
             </button>
           </div>

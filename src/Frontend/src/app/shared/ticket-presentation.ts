@@ -1,4 +1,8 @@
+import type { Ticket } from '../api.service';
+
 export interface TicketFilters {
+  target: string;
+  floor: string;
   status: string;
   category: string;
   search: string;
@@ -33,4 +37,27 @@ const dateFormatter = new Intl.DateTimeFormat('uk-UA', {
 });
 export function formatDate(value: string): string {
   return dateFormatter.format(new Date(value));
+}
+
+export const buildingNumbers = ['4Б', '4В', '4Г', '4Д'];
+export const requestTargets = [
+  { value: 'Complex', label: 'Весь комплекс' },
+  ...buildingNumbers.map((number) => ({ value: `Building${number}`, label: `Будинок ${number}` })),
+];
+export const buildingFloors = Array.from({ length: 25 }, (_, index) => index + 1);
+export function requestTarget(ticket: Ticket): string | null {
+  return ticket.scope === 'Complex'
+    ? 'Complex'
+    : ticket.scope === 'Building' && ticket.buildingNumber
+      ? `Building${ticket.buildingNumber}`
+      : null;
+}
+export function requestLocationLabel(ticket: Ticket): string {
+  if (ticket.scope === 'Complex') return 'Весь комплекс';
+  if (ticket.scope === 'Building')
+    return (
+      `Будинок ${ticket.buildingNumber}` +
+      (ticket.floor ? ` · поверх ${ticket.floor}` : ' · без поверху')
+    );
+  return 'Будинок не уточнено';
 }

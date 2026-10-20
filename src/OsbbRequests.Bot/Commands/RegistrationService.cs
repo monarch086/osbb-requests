@@ -11,7 +11,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
     public async Task<CommandOutcome> StartAsync(long userId, CancellationToken cancellationToken, bool restart = false)
     {
         if (await repository.IsResidentAsync(userId, buildingId, cancellationToken))
-            return new CommandOutcome("Доступ до будинку надано.\n\n" + CommandHandler.Help, Keyboard: ReplyKeyboard.Remove);
+            return new CommandOutcome("Доступ до ЖК «Зелений острів 2» надано.\n\n" + CommandHandler.Help, Keyboard: ReplyKeyboard.Remove);
         var current = await repository.GetRegistrationAsync(userId, cancellationToken);
         if (!restart && current is { Stage: RegistrationStage.Rejected or RegistrationStage.Approved })
             return Status(current);
@@ -94,7 +94,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
 
     private static CommandOutcome Prompt(RegistrationStage stage) => stage switch
     {
-        RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації потрібні ваш мобільний номер, ім’я та прізвище. " +
+        RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації в системі потрібні ваш мобільний номер, ім’я та прізвище. " +
             "Їх побачить адміністратор ОСББ для перевірки та надання доступу.\n\n" +
             "Натисніть «Поділитися номером телефону», потім введіть ім’я та прізвище. Скасувати: /cancel.",
             Keyboard: ReplyKeyboard.RequestContact),

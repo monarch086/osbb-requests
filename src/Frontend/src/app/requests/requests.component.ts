@@ -4,6 +4,9 @@ import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
 import { ManagedTicket } from '../api.service';
 import {
   TicketFilters,
+  requestTargets,
+  buildingFloors,
+  requestLocationLabel,
   ticketStatuses,
   ticketCategories,
   statusLabels,
@@ -21,7 +24,18 @@ export class RequestsComponent {
   @Input() saving = false;
   @Output() applyFilters = new EventEmitter<TicketFilters>();
   @Output() openTicket = new EventEmitter<ManagedTicket>();
-  @Input() filters: TicketFilters = { status: '', category: '', search: '', from: '', to: '' };
+  @Input() filters: TicketFilters = {
+    status: '',
+    category: '',
+    search: '',
+    from: '',
+    to: '',
+    target: '',
+    floor: '',
+  };
+  readonly targets = requestTargets;
+  readonly floors = buildingFloors;
+  readonly locationLabel = requestLocationLabel;
   readonly statuses = ticketStatuses;
   readonly categories = ticketCategories;
   readonly labels = statusLabels;

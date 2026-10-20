@@ -1,4 +1,5 @@
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Domain;
 using System.Globalization;
 using System.Text.Json;
 using Amazon.DynamoDBv2;
@@ -29,6 +30,12 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             ConsistentRead = true
         }, cancellationToken);
         return response.Item ?? [];
+    }
+
+    public async Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken)
+    {
+        var item = await GetAsync("USER#" + Number(userId), "REQUEST_DRAFT", cancellationToken);
+        return item.TryGetValue("payload", out var payload) ? JsonSerializer.Deserialize<RequestDraft>(payload.S) : null;
     }
 
     public async Task<ResidentRegistration?> GetRegistrationAsync(long userId, CancellationToken cancellationToken)
@@ -98,6 +105,8 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
         var writes = new List<TransactWriteItem> { Put(replyItem) };
         if (outcome.NewRequest is { } request)
         {
+            if (!ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor))
+                throw new InvalidOperationException("Request scope is required.");
             var item = Key("USER#" + Number(request.OwnerId), RequestKey(request.Id));
             item["payload"] = new AttributeValue(JsonSerializer.Serialize(request));
             item["requestBuildingId"] = new AttributeValue(request.BuildingId);
@@ -105,13 +114,33 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             item["requestStatus"] = new AttributeValue(request.Status.ToString());
             item["requestCategory"] = new AttributeValue(request.Category);
             item["searchText"] = new AttributeValue((request.Location + " " + request.Description).ToLowerInvariant());
+            item["requestTarget"] = new AttributeValue(ComplexLayout.Target(request.Scope, request.BuildingNumber));
+            if (request.Floor is { } floor) item["requestFloor"] = new AttributeValue { N = Number(floor) };
             item["version"] = new AttributeValue { N = "1" };
             writes.Add(Put(item));
             var history = Key("REQUEST#" + Number(request.Id), "EVENT#CREATED");
             history["actorId"] = new AttributeValue { N = Number(request.OwnerId) };
             history["createdAt"] = new AttributeValue(request.CreatedAt.ToString("O", CultureInfo.InvariantCulture));
             history["status"] = new AttributeValue("New");
+            history["target"] = new AttributeValue(ComplexLayout.Target(request.Scope, request.BuildingNumber));
+            if (request.Floor is { } historyFloor) history["floor"] = new AttributeValue { N = Number(historyFloor) };
             writes.Add(Put(history));
+        }
+
+        if (outcome.Draft is { } draft)
+        {
+            if (draft.Value.UserId != command.UserId) throw new InvalidOperationException("Draft owner mismatch.");
+            var item = Key("USER#" + Number(command.UserId), "REQUEST_DRAFT");
+            item["payload"] = new AttributeValue(JsonSerializer.Serialize(draft.Value));
+            item["version"] = new AttributeValue { N = Number(draft.Value.Version) };
+            var write = Put(item);
+            if (draft.ExpectedVersion is { } expected)
+            {
+                write.Put.ConditionExpression = "#version = :expected";
+                write.Put.ExpressionAttributeNames = new() { ["#version"] = "version" };
+                write.Put.ExpressionAttributeValues = new() { [":expected"] = new() { N = Number(expected) } };
+            }
+            writes.Add(write);
         }
 
         if (outcome.Registration is { } change)
