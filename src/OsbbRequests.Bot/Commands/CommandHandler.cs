@@ -11,22 +11,34 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
 {
     private readonly RegistrationService registrations = new(repository, buildingId, timeProvider ?? TimeProvider.System);
     private readonly RequestCreationService requests = new(repository, buildingId, timeProvider ?? TimeProvider.System);
+    private readonly RequestLookupService lookup = new(repository, buildingId);
+    private readonly ComplexRequestsService complexRequests = new(repository, buildingId);
     public const string Categories = RequestCreationService.Categories;
     public const string NewUsage = RequestCreationService.Usage;
     public const string Help = "Бот ЖК «Зелений острів 2».\n" +
         "/start — початок роботи\n/help — довідка\n/register — реєстрація для доступу до комплексу\n" +
-        "/cancel — скасувати незавершену реєстрацію або заявку\n/categories — категорії\n" +
+        "/cancel — скасувати поточний діалог\n/categories — категорії\n" +
         "/new — створити приватну заявку: будинок або весь комплекс → поверх → категорія → місце → опис\n" +
-        "/my — власні заявки\n/request номер — деталі власної заявки\n\n" +
+        "/my — власні заявки\n/complex — відкриті заявки для мешканців комплексу\n" +
+        "/request номер — деталі власної заявки\n/delete номер — видалити власну нову заявку з підтвердженням\n" +
+        "Номер можна ввести одразу або наступним повідомленням після /request або /delete.\n\n" +
         "Для роботи із заявками голова ОСББ має надати вам доступ. Фото та коментарі ще не підтримуються.";
 
     public async Task<CommandOutcome> HandleAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var outcome = await HandleCoreAsync(envelope, cancellationToken);
+        if (BotCommand.Parse(envelope.Text, botUsername) is not null && outcome.Lookup is null)
+            outcome = await lookup.ClearAsync(envelope.UserId, outcome, cancellationToken);
+        return outcome;
+    }
+
+    private async Task<CommandOutcome> HandleCoreAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
         var command = BotCommand.Parse(envelope.Text, botUsername);
         if (command is null)
         {
             if (await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken))
-                return await requests.ContinueAsync(envelope, cancellationToken) ?? new CommandOutcome("Скористайтеся /help, щоб переглянути команди бота ЖК «Зелений острів 2».");
+                return await lookup.ContinueAsync(envelope, cancellationToken) ?? await requests.ContinueAsync(envelope, cancellationToken) ?? new CommandOutcome("Скористайтеся /help, щоб переглянути команди бота ЖК «Зелений острів 2».");
             return await registrations.ContinueAsync(envelope, cancellationToken);
         }
 
@@ -37,12 +49,12 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             case "register":
                 return await registrations.StartAsync(envelope.UserId, cancellationToken, restart: true);
             case "cancel":
-                return await requests.CancelAsync(envelope.UserId, cancellationToken) ?? await registrations.CancelAsync(envelope.UserId, cancellationToken);
+                return await lookup.CancelAsync(envelope.UserId, cancellationToken) ?? await requests.CancelAsync(envelope.UserId, cancellationToken) ?? await registrations.CancelAsync(envelope.UserId, cancellationToken);
             case "help":
                 return new CommandOutcome(Help);
             case "categories":
                 return new CommandOutcome("Категорії заявок: " + Categories + ".");
-            case not ("new" or "my" or "request"):
+            case not ("new" or "my" or "request" or "complex" or "delete"):
                 return new CommandOutcome("Невідома команда. Перелік команд: /help.");
         }
 
@@ -52,8 +64,10 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         return command.Name switch
         {
             "new" => await requests.StartAsync(envelope, command.Arguments, cancellationToken),
+            "complex" => await complexRequests.ListAsync(command.Arguments, cancellationToken),
+            "delete" => await lookup.StartAsync(envelope.UserId, command.Arguments, cancellationToken, RequestLookupAction.Delete),
             "my" => await ListAsync(envelope.UserId, command.Arguments, cancellationToken),
-            _ => await DetailAsync(envelope.UserId, command.Arguments, cancellationToken)
+            _ => await lookup.StartAsync(envelope.UserId, command.Arguments, cancellationToken)
         };
     }
 
@@ -78,26 +92,10 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         return new CommandOutcome(reply);
     }
 
-    private async Task<CommandOutcome> DetailAsync(long userId, string arguments, CancellationToken cancellationToken)
-    {
-        if (!TryId(arguments, out var id))
-            return new CommandOutcome("Вкажіть номер заявки: /request номер.");
-        var request = await repository.GetRequestAsync(userId, id, cancellationToken);
-        if (request is null || request.BuildingId != buildingId)
-            return new CommandOutcome("Заявку не знайдено серед ваших заявок.");
-        var localDate = TimeZoneInfo.ConvertTime(request.CreatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
-        var text = $"Заявка №{request.Id}\nСтатус: {StatusLabel(request.Status)}\n" +
-            $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor)}\nКатегорія: {request.Category}\nМісце: {request.Location}\n" +
-            $"Подано: {localDate:dd.MM.yyyy HH:mm} (Київ)\n\n{request.Description}";
-        if (!string.IsNullOrWhiteSpace(request.Resolution))
-            text += "\n\nПояснення адміністратора: " + request.Resolution;
-        return new CommandOutcome(text);
-    }
-
     private static bool TryId(string value, out long id) =>
         long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out id) && id >= 0;
 
-    private static string StatusLabel(RequestStatus status) => status switch
+    internal static string StatusLabel(RequestStatus status) => status switch
     {
         RequestStatus.New => "Нова",
         RequestStatus.InProgress => "В роботі",

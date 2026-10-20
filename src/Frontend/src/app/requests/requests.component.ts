@@ -25,7 +25,6 @@ export class RequestsComponent {
   @Output() applyFilters = new EventEmitter<TicketFilters>();
   @Output() openTicket = new EventEmitter<ManagedTicket>();
   @Input() filters: TicketFilters = {
-    showCompleted: false,
     status: '',
     category: '',
     search: '',

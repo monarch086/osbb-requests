@@ -21,6 +21,134 @@ namespace OsbbRequests.Bot.Tests;
 
 public sealed class InfrastructureTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1)]
+    public async Task LookupStateAndReplyCommitAtomicallyWithVersionCheck(int? expected)
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        var state = new RequestLookup(42, "building", expected is null, (expected ?? 0) + 1);
+        await repository.CommitAsync(new(100, 42, 42, "/request"),
+            new("Введіть номер заявки", Lookup: new(state, expected)), default);
+        var writes = client.Transaction!.TransactItems;
+        Assert.Equal(2, writes.Count);
+        var stored = Assert.Single(writes, w => w.Put.Item["sk"].S == "REQUEST_LOOKUP").Put;
+        Assert.Equal("USER#42", stored.Item["pk"].S);
+        Assert.Equal(state, JsonSerializer.Deserialize<RequestLookup>(stored.Item["payload"].S));
+        Assert.False(stored.Item.ContainsKey("expiresAt"));
+        if (expected is null) Assert.Equal("attribute_not_exists(pk)", stored.ConditionExpression);
+        else Assert.Equal("1", stored.ExpressionAttributeValues[":expected"].N);
+        client.Item = stored.Item;
+        Assert.Equal(state, await repository.GetRequestLookupAsync(42, default));
+    }
+
+    [Theory]
+    [InlineData("Public", "New", "building", true)]
+    [InlineData("Public", "InProgress", "building", true)]
+    [InlineData("Private", "New", "building", false)]
+    [InlineData("Public", "Completed", "building", false)]
+    [InlineData("Public", "AwaitingClarification", "building", false)]
+    [InlineData("Public", "Rejected", "building", false)]
+    [InlineData("Public", "New", "other", false)]
+    public async Task PublicQueryRechecksCurrentItemInsteadOfTrustingStaleIndex(string visibility, string status, string complex, bool visible)
+    {
+        using var client = new CapturingDynamo();
+        var key = "2026-10-20T10:00:00.0000000+00:00#7";
+        client.QueryResult = new()
+        {
+            Items = [new() { ["pk"] = new("USER#99"), ["sk"] = new("REQUEST#00000000000000000007") }],
+            LastEvaluatedKey = new() { ["requestCreatedAt"] = new(key), ["pk"] = new("USER#99") }
+        };
+        var request = new MaintenanceRequest(7, 99, complex, "інше", "двір", "Приватний опис", DateTimeOffset.UtcNow,
+            Enum.Parse<RequestStatus>(status), Enum.Parse<RequestVisibility>(visibility), Resolution: "Приватна відповідь");
+        client.Item = new() { ["payload"] = new(JsonSerializer.Serialize(request)) };
+        var page = await new DynamoCommandRepository(client, "data").ListPublicRequestsAsync("building", key, default);
+        Assert.Equal(visible ? 1 : 0, page.Items.Count);
+        Assert.Equal(key, page.NextBefore);
+        Assert.Equal("BuildingRequestsIndex", client.Query!.IndexName);
+        Assert.Equal("requestBuildingId = :complex AND requestCreatedAt < :before", client.Query.KeyConditionExpression);
+        Assert.Equal("building", client.Query.ExpressionAttributeValues[":complex"].S);
+        Assert.Equal("requestStatus IN (:new, :progress)", client.Query.FilterExpression);
+        Assert.Equal("pk, sk", client.Query.ProjectionExpression);
+        Assert.Equal(5, client.Query.Limit);
+        Assert.False(client.Query.ScanIndexForward);
+        Assert.True(client.Get!.ConsistentRead);
+        Assert.Equal("USER#99", client.Get.Key["pk"].S);
+        var json = JsonSerializer.Serialize(page);
+        Assert.DoesNotContain("OwnerId", json);
+        Assert.DoesNotContain("Description", json);
+        Assert.DoesNotContain("Resolution", json);
+    }
+
+    [Fact]
+    public async Task DeletedIndexEntryIsSkippedAndCursorIsPreserved()
+    {
+        using var client = new CapturingDynamo();
+        client.QueryResult = new()
+        {
+            Items = [new() { ["pk"] = new("USER#99"), ["sk"] = new("REQUEST#7") }],
+            LastEvaluatedKey = new() { ["requestCreatedAt"] = new("cursor") }
+        };
+        var page = await new DynamoCommandRepository(client, "data").ListPublicRequestsAsync("building", null, default);
+        Assert.Empty(page.Items);
+        Assert.Equal("cursor", page.NextBefore);
+    }
+
+    [Fact]
+    public async Task DeletionCommitsReceiptAuditStateAndConditionalDeleteAtomically()
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        var lookup = new RequestLookup(42, "building", false, 3);
+        await repository.CommitAsync(new(100, 42, 42, "Так"), new("Видалено", Lookup: new(lookup, 2),
+            Deletion: new(7, 42, "building", 4)), default);
+        var writes = client.Transaction!.TransactItems;
+        Assert.Equal(5, writes.Count);
+        var delete = Assert.Single(writes, w => w.Delete is not null).Delete;
+        Assert.Equal("USER#42", delete.Key["pk"].S);
+        Assert.Equal("REQUEST#00000000000000000007", delete.Key["sk"].S);
+        Assert.Contains("#version = :expected", delete.ConditionExpression);
+        Assert.Contains("requestStatus = :new", delete.ConditionExpression);
+        Assert.Contains("requestBuildingId = :complex", delete.ConditionExpression);
+        Assert.Equal("4", delete.ExpressionAttributeValues[":expected"].N);
+        Assert.Equal("New", delete.ExpressionAttributeValues[":new"].S);
+        Assert.Equal("building", delete.ExpressionAttributeValues[":complex"].S);
+        var access = Assert.Single(writes, w => w.ConditionCheck is not null).ConditionCheck;
+        Assert.Equal("MEMBERSHIP", access.Key["sk"].S);
+        Assert.Contains("#active = :active", access.ConditionExpression);
+        Assert.Equal("active", access.ExpressionAttributeNames["#active"]);
+        Assert.True(access.ExpressionAttributeValues[":active"].BOOL);
+        var audit = Assert.Single(writes, w => w.Put?.Item["sk"].S == "EVENT#DELETED").Put.Item;
+        Assert.Equal("REQUEST#7", audit["pk"].S);
+        Assert.Equal("Deleted", audit["action"].S);
+        Assert.False(audit.ContainsKey("expiresAt"));
+        Assert.Contains(writes, w => w.Put?.Item["sk"].S == "REPLY");
+        Assert.Contains(writes, w => w.Put?.Item["sk"].S == "REQUEST_LOOKUP");
+    }
+
+    [Fact]
+    public async Task DeletionWithWrongOwnerIsRejectedBeforeTransaction()
+    {
+        using var client = new CapturingDynamo();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new DynamoCommandRepository(client, "data")
+            .CommitAsync(new(100, 42, 42, "Так"), new("Видалено", Deletion: new(7, 99, "building", 1)), default));
+        Assert.Null(client.Transaction);
+    }
+
+    [Fact]
+    public async Task DeletionSnapshotUsesConsistentOwnerReadAndStoredVersion()
+    {
+        using var client = new CapturingDynamo();
+        var request = new MaintenanceRequest(7, 42, "building", "інше", "двір", "Освітлення", DateTimeOffset.UtcNow);
+        client.Item = new() { ["payload"] = new(JsonSerializer.Serialize(request)), ["version"] = new() { N = "3" } };
+        var result = await new DynamoCommandRepository(client, "data").GetDeletableRequestAsync(42, 7, default);
+        Assert.Equal(new DeletableRequest(7, 42, "building", RequestStatus.New, 3), result);
+        Assert.True(client.Get!.ConsistentRead);
+        Assert.Equal("USER#42", client.Get.Key["pk"].S);
+        Assert.Equal("REQUEST#00000000000000000007", client.Get.Key["sk"].S);
+    }
+
     [Fact]
     public async Task PendingRegistrationCommitsProfileReviewIndexAndReplyAtomically()
     {
@@ -318,6 +446,8 @@ public sealed class InfrastructureTests
     {
         public TransactWriteItemsRequest? Transaction { get; private set; }
         public QueryRequest? Query { get; private set; }
+        public GetItemRequest? Get { get; private set; }
+        public QueryResponse QueryResult { get; set; } = new() { Items = [] };
         public Dictionary<string, AttributeValue> Item { get; set; } = [];
         public bool Conflict { get; set; }
 
@@ -331,12 +461,18 @@ public sealed class InfrastructureTests
         }
 
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new GetItemResponse { Item = Item });
+            CaptureGet(request);
+
+        private Task<GetItemResponse> CaptureGet(GetItemRequest request)
+        {
+            Get = request;
+            return Task.FromResult(new GetItemResponse { Item = Item });
+        }
 
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
         {
             Query = request;
-            return Task.FromResult(new QueryResponse { Items = [] });
+            return Task.FromResult(QueryResult);
         }
     }
 }

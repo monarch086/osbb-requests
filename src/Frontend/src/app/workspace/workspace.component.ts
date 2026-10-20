@@ -54,7 +54,6 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   history: Record<string, string>[] = [];
   rejecting: Registration | null = null;
   filters: TicketFilters = {
-    showCompleted: false,
     status: '',
     category: '',
     search: '',
@@ -80,7 +79,6 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private clear(): void {
     this.tab = 'requests';
     this.filters = {
-      showCompleted: false,
       status: '',
       category: '',
       search: '',
@@ -177,7 +175,6 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     if (tab === 'requests') {
       for (const [key, value] of Object.entries(this.filters)) {
         if (typeof value === 'string' && value) params.set(key, value);
-        else if (value === true) params.set(key, 'true');
       }
     }
     const path =
@@ -278,8 +275,6 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       });
       selected.request = { ...draft };
       selected.version++;
-      if (draft.status === 'Completed' && !this.filters.showCompleted)
-        this.tickets = this.tickets.filter((ticket) => ticket !== selected);
       this.selected = null;
       this.draft = null;
       this.notice = 'Зміни заявки збережено.';

@@ -215,28 +215,16 @@ public sealed class AdminApiTests
         Assert.Null(store.LastFilters);
     }
     [Theory]
-    [InlineData(null, false)]
-    [InlineData("false", false)]
-    [InlineData("true", true)]
-    public async Task CompletedVisibilityDefaultsToFalseAndIsPassedToStore(string? value, bool expected)
+    [InlineData(null)]
+    [InlineData("Completed")]
+    [InlineData("New")]
+    public async Task StatusIsTheOnlyRequestStatusFilter(string? status)
     {
         var store = new FakeStore();
         var query = new Dictionary<string, string>();
-        if (value is not null) query["showCompleted"] = value;
+        if (status is not null) query["status"] = status;
         await Handler(store).HandleAsync(Request("/admin/requests", query: query), default);
-        Assert.Equal(expected, store.LastFilters!.ShowCompleted);
-    }
-    [Theory]
-    [InlineData("")]
-    [InlineData("1")]
-    [InlineData("yes")]
-    public async Task InvalidCompletedVisibilityIsRejected(string value)
-    {
-        var store = new FakeStore();
-        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests",
-            query: new() { ["showCompleted"] = value }), default));
-        Assert.Equal(400, error.Status);
-        Assert.Null(store.LastFilters);
+        Assert.Equal(status, store.LastFilters!.Status);
     }
     private sealed class FakeIdentity : IIdentityProvider
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }

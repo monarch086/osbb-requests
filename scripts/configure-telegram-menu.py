@@ -11,10 +11,12 @@ COMMANDS = [
     {'command': 'start', 'description': 'Початок роботи та перевірка доступу'},
     {'command': 'new', 'description': 'Створити заявку для будинку або комплексу'},
     {'command': 'my', 'description': 'Переглянути власні заявки'},
+    {'command': 'complex', 'description': 'Відкриті заявки для мешканців комплексу'},
+    {'command': 'delete', 'description': 'Видалити власну нову заявку'},
     {'command': 'request', 'description': 'Деталі заявки: /request номер'},
     {'command': 'categories', 'description': 'Переглянути категорії заявок'},
     {'command': 'register', 'description': 'Зареєструватися для доступу до комплексу'},
-    {'command': 'cancel', 'description': 'Скасувати незавершену реєстрацію або заявку'},
+    {'command': 'cancel', 'description': 'Скасувати поточний діалог'},
     {'command': 'help', 'description': 'Довідка та перелік команд'},
 ]
 

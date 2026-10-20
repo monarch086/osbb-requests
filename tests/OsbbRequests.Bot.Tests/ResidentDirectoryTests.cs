@@ -101,9 +101,9 @@ public sealed class ResidentDirectoryTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CompletedVisibilityIsFilteredByDynamoBeforePagination(bool showCompleted)
+    [InlineData(null)]
+    [InlineData("Completed")]
+    public async Task StatusFilterDoesNotImplicitlyHideCompletedRequests(string? status)
     {
         using var db = new RecordingDynamo();
         db.Result = new()
@@ -118,18 +118,19 @@ public sealed class ResidentDirectoryTests
             }
         };
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
-        var page = await store.ListRequestsAsync(new(null, "електрика", null, null, null, "Building4Б", 25, showCompleted), null, default);
+        var page = await store.ListRequestsAsync(new(status, "електрика", null, null, null, "Building4Б", 25), null, default);
         Assert.Equal("BuildingRequestsIndex", db.Query!.IndexName);
         Assert.Contains("requestCategory = :requestCategory", db.Query.FilterExpression);
-        if (showCompleted) Assert.DoesNotContain(":completed", db.Query.FilterExpression);
-        else
+        Assert.DoesNotContain(":completed", db.Query.FilterExpression);
+        if (status is not null)
         {
-            Assert.Contains("requestStatus <> :completed", db.Query.FilterExpression);
-            Assert.Equal("Completed", db.Query.ExpressionAttributeValues[":completed"].S);
+            Assert.Contains("requestStatus = :requestStatus", db.Query.FilterExpression);
+            Assert.Equal(status, db.Query.ExpressionAttributeValues[":requestStatus"].S);
         }
+        else Assert.DoesNotContain("requestStatus", db.Query.FilterExpression);
         Assert.Empty(page.Items);
         Assert.NotNull(page.Cursor);
-        await store.ListRequestsAsync(new(null, null, null, null, null, ShowCompleted: showCompleted), page.Cursor, default);
+        await store.ListRequestsAsync(new(null, null, null, null, null), page.Cursor, default);
         Assert.Equal("REQUEST#1", db.Query.ExclusiveStartKey["sk"].S);
     }
     private sealed class RecordingDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)

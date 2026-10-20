@@ -32,6 +32,59 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
         return response.Item ?? [];
     }
 
+    public async Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken ct)
+    {
+        var item = await GetAsync("USER#" + Number(userId), RequestKey(requestId), ct);
+        if (!item.TryGetValue("payload", out var payload)) return null;
+        var request = JsonSerializer.Deserialize<MaintenanceRequest>(payload.S)
+            ?? throw new InvalidOperationException("Invalid request data.");
+        return new(request.Id, request.OwnerId, request.BuildingId, request.Status,
+            int.Parse(item["version"].N, CultureInfo.InvariantCulture));
+    }
+
+    public async Task<PublicRequestPage> ListPublicRequestsAsync(string complexId, string? before, CancellationToken ct)
+    {
+        var values = new Dictionary<string, AttributeValue>
+        {
+            [":complex"] = new(complexId),
+            [":new"] = new("New"),
+            [":progress"] = new("InProgress")
+        };
+        var condition = "requestBuildingId = :complex";
+        if (before is not null) { condition += " AND requestCreatedAt < :before"; values[":before"] = new(before); }
+        var page = await client.QueryAsync(new QueryRequest
+        {
+            TableName = tableName,
+            IndexName = "BuildingRequestsIndex",
+            KeyConditionExpression = condition,
+            FilterExpression = "requestStatus IN (:new, :progress)",
+            ExpressionAttributeValues = values,
+            ScanIndexForward = false,
+            Limit = 5,
+            ProjectionExpression = "pk, sk"
+        }, ct);
+        var items = new List<PublicRequestSummary>();
+        foreach (var candidate in page.Items ?? [])
+        {
+            // The GSI can lag behind privacy/status updates and deletion. Recheck the current base item.
+            var item = await GetAsync(candidate["pk"].S, candidate["sk"].S, ct);
+            if (!item.TryGetValue("payload", out var payload)) continue;
+            var request = JsonSerializer.Deserialize<MaintenanceRequest>(payload.S);
+            if (request is null || request.BuildingId != complexId || request.Visibility != RequestVisibility.Public ||
+                request.Status is not (RequestStatus.New or RequestStatus.InProgress)) continue;
+            items.Add(new(request.Id, request.Status, request.CreatedAt, request.Scope, request.BuildingNumber,
+                request.Floor, request.Category, request.Location));
+        }
+        var next = page.LastEvaluatedKey?.GetValueOrDefault("requestCreatedAt")?.S;
+        return new(items, next);
+    }
+
+    public async Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken)
+    {
+        var item = await GetAsync("USER#" + Number(userId), "REQUEST_LOOKUP", cancellationToken);
+        return item.TryGetValue("payload", out var payload) ? JsonSerializer.Deserialize<RequestLookup>(payload.S) : null;
+    }
+
     public async Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken)
     {
         var item = await GetAsync("USER#" + Number(userId), "REQUEST_DRAFT", cancellationToken);
@@ -125,6 +178,60 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             history["target"] = new AttributeValue(ComplexLayout.Target(request.Scope, request.BuildingNumber));
             if (request.Floor is { } historyFloor) history["floor"] = new AttributeValue { N = Number(historyFloor) };
             writes.Add(Put(history));
+        }
+
+        if (outcome.Deletion is { } deletion)
+        {
+            if (deletion.OwnerId != command.UserId) throw new InvalidOperationException("Deletion owner mismatch.");
+            writes.Add(new()
+            {
+                ConditionCheck = new()
+                {
+                    TableName = tableName,
+                    Key = Key("USER#" + Number(command.UserId), "MEMBERSHIP"),
+                    ConditionExpression = "buildingId = :complex AND #active = :active",
+                    ExpressionAttributeNames = new() { ["#active"] = "active" },
+                    ExpressionAttributeValues = new() { [":complex"] = new(deletion.ComplexId), [":active"] = new() { BOOL = true } }
+                }
+            });
+            writes.Add(new()
+            {
+                Delete = new()
+                {
+                    TableName = tableName,
+                    Key = Key("USER#" + Number(command.UserId), RequestKey(deletion.Id)),
+                    ConditionExpression = "#version = :expected AND requestStatus = :new AND requestBuildingId = :complex",
+                    ExpressionAttributeNames = new() { ["#version"] = "version" },
+                    ExpressionAttributeValues = new()
+                    {
+                        [":expected"] = new() { N = Number(deletion.ExpectedVersion) },
+                        [":new"] = new("New"),
+                        [":complex"] = new(deletion.ComplexId)
+                    }
+                }
+            });
+            var history = Key("REQUEST#" + Number(deletion.Id), "EVENT#DELETED");
+            history["actorId"] = new() { N = Number(command.UserId) };
+            history["createdAt"] = new(clock.GetUtcNow().ToString("O", CultureInfo.InvariantCulture));
+            history["action"] = new("Deleted");
+            history["previousStatus"] = new("New");
+            writes.Add(Put(history));
+        }
+
+        if (outcome.Lookup is { } lookup)
+        {
+            if (lookup.Value.UserId != command.UserId) throw new InvalidOperationException("Lookup owner mismatch.");
+            var item = Key("USER#" + Number(command.UserId), "REQUEST_LOOKUP");
+            item["payload"] = new AttributeValue(JsonSerializer.Serialize(lookup.Value));
+            item["version"] = new AttributeValue { N = Number(lookup.Value.Version) };
+            var write = Put(item);
+            if (lookup.ExpectedVersion is { } expected)
+            {
+                write.Put.ConditionExpression = "#version = :expected";
+                write.Put.ExpressionAttributeNames = new() { ["#version"] = "version" };
+                write.Put.ExpressionAttributeValues = new() { [":expected"] = new() { N = Number(expected) } };
+            }
+            writes.Add(write);
         }
 
         if (outcome.Draft is { } draft)

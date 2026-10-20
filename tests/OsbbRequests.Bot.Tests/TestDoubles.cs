@@ -1,4 +1,6 @@
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Domain;
+using System.Globalization;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Telegram;
@@ -8,9 +10,29 @@ namespace OsbbRequests.Bot.Tests;
 
 internal sealed class MemoryRepository : ICommandRepository
 {
+    public Dictionary<long, int> RequestVersions { get; } = [];
+    public Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken ct)
+    {
+        var request = Requests.FirstOrDefault(r => r.OwnerId == userId && r.Id == requestId);
+        return Task.FromResult(request is null ? null : new DeletableRequest(request.Id, request.OwnerId,
+            request.BuildingId, request.Status, RequestVersions.GetValueOrDefault(request.Id, 1)));
+    }
+    public Task<PublicRequestPage> ListPublicRequestsAsync(string complexId, string? before, CancellationToken ct)
+    {
+        Queries++;
+        static string SortKey(MaintenanceRequest r) => r.CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + r.Id.ToString(CultureInfo.InvariantCulture);
+        var candidates = Requests.Where(r => r.BuildingId == complexId && (before is null || string.CompareOrdinal(SortKey(r), before) < 0))
+            .OrderByDescending(SortKey, StringComparer.Ordinal).Take(6).ToList();
+        var page = candidates.Take(5).ToList();
+        var items = page.Where(r => r.Visibility == RequestVisibility.Public && r.Status is RequestStatus.New or RequestStatus.InProgress)
+            .Select(r => new PublicRequestSummary(r.Id, r.Status, r.CreatedAt, r.Scope, r.BuildingNumber, r.Floor, r.Category, r.Location)).ToList();
+        return Task.FromResult(new PublicRequestPage(items, candidates.Count > 5 ? SortKey(page[^1]) : null));
+    }
     public HashSet<long> Residents { get; } = [42];
     public Dictionary<long, StoredReply> Replies { get; } = [];
     public List<MaintenanceRequest> Requests { get; } = [];
+    public Dictionary<long, RequestLookup> Lookups { get; } = [];
+    public Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Lookups.GetValueOrDefault(userId));
     public Dictionary<long, RequestDraft> Drafts { get; } = [];
     public Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Drafts.GetValueOrDefault(userId));
     public Dictionary<long, ResidentRegistration> Registrations { get; } = [];
@@ -43,6 +65,14 @@ internal sealed class MemoryRepository : ICommandRepository
             throw new InvalidOperationException("Storage unavailable.");
         if (Replies.TryGetValue(command.UpdateId, out var existing))
             return Task.FromResult(existing);
+        if (outcome.Deletion is { } deletion)
+        {
+            var target = Requests.SingleOrDefault(r => r.OwnerId == command.UserId && r.Id == deletion.Id);
+            if (deletion.OwnerId != command.UserId || !Residents.Contains(command.UserId) || target is null ||
+                target.BuildingId != deletion.ComplexId || target.Status != RequestStatus.New ||
+                RequestVersions.GetValueOrDefault(target.Id, 1) != deletion.ExpectedVersion)
+                throw new InvalidOperationException("Deletion conflict.");
+        }
         if (outcome.Registration is { } change)
         {
             if (Registrations.GetValueOrDefault(command.UserId)?.Version != change.ExpectedVersion)
@@ -55,6 +85,14 @@ internal sealed class MemoryRepository : ICommandRepository
                 throw new InvalidOperationException("Draft version conflict.");
             Drafts[command.UserId] = draft.Value;
         }
+        if (outcome.Lookup is { } lookup)
+        {
+            if (Lookups.GetValueOrDefault(command.UserId)?.Version != lookup.ExpectedVersion)
+                throw new InvalidOperationException("Lookup version conflict.");
+            Lookups[command.UserId] = lookup.Value;
+        }
+        if (outcome.Deletion is { } removed)
+            Requests.RemoveAll(r => r.Id == removed.Id && r.OwnerId == removed.OwnerId);
         CommitCount++;
         if (outcome.NewRequest is { } request)
             Requests.Add(request);

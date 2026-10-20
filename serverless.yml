@@ -249,10 +249,16 @@ resources:
               - dynamodb:Query
               - dynamodb:PutItem
               - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:ConditionCheckItem
               Resource:
                 Fn::GetAtt:
                 - CommandDataTable
                 - Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${CommandDataTable.Arn}/index/BuildingRequestsIndex
             - Effect: Allow
               Action: ssm:GetParameter
               Resource:

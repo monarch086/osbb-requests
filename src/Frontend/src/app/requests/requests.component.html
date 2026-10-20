@@ -127,24 +127,7 @@
 <section class="card">
   <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
     <h2 class="h5 mb-0">Звернення мешканців</h2>
-    <div class="form-check mb-0">
-      <input
-        class="form-check-input"
-        type="checkbox"
-        id="show-completed"
-        name="showCompleted"
-        [(ngModel)]="filters.showCompleted"
-        (ngModelChange)="submitFilters()"
-        [disabled]="loading || saving"
-      />
-      <label class="form-check-label" for="show-completed">Показувати виконані</label>
-    </div>
   </div>
-  @if (filters.status === 'Completed' && !filters.showCompleted) {
-    <p class="small text-body-secondary px-3 pt-3 mb-0">
-      Щоб побачити заявки зі статусом «Виконана», увімкніть «Показувати виконані».
-    </p>
-  }
   <div class="list-group list-group-flush">
     @for (item of tickets; track item.request.id) {
       <button
