@@ -1,25 +1,36 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using OsbbRequests.Bot.Models;
 
 namespace OsbbRequests.Bot.Telegram;
 
 public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenProvider) : ITelegramClient
 {
-    public async Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken)
+    public async Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken, ReplyKeyboard? keyboard = null)
     {
         if (text.Length is < 1 or > 4096)
             throw new InvalidOperationException("Telegram message length is outside the supported range.");
         var token = await tokenProvider.GetAsync(cancellationToken);
+        var payload = new Dictionary<string, object>
+        {
+            ["chat_id"] = chatId,
+            ["text"] = text,
+            ["link_preview_options"] = new { is_disabled = true }
+        };
+        if (keyboard == ReplyKeyboard.RequestContact)
+            payload["reply_markup"] = new
+            {
+                keyboard = new[] { new[] { new { text = "Поділитися номером телефону", request_contact = true } } },
+                resize_keyboard = true,
+                one_time_keyboard = true
+            };
+        else if (keyboard == ReplyKeyboard.Remove)
+            payload["reply_markup"] = new { remove_keyboard = true };
         // No parse_mode: all resident content is plain text, never Telegram HTML.
         try
         {
             using var response = await httpClient.PostAsJsonAsync(
-                $"https://api.telegram.org/bot{token}/sendMessage", new
-                {
-                    chat_id = chatId,
-                    text,
-                    link_preview_options = new { is_disabled = true }
-                }, cancellationToken);
+                $"https://api.telegram.org/bot{token}/sendMessage", payload, cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
                 using var error = await JsonDocument.ParseAsync(

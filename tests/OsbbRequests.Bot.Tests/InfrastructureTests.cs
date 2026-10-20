@@ -20,6 +20,44 @@ namespace OsbbRequests.Bot.Tests;
 public sealed class InfrastructureTests
 {
     [Fact]
+    public async Task PendingRegistrationCommitsProfileReviewIndexAndReplyAtomically()
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        var registration = new ResidentRegistration(new string('a', 32), 99, "building", RegistrationStage.Pending,
+            4, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "+380671234567", "Олена", "Ковальчук");
+        var result = await repository.CommitAsync(new CommandEnvelope(100, 99, 99, "Ковальчук"),
+            new CommandOutcome("Очікуйте перевірки", Registration: new RegistrationChange(registration, 3),
+                Keyboard: ReplyKeyboard.Remove), CancellationToken.None);
+        Assert.Equal(ReplyKeyboard.Remove, result.Keyboard);
+        var writes = Assert.IsType<TransactWriteItemsRequest>(client.Transaction).TransactItems;
+        Assert.Equal(4, writes.Count);
+        var profile = Assert.Single(writes, item => item.Put.Item["sk"].S == "REGISTRATION").Put;
+        Assert.Equal("#version = :expected", profile.ConditionExpression);
+        Assert.Equal("3", profile.ExpressionAttributeValues[":expected"].N);
+        Assert.Contains(writes, item => item.Put.Item["pk"].S == "BUILDING#building");
+        Assert.Contains(writes, item => item.Put.Item["sk"].S == "META");
+        Assert.DoesNotContain(writes, item => item.Put.Item["sk"].S == "MEMBERSHIP");
+    }
+
+    [Fact]
+    public async Task DraftIsNotPublishedForReviewOrGrantedMembership()
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        var registration = new ResidentRegistration(new string('a', 32), 99, "building", RegistrationStage.AwaitingPhone,
+            1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        await repository.CommitAsync(new CommandEnvelope(100, 99, 99, "/register"),
+            new CommandOutcome("Номер телефону", Registration: new RegistrationChange(registration, null),
+                Keyboard: ReplyKeyboard.RequestContact), CancellationToken.None);
+        var writes = Assert.IsType<TransactWriteItemsRequest>(client.Transaction).TransactItems;
+        Assert.Equal(2, writes.Count);
+        Assert.DoesNotContain(writes, item => item.Put.Item["pk"].S.StartsWith("BUILDING#"));
+        Assert.DoesNotContain(writes, item => item.Put.Item["sk"].S == "MEMBERSHIP");
+        Assert.All(writes, item => Assert.Equal("attribute_not_exists(pk)", item.Put.ConditionExpression));
+    }
+
+    [Fact]
     public async Task TransactionIncludesRequestReplyAndHistoryWithConditionalWrites()
     {
         using var client = new CapturingDynamo();

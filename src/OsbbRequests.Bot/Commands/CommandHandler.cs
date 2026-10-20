@@ -9,12 +9,13 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
     TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+    private readonly RegistrationService registrations = new(repository, buildingId, timeProvider ?? TimeProvider.System);
     public const string Categories = "сантехніка, електрика, прибирання, місця загального користування, інше";
     public const string NewUsage = "Щоб створити заявку, надішліть:\n/new категорія | місце | опис\n\n" +
         "Наприклад:\n/new сантехніка | під’їзд 2, поверх 3 | Протікає труба\n\nКатегорії: " + Categories +
         ".\nМісце: до 200 символів. Опис: від 10 до 2000 символів. Заявка буде приватною.";
     public const string Help = "Команди бота ОСББ:\n/start — початок роботи\n/help — довідка\n" +
-        "/categories — категорії\n/new — створити приватну заявку\n/my — власні заявки\n" +
+        "/register — реєстрація для доступу\n/cancel — скасувати незавершену реєстрацію\n/categories — категорії\n/new — створити приватну заявку\n/my — власні заявки\n" +
         "/request номер — деталі власної заявки\n\n" +
         "Для роботи із заявками голова ОСББ має надати вам доступ. Фото та коментарі ще не підтримуються.";
 
@@ -22,13 +23,20 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
     {
         var command = BotCommand.Parse(envelope.Text, botUsername);
         if (command is null)
-            return new CommandOutcome("Скористайтеся /help, щоб переглянути команди бота.");
+        {
+            if (await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken))
+                return new CommandOutcome("Скористайтеся /help, щоб переглянути команди бота.");
+            return await registrations.ContinueAsync(envelope, cancellationToken);
+        }
 
         switch (command.Name)
         {
             case "start":
-                return new CommandOutcome("Вітаємо в боті ОСББ!\nВаш Telegram ID: " +
-                    envelope.UserId.ToString(CultureInfo.InvariantCulture) + ".\n\n" + Help);
+                return await registrations.StartAsync(envelope.UserId, cancellationToken);
+            case "register":
+                return await registrations.StartAsync(envelope.UserId, cancellationToken, restart: true);
+            case "cancel":
+                return await registrations.CancelAsync(envelope.UserId, cancellationToken);
             case "help":
                 return new CommandOutcome(Help);
             case "categories":
@@ -38,8 +46,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         }
 
         if (!await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken))
-            return new CommandOutcome("Доступ до заявок ще не надано. Зверніться до голови ОСББ та повідомте свій Telegram ID: " +
-                envelope.UserId.ToString(CultureInfo.InvariantCulture) + ".");
+            return await registrations.StatusAsync(envelope.UserId, cancellationToken);
 
         return command.Name switch
         {

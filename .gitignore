@@ -29,3 +29,7 @@ node_modules/
 Thumbs.db
 .vscode/
 *.log
+
+# Python administration tool
+__pycache__/
+*.pyc

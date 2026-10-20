@@ -30,6 +30,13 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
         return response.Item ?? [];
     }
 
+    public async Task<ResidentRegistration?> GetRegistrationAsync(long userId, CancellationToken cancellationToken)
+    {
+        var item = await GetAsync("USER#" + Number(userId), "REGISTRATION", cancellationToken);
+        return item.TryGetValue("payload", out var payload)
+            ? JsonSerializer.Deserialize<ResidentRegistration>(payload.S) : null;
+    }
+
     public async Task<bool> IsResidentAsync(long userId, string buildingId, CancellationToken cancellationToken)
     {
         var item = await GetAsync("USER#" + Number(userId), "MEMBERSHIP", cancellationToken);
@@ -82,7 +89,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
     public async Task<StoredReply> CommitAsync(CommandEnvelope command, CommandOutcome outcome,
         CancellationToken cancellationToken)
     {
-        var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false);
+        var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false, outcome.Keyboard);
         var replyItem = Key("UPDATE#" + Number(command.UpdateId), "REPLY");
         replyItem["payload"] = new AttributeValue(JsonSerializer.Serialize(reply));
         replyItem["delivered"] = new AttributeValue { BOOL = false };
@@ -98,6 +105,31 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             history["createdAt"] = new AttributeValue(request.CreatedAt.ToString("O", CultureInfo.InvariantCulture));
             history["status"] = new AttributeValue("New");
             writes.Add(Put(history));
+        }
+
+        if (outcome.Registration is { } change)
+        {
+            var registration = change.Value;
+            if (registration.UserId != command.UserId)
+                throw new InvalidOperationException("Registration owner mismatch.");
+            var item = RegistrationItem("USER#" + Number(registration.UserId), "REGISTRATION", registration);
+            var write = Put(item);
+            if (change.ExpectedVersion is { } version)
+            {
+                write.Put.ConditionExpression = "#version = :expected";
+                write.Put.ExpressionAttributeNames = new Dictionary<string, string> { ["#version"] = "version" };
+                write.Put.ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    [":expected"] = new AttributeValue { N = version.ToString(CultureInfo.InvariantCulture) }
+                };
+            }
+            writes.Add(write);
+            if (registration.Stage == RegistrationStage.Pending)
+            {
+                writes.Add(Put(RegistrationItem("REGISTRATION#" + registration.Id, "META", registration)));
+                writes.Add(Put(RegistrationItem("BUILDING#" + registration.BuildingId,
+                    "REGISTRATION#" + registration.Id, registration)));
+            }
         }
 
         try
@@ -127,6 +159,14 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
                 [":delivered"] = new AttributeValue { BOOL = true }
             }
         }, cancellationToken);
+
+    private static Dictionary<string, AttributeValue> RegistrationItem(string pk, string sk, ResidentRegistration value)
+    {
+        var item = Key(pk, sk);
+        item["payload"] = new AttributeValue(JsonSerializer.Serialize(value));
+        item["version"] = new AttributeValue { N = value.Version.ToString(CultureInfo.InvariantCulture) };
+        return item;
+    }
 
     private TransactWriteItem Put(Dictionary<string, AttributeValue> item) => new()
     {

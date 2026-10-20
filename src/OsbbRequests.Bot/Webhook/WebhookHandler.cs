@@ -39,9 +39,13 @@ public sealed class WebhookHandler(ISecretProvider secretProvider, ICommandQueue
         if (update?.UpdateId is not (>= 0) || update.Message is not
             {
                 From: { IsBot: false, Id: > 0 } from,
-                Chat: { Type: "private", Id: > 0 } chat, Text: { Length: > 0 and <= 4096 } text
-            } ||
-            from.Id != chat.Id || string.IsNullOrWhiteSpace(text))
+                Chat: { Type: "private", Id: > 0 } chat
+            } message || from.Id != chat.Id)
+            return Response(200);
+
+        var text = message.Text ?? "";
+        if (text.Length > 4096 || message.Contact?.PhoneNumber?.Length > 64 ||
+            string.IsNullOrWhiteSpace(text) && message.Contact is null)
             return Response(200);
 
         // Commands explicitly addressed to another bot are ignored.
@@ -49,7 +53,7 @@ public sealed class WebhookHandler(ISecretProvider secretProvider, ICommandQueue
             BotCommand.Parse(text, botUsername) is null)
             return Response(200);
 
-        await queue.EnqueueAsync(new CommandEnvelope(update.UpdateId.Value, from.Id, chat.Id, text), cancellationToken);
+        await queue.EnqueueAsync(new CommandEnvelope(update.UpdateId.Value, from.Id, chat.Id, text, message.Contact), cancellationToken);
         return Response(200);
     }
 

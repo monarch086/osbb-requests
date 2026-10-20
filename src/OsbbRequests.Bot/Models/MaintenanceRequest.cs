@@ -10,5 +10,7 @@ public sealed record MaintenanceRequest(
     string? Resolution = null);
 
 public sealed record RequestPage(IReadOnlyList<MaintenanceRequest> Items, long? NextBeforeId);
-public sealed record CommandOutcome(string Reply, MaintenanceRequest? NewRequest = null);
-public sealed record StoredReply(long UpdateId, long UserId, long ChatId, string Text, bool Delivered);
+public sealed record CommandOutcome(string Reply, MaintenanceRequest? NewRequest = null,
+    RegistrationChange? Registration = null, ReplyKeyboard? Keyboard = null);
+public sealed record StoredReply(long UpdateId, long UserId, long ChatId, string Text, bool Delivered,
+    ReplyKeyboard? Keyboard = null);

@@ -5,10 +5,18 @@ configValidationMode: error
 plugins:
   - ./serverless-dotnet-package.js
 
+stages:
+  default:
+    params:
+      botUsername: OsbbRequestsBot
+  dev:
+    params:
+      botUsername: zeleniy_ostriv2_bot
+
 custom:
   # These are parameter names, never resolved secret values.
   parameterPrefix: /${self:service}/${sls:stage}
-  botUsername: ${env:TELEGRAM_BOT_USERNAME, 'OsbbRequestsBot'}
+  botUsername: ${env:TELEGRAM_BOT_USERNAME, param:botUsername}
   buildingId: ${env:BUILDING_ID, '${self:service}-${sls:stage}'}
 
 provider:

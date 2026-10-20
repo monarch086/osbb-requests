@@ -9,7 +9,8 @@ public sealed class CommandProcessor(ICommandRepository repository, CommandHandl
     public async Task ProcessAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
         if (envelope.UpdateId < 0 || envelope.UserId <= 0 || envelope.ChatId != envelope.UserId ||
-            string.IsNullOrWhiteSpace(envelope.Text) || envelope.Text.Length > 4096)
+            (string.IsNullOrWhiteSpace(envelope.Text) && envelope.Contact is null) || envelope.Text.Length > 4096 ||
+            envelope.Contact?.PhoneNumber?.Length > 64)
             throw new InvalidOperationException("Invalid command envelope.");
 
         var reply = await repository.GetReplyAsync(envelope.UpdateId, cancellationToken);
@@ -24,7 +25,7 @@ public sealed class CommandProcessor(ICommandRepository repository, CommandHandl
         if (reply.Delivered)
             return;
 
-        await telegram.SendMessageAsync(reply.ChatId, reply.Text, cancellationToken);
+        await telegram.SendMessageAsync(reply.ChatId, reply.Text, cancellationToken, reply.Keyboard);
         await repository.MarkDeliveredAsync(reply.UpdateId, cancellationToken);
     }
 }
