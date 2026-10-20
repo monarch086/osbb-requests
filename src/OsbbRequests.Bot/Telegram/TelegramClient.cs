@@ -52,6 +52,8 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                     ? value : 180;
                 throw new TelegramRateLimitException(seconds);
             }
+            if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
+                throw new TelegramRecipientUnavailableException((int)response.StatusCode);
             if (!response.IsSuccessStatusCode)
                 throw new InvalidOperationException($"Telegram delivery failed (HTTP {(int)response.StatusCode}).");
             using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),

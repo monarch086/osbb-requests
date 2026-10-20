@@ -13,7 +13,7 @@ public sealed class ServiceNotifier(ITelegramClient telegram, long chatId) : ISe
         try
         {
             await telegram.SendMessageAsync(chatId,
-                $"ОСББ: помилка обробки команди. Message ID: {messageId}. Перевірте CloudWatch та DLQ.", timeout.Token);
+                $"ОСББ: помилка обробки. ID операції: {messageId}. Перевірте CloudWatch та DLQ.", timeout.Token);
         }
         catch (Exception)
         {

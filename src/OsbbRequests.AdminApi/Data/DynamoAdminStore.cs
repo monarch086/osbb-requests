@@ -258,12 +258,13 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
     public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
     {
         if (!ComplexLayout.IsValid(next.Scope, next.BuildingNumber, next.Floor)) throw new ApiError(400, "Некоректна прив’язка заявки.");
-        var now = DateTimeOffset.UtcNow.ToString("O");
+        var timestamp = DateTimeOffset.UtcNow;
+        var now = timestamp.ToString("O");
         var audit = Key("REQUEST#" + next.Id.ToString(CultureInfo.InvariantCulture), "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
         audit["actor"] = S(actor.Email); audit["createdAt"] = S(now); audit["status"] = S(next.Status.ToString());
         audit["previousStatus"] = S(current.Request.Status.ToString()); audit["resolution"] = S(next.Resolution ?? "");
         audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility, next.Scope, next.BuildingNumber, next.Floor }));
-        await Transact([ActorCheck(actor), new() { Update = new() {
+        var writes = new List<TransactWriteItem> { ActorCheck(actor), new() { Update = new() {
             TableName = dataTable, Key = Key("USER#" + next.OwnerId.ToString(CultureInfo.InvariantCulture), RequestKey(next.Id)),
             UpdateExpression = "SET #payload = :payload, #v = :next, requestStatus = :status, requestTarget = :target, requestFloor = :floor",
             ConditionExpression = "#v = :expected",
@@ -272,7 +273,17 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
                 [":expected"] = N(current.Version), [":status"] = S(next.Status.ToString()),
                 [":target"] = S(ComplexLayout.Target(next.Scope, next.BuildingNumber)),
                 [":floor"] = next.Floor is { } floor ? N(floor) : new() { NULL = true } }
-        } }, Put(dataTable, audit)], ct);
+        } }, Put(dataTable, audit) };
+        if (RequestNotification.Create(current.Request, next, current.Version + 1, timestamp) is { } notification)
+        {
+            var item = Key(RequestNotification.Partition(building), RequestNotification.DueKey(timestamp, notification.Id));
+            item["payload"] = S(JsonSerializer.Serialize(notification));
+            item["attempts"] = N(0);
+            var write = Put(dataTable, item);
+            write.Put.ConditionExpression = "attribute_not_exists(pk)";
+            writes.Add(write);
+        }
+        await Transact(writes, ct);
     }
     public async Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(long requestId, CancellationToken ct)
     {

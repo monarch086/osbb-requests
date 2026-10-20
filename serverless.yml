@@ -98,6 +98,31 @@ functions:
           - Arn
         batchSize: 1
         functionResponseType: ReportBatchItemFailures
+  notificationSender:
+    handler: OsbbRequests.Bot::OsbbRequests.Bot.NotificationFunction::FunctionHandler
+    description: Delivers durable resident notifications after administrative request changes.
+    timeout: 60
+    maximumRetryAttempts: 2
+    maximumEventAge: 300
+    destinations:
+      onFailure:
+        type: sqs
+        arn:
+          Fn::GetAtt:
+          - NotificationFailureQueue
+          - Arn
+    role:
+      Fn::GetAtt:
+      - NotificationSenderRole
+      - Arn
+    environment:
+      BOT_TOKEN_PARAMETER: ${self:custom.parameterPrefix}/telegram-bot-token
+      COMMAND_DATA_TABLE:
+        Ref: CommandDataTable
+      BUILDING_ID: ${self:custom.buildingId}
+      ADMIN_TELEGRAM_CHAT_ID: ${env:ADMIN_TELEGRAM_CHAT_ID, ''}
+    package:
+      artifact: artifacts/OsbbRequests.Bot/bot.zip
   adminApi:
     handler: OsbbRequests.AdminApi::OsbbRequests.AdminApi.Function::FunctionHandler
     description: Authenticated administration API for requests, resident registration and admin access.
@@ -166,6 +191,114 @@ resources:
             KeyType: RANGE
           Projection:
             ProjectionType: ALL
+    NotificationFailureQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-notification-failures
+        SqsManagedSseEnabled: true
+        MessageRetentionPeriod: 1209600
+    NotificationSchedule:
+      Type: AWS::Scheduler::Schedule
+      Properties:
+        Name: ${self:service}-${sls:stage}-notifications
+        ScheduleExpression: rate(1 minute)
+        FlexibleTimeWindow:
+          Mode: 'OFF'
+        Target:
+          Arn:
+            Fn::GetAtt:
+            - NotificationSenderLambdaFunction
+            - Arn
+          RoleArn:
+            Fn::GetAtt:
+            - NotificationScheduleRole
+            - Arn
+          Input: '{}'
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 300
+            MaximumRetryAttempts: 6
+          DeadLetterConfig:
+            Arn:
+              Fn::GetAtt:
+              - NotificationFailureQueue
+              - Arn
+    NotificationScheduleRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount:
+                  Ref: AWS::AccountId
+        Policies:
+        - PolicyName: InvokeNotificationSender
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource:
+                Fn::GetAtt:
+                - NotificationSenderLambdaFunction
+                - Arn
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource:
+                Fn::GetAtt:
+                - NotificationFailureQueue
+                - Arn
+    NotificationSenderRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+        Policies:
+        - PolicyName: DeliverNotifications
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - dynamodb:GetItem
+              - dynamodb:Query
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              Resource:
+                Fn::GetAtt:
+                - CommandDataTable
+                - Arn
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:LeadingKeys:
+                  - NOTIFICATIONS#${self:custom.buildingId}
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${self:custom.parameterPrefix}/telegram-bot-token
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource:
+                Fn::GetAtt:
+                - NotificationFailureQueue
+                - Arn
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-notificationSender:*
     CommandDeadLetterQueue:
       Type: AWS::SQS::Queue
       Properties:
