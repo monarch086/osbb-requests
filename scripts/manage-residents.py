@@ -16,7 +16,7 @@ def call_aws(service, operation, region, payload=None):
             json.dump(payload, request)
             request.flush()
             command.extend(['--cli-input-json', 'file://' + request.name])
-        if operation == 'query':
+        if operation in ('query', 'scan'):
             command.append('--no-paginate')
         result = subprocess.run(command, capture_output=True, text=True, check=False)
     if result.returncode:

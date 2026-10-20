@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/OsbbRequests.AdminApi/OsbbRequests.AdminApi.csproj" />
     <ProjectReference Include="../../src/OsbbRequests.Bot/OsbbRequests.Bot.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageReference Include="xunit" Version="2.9.3" />

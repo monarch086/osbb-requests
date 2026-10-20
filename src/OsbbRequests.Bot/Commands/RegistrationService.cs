@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Models;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using OsbbRequests.Bot.Models;

@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Models;
 using OsbbRequests.Bot.Commands;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Shared.Domain;

@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Models;
 using OsbbRequests.Bot.Models;
 
 namespace OsbbRequests.Bot.Persistence;

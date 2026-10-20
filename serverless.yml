@@ -1,10 +1,8 @@
 service: osbb-requests
 frameworkVersion: '4'
 configValidationMode: error
-
 plugins:
-  - ./serverless-dotnet-package.js
-
+- ./serverless-dotnet-package.js
 stages:
   default:
     params:
@@ -12,13 +10,10 @@ stages:
   dev:
     params:
       botUsername: zeleniy_ostriv2_bot
-
 custom:
-  # These are parameter names, never resolved secret values.
   parameterPrefix: /${self:service}/${sls:stage}
   botUsername: ${env:TELEGRAM_BOT_USERNAME, param:botUsername}
   buildingId: ${env:BUILDING_ID, '${self:service}-${sls:stage}'}
-
 provider:
   name: aws
   runtime: dotnet10
@@ -32,19 +27,39 @@ provider:
     STAGE: ${sls:stage}
   httpApi:
     payload: '2.0'
+    authorizers:
+      adminJwt:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl:
+          Fn::Sub: https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${AdminUserPool}
+        audience:
+        - Ref: AdminUserPoolClient
+    cors:
+      allowedOrigins:
+      - http://localhost:4201
+      allowedHeaders:
+      - Authorization
+      - Content-Type
+      allowedMethods:
+      - GET
+      - POST
+      - PATCH
+      - OPTIONS
+      maxAge: 3600
   iam:
     role:
       statements: []
-
 package:
   individually: true
-
 functions:
   telegramWebhook:
     handler: OsbbRequests.Bot::OsbbRequests.Bot.Function::FunctionHandler
     description: Authenticates private Telegram updates and queues command processing.
     role:
-      Fn::GetAtt: [WebhookRole, Arn]
+      Fn::GetAtt:
+      - WebhookRole
+      - Arn
     environment:
       WEBHOOK_SECRET_PARAMETER: ${self:custom.parameterPrefix}/telegram-webhook-secret
       COMMAND_QUEUE_URL:
@@ -53,15 +68,17 @@ functions:
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
     events:
-      - httpApi:
-          method: POST
-          path: /telegram/webhook
+    - httpApi:
+        method: POST
+        path: /telegram/webhook
   commandProcessor:
     handler: OsbbRequests.Bot::OsbbRequests.Bot.CommandFunction::FunctionHandler
     description: Processes resident commands and delivers persisted replies.
     timeout: 30
     role:
-      Fn::GetAtt: [CommandProcessorRole, Arn]
+      Fn::GetAtt:
+      - CommandProcessorRole
+      - Arn
     environment:
       BOT_TOKEN_PARAMETER: ${self:custom.parameterPrefix}/telegram-bot-token
       COMMAND_DATA_TABLE:
@@ -74,21 +91,42 @@ functions:
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
     events:
-      - sqs:
-          arn:
-            Fn::GetAtt: [CommandQueue, Arn]
-          batchSize: 1
-          functionResponseType: ReportBatchItemFailures
+    - sqs:
+        arn:
+          Fn::GetAtt:
+          - CommandQueue
+          - Arn
+        batchSize: 1
+        functionResponseType: ReportBatchItemFailures
   adminApi:
     handler: OsbbRequests.AdminApi::OsbbRequests.AdminApi.Function::FunctionHandler
-    description: Administration API scaffold; exposes only a health endpoint.
+    description: Authenticated administration API for requests, resident registration and admin access.
     package:
       artifact: artifacts/OsbbRequests.AdminApi/admin-api.zip
     events:
-      - httpApi:
-          method: GET
-          path: /health
-
+    - httpApi:
+        method: GET
+        path: /health
+    - httpApi:
+        method: ANY
+        path: /admin/{proxy+}
+        authorizer:
+          name: adminJwt
+          scopes:
+          - aws.cognito.signin.user.admin
+    - httpApi:
+        method: OPTIONS
+        path: /admin/{proxy+}
+    role:
+      Fn::GetAtt:
+      - AdminApiRole
+      - Arn
+    environment:
+      ADMINISTRATORS_TABLE:
+        Ref: AdministratorsTable
+      COMMAND_DATA_TABLE:
+        Ref: CommandDataTable
+      BUILDING_ID: ${self:custom.buildingId}
 resources:
   Resources:
     CommandDataTable:
@@ -99,15 +137,19 @@ resources:
         TableName: ${self:service}-${sls:stage}-command-data
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: pk
-            AttributeType: S
-          - AttributeName: sk
-            AttributeType: S
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: requestBuildingId
+          AttributeType: S
+        - AttributeName: requestCreatedAt
+          AttributeType: S
         KeySchema:
-          - AttributeName: pk
-            KeyType: HASH
-          - AttributeName: sk
-            KeyType: RANGE
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
         TimeToLiveSpecification:
           AttributeName: expiresAt
           Enabled: true
@@ -115,6 +157,15 @@ resources:
           PointInTimeRecoveryEnabled: true
         SSESpecification:
           SSEEnabled: true
+        GlobalSecondaryIndexes:
+        - IndexName: BuildingRequestsIndex
+          KeySchema:
+          - AttributeName: requestBuildingId
+            KeyType: HASH
+          - AttributeName: requestCreatedAt
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
     CommandDeadLetterQueue:
       Type: AWS::SQS::Queue
       Properties:
@@ -132,7 +183,9 @@ resources:
         MessageRetentionPeriod: 345600
         RedrivePolicy:
           deadLetterTargetArn:
-            Fn::GetAtt: [CommandDeadLetterQueue, Arn]
+            Fn::GetAtt:
+            - CommandDeadLetterQueue
+            - Arn
           maxReceiveCount: 5
     WebhookRole:
       Type: AWS::IAM::Role
@@ -140,58 +193,335 @@ resources:
         AssumeRolePolicyDocument:
           Version: '2012-10-17'
           Statement:
-            - Effect: Allow
-              Principal:
-                Service: lambda.amazonaws.com
-              Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
         Policies:
-          - PolicyName: Webhook
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action: sqs:SendMessage
-                  Resource:
-                    Fn::GetAtt: [CommandQueue, Arn]
-                - Effect: Allow
-                  Action: ssm:GetParameter
-                  Resource:
-                    Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${self:custom.parameterPrefix}/telegram-webhook-secret
-                - Effect: Allow
-                  Action: [logs:CreateLogStream, logs:PutLogEvents]
-                  Resource:
-                    Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-telegramWebhook:*
+        - PolicyName: Webhook
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource:
+                Fn::GetAtt:
+                - CommandQueue
+                - Arn
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${self:custom.parameterPrefix}/telegram-webhook-secret
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-telegramWebhook:*
     CommandProcessorRole:
       Type: AWS::IAM::Role
       Properties:
         AssumeRolePolicyDocument:
           Version: '2012-10-17'
           Statement:
-            - Effect: Allow
-              Principal:
-                Service: lambda.amazonaws.com
-              Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
         Policies:
-          - PolicyName: CommandProcessor
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
-                  Resource:
-                    Fn::GetAtt: [CommandQueue, Arn]
-                - Effect: Allow
-                  Action: [dynamodb:GetItem, dynamodb:Query, dynamodb:PutItem, dynamodb:UpdateItem]
-                  Resource:
-                    Fn::GetAtt: [CommandDataTable, Arn]
-                - Effect: Allow
-                  Action: ssm:GetParameter
-                  Resource:
-                    Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${self:custom.parameterPrefix}/telegram-bot-token
-                - Effect: Allow
-                  Action: [logs:CreateLogStream, logs:PutLogEvents]
-                  Resource:
-                    Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-commandProcessor:*
+        - PolicyName: CommandProcessor
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+              Resource:
+                Fn::GetAtt:
+                - CommandQueue
+                - Arn
+            - Effect: Allow
+              Action:
+              - dynamodb:GetItem
+              - dynamodb:Query
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              Resource:
+                Fn::GetAtt:
+                - CommandDataTable
+                - Arn
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${self:custom.parameterPrefix}/telegram-bot-token
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-commandProcessor:*
+    AdministratorsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      Properties:
+        TableName: ${self:service}-${sls:stage}-administrators
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: Directory
+          AttributeType: S
+        - AttributeName: Email
+          AttributeType: S
+        KeySchema:
+        - AttributeName: UserId
+          KeyType: HASH
+        GlobalSecondaryIndexes:
+        - IndexName: DirectoryIndex
+          KeySchema:
+          - AttributeName: Directory
+            KeyType: HASH
+          - AttributeName: Email
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        SSESpecification:
+          SSEEnabled: true
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+    AdminUserPool:
+      Type: AWS::Cognito::UserPool
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      Properties:
+        UserPoolName: ${self:service}-${sls:stage}-admins
+        UsernameAttributes:
+        - email
+        UsernameConfiguration:
+          CaseSensitive: false
+        AutoVerifiedAttributes:
+        - email
+        Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: false
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 12
+            RequireUppercase: true
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+        AccountRecoverySetting:
+          RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+    AdminUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-${sls:stage}-admin-web
+        UserPoolId:
+          Ref: AdminUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        PreventUserExistenceErrors: ENABLED
+        EnableTokenRevocation: true
+        AccessTokenValidity: 15
+        IdTokenValidity: 15
+        RefreshTokenValidity: 1
+        TokenValidityUnits:
+          AccessToken: minutes
+          IdToken: minutes
+          RefreshToken: days
+        SupportedIdentityProviders:
+        - COGNITO
+    AdminApiRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+        Policies:
+        - PolicyName: AdminApi
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-adminApi:*
+            - Effect: Allow
+              Action:
+              - dynamodb:GetItem
+              - dynamodb:Query
+              - dynamodb:ConditionCheckItem
+              Resource:
+              - Fn::GetAtt:
+                - AdministratorsTable
+                - Arn
+              - Fn::Sub: ${AdministratorsTable.Arn}/index/DirectoryIndex
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource:
+                Fn::GetAtt:
+                - AdministratorsTable
+                - Arn
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:Attributes:
+                  - UserId
+                  - Email
+                  - DisplayName
+                  - IsActive
+                  - Directory
+                  - CreatedAt
+                  - UpdatedAt
+                  - Version
+            - Effect: Deny
+              Action:
+              - dynamodb:PutItem
+              - dynamodb:DeleteItem
+              Resource:
+                Fn::GetAtt:
+                - AdministratorsTable
+                - Arn
+            - Effect: Deny
+              Action: dynamodb:UpdateItem
+              Resource:
+                Fn::GetAtt:
+                - AdministratorsTable
+                - Arn
+              Condition:
+                ForAnyValue:StringEquals:
+                  dynamodb:Attributes:
+                  - IsSuperAdmin
+            - Effect: Allow
+              Action:
+              - dynamodb:GetItem
+              - dynamodb:Query
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              Resource:
+              - Fn::GetAtt:
+                - CommandDataTable
+                - Arn
+              - Fn::Sub: ${CommandDataTable.Arn}/index/BuildingRequestsIndex
+    FrontendBucket:
+      Type: AWS::S3::Bucket
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      Properties:
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    FrontendOriginAccess:
+      Type: AWS::CloudFront::OriginAccessControl
+      Properties:
+        OriginAccessControlConfig:
+          Name: ${self:service}-${sls:stage}-frontend
+          OriginAccessControlOriginType: s3
+          SigningBehavior: always
+          SigningProtocol: sigv4
+    FrontendHeaders:
+      Type: AWS::CloudFront::ResponseHeadersPolicy
+      Properties:
+        ResponseHeadersPolicyConfig:
+          Name: ${self:service}-${sls:stage}-security
+          SecurityHeadersConfig:
+            ContentSecurityPolicy:
+              ContentSecurityPolicy:
+                Fn::Sub: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src
+                  'self' https://*.execute-api.${AWS::Region}.amazonaws.com https://cognito-idp.${AWS::Region}.amazonaws.com;
+                  object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+              Override: true
+            ContentTypeOptions:
+              Override: true
+            FrameOptions:
+              FrameOption: DENY
+              Override: true
+            ReferrerPolicy:
+              ReferrerPolicy: no-referrer
+              Override: true
+            StrictTransportSecurity:
+              AccessControlMaxAgeSec: 31536000
+              Override: true
+    FrontendDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Enabled: true
+          DefaultRootObject: index.html
+          HttpVersion: http2
+          PriceClass: PriceClass_100
+          Origins:
+          - Id: frontend
+            DomainName:
+              Fn::GetAtt:
+              - FrontendBucket
+              - RegionalDomainName
+            OriginAccessControlId:
+              Ref: FrontendOriginAccess
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          DefaultCacheBehavior:
+            TargetOriginId: frontend
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+            - GET
+            - HEAD
+            CachedMethods:
+            - GET
+            - HEAD
+            Compress: true
+            MinTTL: 0
+            DefaultTTL: 300
+            MaxTTL: 31536000
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+            ResponseHeadersPolicyId:
+              Ref: FrontendHeaders
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: true
+    FrontendBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: FrontendBucket
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource:
+              Fn::Sub: ${FrontendBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn:
+                  Fn::Sub: arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
   Outputs:
     CommandDataTableName:
       Value:
@@ -199,3 +529,47 @@ resources:
     CommandDeadLetterQueueUrl:
       Value:
         Ref: CommandDeadLetterQueue
+    AdministratorsTableName:
+      Value:
+        Ref: AdministratorsTable
+    UserPoolId:
+      Value:
+        Ref: AdminUserPool
+    UserPoolClientId:
+      Value:
+        Ref: AdminUserPoolClient
+    FrontendBucketName:
+      Value:
+        Ref: FrontendBucket
+    FrontendDistributionId:
+      Value:
+        Ref: FrontendDistribution
+    FrontendUrl:
+      Value:
+        Fn::Join:
+        - ''
+        - - https://
+          - Fn::GetAtt:
+            - FrontendDistribution
+            - DomainName
+  extensions:
+    HttpApi:
+      Properties:
+        CorsConfiguration:
+          AllowOrigins:
+          - Fn::Join:
+            - ''
+            - - https://
+              - Fn::GetAtt:
+                - FrontendDistribution
+                - DomainName
+          - http://localhost:4201
+          AllowHeaders:
+          - Authorization
+          - Content-Type
+          AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - OPTIONS
+          MaxAge: 3600

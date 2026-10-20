@@ -33,3 +33,8 @@ Thumbs.db
 # Python administration tool
 __pycache__/
 *.pyc
+
+# Angular
+**/.angular/
+**/dist/
+**/out-tsc/

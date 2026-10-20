@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Models;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Telegram;

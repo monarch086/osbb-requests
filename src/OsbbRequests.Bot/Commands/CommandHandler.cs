@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Models;
 using System.Globalization;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
