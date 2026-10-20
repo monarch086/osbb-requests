@@ -1,31 +1,33 @@
 @if (error) {
-  <div class="alert error" role="alert">{{ error }}</div>
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
 }
 @if (notice) {
-  <div class="alert success" role="status">{{ notice }}</div>
+  <div class="alert alert-success" role="status">{{ notice }}</div>
 }
 @if (!me) {
-  <section class="panel empty">
+  <section class="card text-center p-4 p-md-5">
     <h2>{{ loading ? 'Завантажуємо робочий простір…' : 'Не вдалося завантажити профіль' }}</h2>
-    <button class="secondary" (click)="workspace()" [disabled]="loading">Спробувати ще раз</button>
+    <button class="btn btn-outline-secondary" (click)="workspace()" [disabled]="loading">
+      Спробувати ще раз
+    </button>
   </section>
 }
 @if (me; as user) {
   @if (!user.isActive) {
-    <section class="panel empty">
-      <span class="round-icon">✓</span>
+    <section class="card text-center p-4 p-md-5">
+      <span class="badge rounded-circle text-bg-success fs-4 p-3 mb-3 align-self-center">✓</span>
       <p class="eyebrow">ОБЛІКОВИЙ ЗАПИС СТВОРЕНО</p>
       <h1>Очікуємо надання доступу</h1>
       <p>
         Повідомте голові ОСББ вашу електронну адресу: <strong>{{ user.email }}</strong
         >.<br />Після підтвердження ви зможете працювати зі зверненнями мешканців.
       </p>
-      <button class="secondary" (click)="workspace()" [disabled]="loading">
+      <button class="btn btn-outline-secondary" (click)="workspace()" [disabled]="loading">
         Перевірити доступ
       </button>
     </section>
   } @else {
-    <div class="workspace-heading">
+    <div class="d-flex justify-content-between align-items-start gap-3">
       <div>
         <p class="eyebrow">РОБОЧИЙ ПРОСТІР</p>
         <h1>
@@ -37,7 +39,7 @@
                 : 'Команда адміністраторів'
           }}
         </h1>
-        <p class="muted">
+        <p class="text-body-secondary">
           {{
             tab === 'requests'
               ? 'Від першого повідомлення до вирішеної проблеми.'
@@ -47,15 +49,22 @@
           }}
         </p>
       </div>
-      <button class="secondary" (click)="load()" [disabled]="loading || saving">↻ Оновити</button>
+      <button class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
+        ↻ Оновити
+      </button>
     </div>
-    <nav class="page-nav" aria-label="Розділи панелі">
-      <button [class.active]="tab === 'requests'" (click)="switchTab('requests')">Заявки</button
-      ><button [class.active]="tab === 'residents'" (click)="switchTab('residents')">
+    <nav class="nav nav-pills gap-2 my-4" aria-label="Розділи панелі">
+      <button class="nav-link" [class.active]="tab === 'requests'" (click)="switchTab('requests')">
+        Заявки</button
+      ><button
+        class="nav-link"
+        [class.active]="tab === 'residents'"
+        (click)="switchTab('residents')"
+      >
         Мешканці
       </button>
       @if (user.isSuperAdmin) {
-        <button [class.active]="tab === 'admins'" (click)="switchTab('admins')">
+        <button class="nav-link" [class.active]="tab === 'admins'" (click)="switchTab('admins')">
           Адміністратори
         </button>
       }
@@ -83,10 +92,14 @@
       <app-administrators [admins]="admins" [saving]="saving" (toggleAccess)="setAccess($event)" />
     }
     @if (loading) {
-      <p class="loading" role="status">Завантажуємо…</p>
+      <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>
     }
     @if (cursor) {
-      <button class="secondary more" (click)="load(true)" [disabled]="loading || saving">
+      <button
+        class="btn btn-outline-secondary d-block mx-auto my-4"
+        (click)="load(true)"
+        [disabled]="loading || saving"
+      >
         Завантажити ще
       </button>
     }

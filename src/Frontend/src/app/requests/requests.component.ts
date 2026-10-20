@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
 import { ManagedTicket } from '../api.service';
 import {
   TicketFilters,
@@ -11,7 +12,7 @@ import {
 
 @Component({
   selector: 'app-requests',
-  imports: [FormsModule],
+  imports: [FormsModule, NgSelectComponent, NgOptionComponent],
   templateUrl: './requests.component.html',
 })
 export class RequestsComponent {

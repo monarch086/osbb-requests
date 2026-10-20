@@ -1,35 +1,45 @@
-<header class="topbar">
+<header class="topbar navbar bg-white border-bottom px-3 py-3">
   <a class="brand" href="#"
     ><span class="brand-mark">ЗО2</span><span>Зелений острів 2<small>Панель ОСББ</small></span></a
   >
   @if (auth.user$ | async; as user) {
-    <div class="account">
+    <div class="account d-flex align-items-center gap-3">
       <span>{{ user.profile.email }}</span
-      ><button class="quiet" (click)="logout()" [disabled]="saving">Вийти ↗</button>
+      ><button class="btn btn-link" (click)="logout()" [disabled]="saving">Вийти ↗</button>
     </div>
   }
 </header>
-<main>
+<main class="container py-4 py-md-5">
   @if (error) {
-    <div class="alert error" role="alert">{{ error }}</div>
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
   }
   @if ((auth.user$ | async) === null) {
     @if (showAuth) {
       <app-auth-page (accountClosed)="showAuth = false" />
     } @else {
-      <section class="welcome panel">
+      <section class="welcome card card-body p-4 p-md-5">
         <p class="eyebrow">СПІЛЬНИЙ ДІМ · СПІЛЬНА ТУРБОТА</p>
         <p class="lead">
           Заявки мешканців, перевірка реєстрацій і робота команди ОСББ в одному місці.
         </p>
-        <button [disabled]="!ready || !auth.config" (click)="showAuth = true">
+        <button
+          class="btn btn-primary"
+          [disabled]="!ready || !auth.config"
+          (click)="showAuth = true"
+        >
           Увійти до панелі <span>→</span>
         </button>
-        <div class="welcome-note">Доступ для голови ОСББ та уповноважених адміністраторів.</div>
+        <div class="text-body-secondary small mt-4">
+          Доступ для голови ОСББ та уповноважених адміністраторів.
+        </div>
       </section>
     }
   } @else {
     <app-workspace (savingChange)="saving = $event" />
   }
 </main>
-<footer><span>Зелений острів 2 · ОСББ</span><span>Дбаємо про дім разом</span></footer>
+<footer
+  class="container border-top d-flex justify-content-between gap-3 py-4 text-body-secondary small"
+>
+  <span>Зелений острів 2 · ОСББ</span><span>Дбаємо про дім разом</span>
+</footer>

@@ -1,25 +1,32 @@
-<section class="panel list">
-  <div class="list-title">
-    <h2>Очікують перевірки</h2>
-    <span class="muted">{{ residents.length }} у списку</span>
+<section class="card">
+  <div class="card-header d-flex align-items-center justify-content-between gap-3 py-3">
+    <h2 class="h5 mb-0">Очікують перевірки</h2>
+    <span class="text-body-secondary">{{ residents.length }} у списку</span>
   </div>
-  @for (r of residents; track r.id) {
-    <article class="resident-row">
-      <div>
-        <h3>{{ r.firstName }} {{ r.lastName }}</h3>
-        <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
-        <p class="muted">Подано {{ date(r.updatedAt) }}</p>
-      </div>
-      <div class="actions">
-        <button (click)="approve.emit(r)" [disabled]="saving">Надати доступ</button
-        ><button class="secondary" (click)="reject.emit(r)" [disabled]="saving">Відхилити</button>
-      </div>
-    </article>
-  }
+  <div class="list-group list-group-flush">
+    @for (r of residents; track r.id) {
+      <article
+        class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
+      >
+        <div>
+          <h3 class="h6">{{ r.firstName }} {{ r.lastName }}</h3>
+          <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
+          <p class="text-body-secondary">Подано {{ date(r.updatedAt) }}</p>
+        </div>
+        <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
+          <button class="btn btn-primary" (click)="approve.emit(r)" [disabled]="saving">
+            Надати доступ</button
+          ><button class="btn btn-outline-secondary" (click)="reject.emit(r)" [disabled]="saving">
+            Відхилити
+          </button>
+        </div>
+      </article>
+    }
+  </div>
   @if (!residents.length && !loading) {
-    <div class="empty">
-      <span class="round-icon">✓</span>
-      <h3>Усі реєстрації перевірено</h3>
+    <div class="text-center p-4 p-md-5">
+      <span class="badge rounded-circle text-bg-success fs-4 p-3 mb-3 align-self-center">✓</span>
+      <h3 class="h6">Усі реєстрації перевірено</h3>
       <p>Тут з’являться ім’я, прізвище та телефон нових мешканців.</p>
     </div>
   }

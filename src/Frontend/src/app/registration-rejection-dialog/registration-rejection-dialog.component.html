@@ -1,33 +1,57 @@
-<div class="backdrop">
-  <section
-    class="dialog panel"
-    role="dialog"
-    aria-modal="true"
-    tabindex="-1"
-    (keydown.escape)="closed.emit()"
-    aria-labelledby="reject-title"
-  >
-    <p class="eyebrow">РЕЄСТРАЦІЯ МЕШКАНЦЯ</p>
-    <h2 id="reject-title">Відхилити запит?</h2>
-    <p>{{ registration.firstName }} {{ registration.lastName }}</p>
-    @if (error) {
-      <div class="alert error" role="alert">{{ error }}</div>
-    }
-    <form (ngSubmit)="rejected.emit(reason.trim())">
-      <label
-        >Причина<textarea
-          name="reason"
-          [(ngModel)]="reason"
-          maxlength="500"
-          required
-          placeholder="Пояснення для мешканця"
-        ></textarea>
-      </label>
-      <div class="actions">
-        <button class="secondary" type="button" (click)="closed.emit()" [disabled]="saving">
-          Скасувати</button
-        ><button type="submit" [disabled]="saving || !reason.trim()">Відхилити</button>
+<div class="modal-backdrop fade show"></div>
+<div
+  class="modal d-block"
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+  (keydown.escape)="closed.emit()"
+  aria-labelledby="reject-title"
+>
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <section class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="reject-title">Відхилити запит?</h2>
+        <button
+          type="button"
+          class="btn-close"
+          aria-label="Закрити"
+          (click)="closed.emit()"
+          [disabled]="saving"
+        ></button>
       </div>
-    </form>
-  </section>
+      <div class="modal-body">
+        <p class="eyebrow">РЕЄСТРАЦІЯ МЕШКАНЦЯ</p>
+        <p>{{ registration.firstName }} {{ registration.lastName }}</p>
+        @if (error) {
+          <div class="alert alert-danger" role="alert">{{ error }}</div>
+        }
+        <form (ngSubmit)="rejected.emit(reason.trim())">
+          <label class="form-label" for="rejection-reason">Причина</label
+          ><textarea
+            class="form-control"
+            id="rejection-reason"
+            name="reason"
+            [(ngModel)]="reason"
+            maxlength="500"
+            required
+            rows="3"
+            [disabled]="saving"
+            placeholder="Пояснення для мешканця"
+          ></textarea>
+          <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
+            <button
+              class="btn btn-outline-secondary"
+              type="button"
+              (click)="closed.emit()"
+              [disabled]="saving"
+            >
+              Скасувати</button
+            ><button class="btn btn-danger" type="submit" [disabled]="saving || !reason.trim()">
+              Відхилити
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
 </div>

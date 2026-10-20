@@ -1,27 +1,37 @@
-<section class="panel list">
-  <div class="list-title">
-    <h2>Доступ до панелі</h2>
-    <span class="muted">{{ admins.length }} облікових записів</span>
+<section class="card">
+  <div class="card-header d-flex align-items-center justify-content-between gap-3 py-3">
+    <h2 class="h5 mb-0">Доступ до панелі</h2>
+    <span class="text-body-secondary">{{ admins.length }} облікових записів</span>
   </div>
-  @for (a of admins; track a.userId) {
-    <article class="resident-row">
-      <div>
-        <h3>{{ a.displayName }}</h3>
-        @if (a.email !== a.displayName) {
-          <p>{{ a.email }}</p>
+  <div class="list-group list-group-flush">
+    @for (a of admins; track a.userId) {
+      <article
+        class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
+      >
+        <div>
+          <h3 class="h6">{{ a.displayName }}</h3>
+          @if (a.email !== a.displayName) {
+            <p>{{ a.email }}</p>
+          }
+          <span class="badge rounded-pill text-bg-secondary">{{
+            a.isSuperAdmin ? 'Супер адміністратор' : a.isActive ? 'Адміністратор' : 'Очікує доступу'
+          }}</span>
+        </div>
+        @if (!a.isSuperAdmin) {
+          <button
+            class="btn"
+            [class.btn-outline-danger]="a.isActive"
+            [class.btn-primary]="!a.isActive"
+            (click)="toggleAccess.emit(a)"
+            [disabled]="saving"
+          >
+            {{ a.isActive ? 'Відкликати доступ' : 'Надати доступ' }}
+          </button>
         }
-        <span class="badge">{{
-          a.isSuperAdmin ? 'Супер адміністратор' : a.isActive ? 'Адміністратор' : 'Очікує доступу'
-        }}</span>
-      </div>
-      @if (!a.isSuperAdmin) {
-        <button [class.secondary]="a.isActive" (click)="toggleAccess.emit(a)" [disabled]="saving">
-          {{ a.isActive ? 'Відкликати доступ' : 'Надати доступ' }}
-        </button>
-      }
-    </article>
-  }
-  <div class="footnote">
+      </article>
+    }
+  </div>
+  <div class="card-footer text-body-secondary small py-3">
     Новий адміністратор спочатку створює та підтверджує обліковий запис, а потім входить до панелі.
   </div>
 </section>

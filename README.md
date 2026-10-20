@@ -68,7 +68,7 @@ GitHub Actions запускає restore, build, тести, перевірку �
 
 ## Вебпанель адміністраторів
 
-Angular-застосунок у `src/Frontend` побудований за прикладом `~/projects/PingLight/src/Frontend`: Cognito для входу, підтвердження email, відновлення пароля, sessionStorage для сесії, зелена палітра та сторінки робочого простору. Це SPA; приватні дані завантажуються лише з авторизованого API. Статичні файли зберігаються у приватному S3 і доступні через CloudFront HTTPS.
+Angular-застосунок у `src/Frontend` побудований за прикладом `~/projects/PingLight/src/Frontend`: Cognito для входу, підтвердження email, відновлення пароля, sessionStorage для сесії та сторінки робочого простору. Оформлення використовує Bootstrap 5 (форми, сітка, кнопки, картки, повідомлення й діалоги), а випадаючі списки — `@ng-select/ng-select` 21 із пошуком у категоріях і відповідальних. Bootstrap і тема ng-select включені до локальної збірки; CDN і Bootstrap JavaScript не потрібні. Це SPA; приватні дані завантажуються лише з авторизованого API. Статичні файли зберігаються у приватному S3 і доступні через CloudFront HTTPS.
 
 Якість фронтенду перевіряють ESLint (рекомендовані правила TypeScript із перевіркою типів, Angular і доступності шаблонів), Stylelint (`standard-scss`) та Prettier. Команда `npm run check --prefix src/Frontend` запускає всі перевірки; вона також виконується в CI. Для автоматичних виправлень: `npm run lint:fix --prefix src/Frontend`, потім `npm run format --prefix src/Frontend`. Збірки, кеші та залежності виключено з перевірок.
 

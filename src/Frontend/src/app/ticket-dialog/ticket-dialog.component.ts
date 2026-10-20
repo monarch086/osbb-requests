@@ -1,11 +1,12 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
 import { Ticket } from '../api.service';
 import { ticketStatuses, statusLabels, formatDate } from '../shared/ticket-presentation';
 
 @Component({
   selector: 'app-ticket-dialog',
-  imports: [FormsModule],
+  imports: [FormsModule, NgSelectComponent, NgOptionComponent],
   templateUrl: './ticket-dialog.component.html',
 })
 export class TicketDialogComponent {

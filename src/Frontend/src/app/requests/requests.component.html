@@ -1,65 +1,132 @@
-<section class="stats" aria-label="Завантажені заявки">
-  <div class="panel">
-    <span>У списку</span><strong>{{ tickets.length }}</strong>
+<section class="row g-3 mb-4" aria-label="Завантажені заявки">
+  <div class="col-4">
+    <div
+      class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
+    >
+      <span>У списку</span><strong class="fs-3">{{ tickets.length }}</strong>
+    </div>
   </div>
-  <div class="panel">
-    <span>Нові</span><strong>{{ newCount }}</strong>
+  <div class="col-4">
+    <div
+      class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
+    >
+      <span>Нові</span><strong class="fs-3">{{ newCount }}</strong>
+    </div>
   </div>
-  <div class="panel">
-    <span>В роботі</span><strong>{{ progressCount }}</strong>
+  <div class="col-4">
+    <div
+      class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
+    >
+      <span>В роботі</span><strong class="fs-3">{{ progressCount }}</strong>
+    </div>
   </div>
-  <p class="muted">Показники для завантажених заявок</p>
+  <p class="text-body-secondary small mb-0">Показники для завантажених заявок</p>
 </section>
-<form class="panel filters" (ngSubmit)="submitFilters()">
-  <label class="search"
-    >Пошук<input
-      name="search"
-      [(ngModel)]="filters.search"
-      placeholder="Місце або опис проблеми"
-      maxlength="200" /></label
-  ><label
-    >Статус<select name="status" [(ngModel)]="filters.status">
-      <option value="">Усі статуси</option>
-      @for (s of statuses; track s) {
-        <option [value]="s">{{ labels[s] }}</option>
-      }
-    </select></label
-  ><label
-    >Категорія<select name="category" [(ngModel)]="filters.category">
-      <option value="">Усі категорії</option>
-      @for (c of categories; track c) {
-        <option [value]="c">{{ c }}</option>
-      }
-    </select></label
-  ><label>Від дати<input type="date" name="from" [(ngModel)]="filters.from" /></label
-  ><label>До дати<input type="date" name="to" [(ngModel)]="filters.to" /></label
-  ><button type="submit" [disabled]="loading || saving">Знайти</button>
-</form>
-<section class="panel list">
-  <div class="list-title">
-    <h2>Звернення мешканців</h2>
-    <span class="muted">Від новіших до старіших</span>
+<form class="card card-body mb-4" (ngSubmit)="submitFilters()">
+  <div class="row g-3 align-items-end">
+    <div class="col-12 col-lg-4">
+      <label class="form-label" for="request-search">Пошук</label>
+      <input
+        class="form-control"
+        id="request-search"
+        name="search"
+        [(ngModel)]="filters.search"
+        placeholder="Місце або опис проблеми"
+        maxlength="200"
+      />
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+      <label class="form-label" for="request-status">Статус</label>
+      <ng-select
+        labelForId="request-status"
+        name="status"
+        [(ngModel)]="filters.status"
+        [clearable]="false"
+        [searchable]="false"
+        [disabled]="loading || saving"
+      >
+        <ng-option value="">Усі статуси</ng-option>
+        @for (s of statuses; track s) {
+          <ng-option [value]="s">{{ labels[s] }}</ng-option>
+        }
+      </ng-select>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+      <label class="form-label" for="request-category">Категорія</label>
+      <ng-select
+        labelForId="request-category"
+        name="category"
+        [(ngModel)]="filters.category"
+        [clearable]="false"
+        [disabled]="loading || saving"
+        notFoundText="Нічого не знайдено"
+      >
+        <ng-option value="">Усі категорії</ng-option>
+        @for (c of categories; track c) {
+          <ng-option [value]="c">{{ c }}</ng-option>
+        }
+      </ng-select>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+      <label class="form-label" for="request-from">Від дати</label
+      ><input
+        class="form-control"
+        id="request-from"
+        type="date"
+        name="from"
+        [(ngModel)]="filters.from"
+      />
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+      <label class="form-label" for="request-to">До дати</label
+      ><input class="form-control" id="request-to" type="date" name="to" [(ngModel)]="filters.to" />
+    </div>
+    <div class="col-12 col-lg-4">
+      <button class="btn btn-primary w-100" type="submit" [disabled]="loading || saving">
+        Знайти
+      </button>
+    </div>
   </div>
-  @for (item of tickets; track item.request.id) {
-    <button class="ticket-row" (click)="openTicket.emit(item)" [disabled]="saving">
-      <div>
-        <span class="ticket-number">№{{ item.request.id }} · {{ item.request.category }}</span>
-        <h3>{{ item.request.location }}</h3>
-        <p>{{ item.request.description }}</p>
-      </div>
-      <div class="row-meta">
-        <span class="badge" [class.new]="item.request.status === 'New'">{{
-          labels[item.request.status]
-        }}</span
-        ><small>{{ date(item.request.createdAt) }}</small
-        ><span class="arrow">↗</span>
-      </div>
-    </button>
-  }
+</form>
+<section class="card">
+  <div class="card-header d-flex align-items-center justify-content-between gap-3 py-3">
+    <h2 class="h5 mb-0">Звернення мешканців</h2>
+    <span class="text-body-secondary small d-none d-md-inline">Від новіших до старіших</span>
+  </div>
+  <div class="list-group list-group-flush">
+    @for (item of tickets; track item.request.id) {
+      <button
+        class="list-group-item list-group-item-action d-flex justify-content-between gap-3 p-3 p-md-4"
+        (click)="openTicket.emit(item)"
+        [disabled]="saving"
+      >
+        <div class="ticket-summary">
+          <span class="text-body-secondary small"
+            >№{{ item.request.id }} · {{ item.request.category }}</span
+          >
+          <h3 class="h6 mt-2">{{ item.request.location }}</h3>
+          <p class="ticket-description text-body-secondary small mb-0">
+            {{ item.request.description }}
+          </p>
+        </div>
+        <div class="row-meta text-end d-flex flex-column align-items-end gap-2">
+          <span
+            class="badge rounded-pill"
+            [class.text-bg-warning]="item.request.status === 'New'"
+            [class.text-bg-secondary]="item.request.status !== 'New'"
+            >{{ labels[item.request.status] }}</span
+          ><small class="text-body-secondary">{{ date(item.request.createdAt) }}</small
+          ><span aria-hidden="true">↗</span>
+        </div>
+      </button>
+    }
+  </div>
   @if (!tickets.length && !loading) {
-    <div class="empty">
-      <h3>Заявок за цими умовами немає</h3>
-      <p>Змініть фільтри або завантажте наступну сторінку, якщо вона доступна.</p>
+    <div class="text-center p-4 p-md-5">
+      <h3 class="h5">Заявок за цими умовами немає</h3>
+      <p class="text-body-secondary mb-0">
+        Змініть фільтри або завантажте наступну сторінку, якщо вона доступна.
+      </p>
     </div>
   }
 </section>
