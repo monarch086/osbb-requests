@@ -60,6 +60,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             var page = await store.ListAdminsAsync(cursor, ct);
             return Reply(200, new { items = page.Items.Where(a => a.IsActive).Select(a => new { a.UserId, a.Email }), page.Cursor });
         }
+        if (method == "GET" && path == "/admin/residents") return Reply(200, await store.ListResidentsAsync(cursor, ct));
         if (method == "GET" && path == "/admin/registrations") return Reply(200, await store.ListRegistrationsAsync(cursor, ct));
         if (method == "POST" && segments is ["admin", "registrations", var reference, "decision"])
         {

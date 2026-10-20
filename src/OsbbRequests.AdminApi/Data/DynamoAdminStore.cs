@@ -138,6 +138,27 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
         return new Page<ResidentRegistration>((result.Items ?? []).Select(Payload<ResidentRegistration>).ToList(), Encode(result.LastEvaluatedKey));
     }
 
+    public async Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)
+    {
+        var pk = "BUILDING#" + building;
+        var start = Decode(cursor, "pk", pk);
+        if (start is not null && start.GetValueOrDefault("sk")?.S?.StartsWith("RESIDENT#", StringComparison.Ordinal) != true)
+            throw new ApiError(400, "Некоректна сторінка.");
+        var result = await db.QueryAsync(new QueryRequest
+        {
+            TableName = dataTable,
+            ConsistentRead = true,
+            KeyConditionExpression = "pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues = new() { [":pk"] = S(pk), [":prefix"] = S("RESIDENT#") },
+            ExclusiveStartKey = start,
+            Limit = 50
+        }, ct);
+        var residents = (result.Items ?? []).Select(Payload<ResidentRegistration>)
+            .Where(r => r.BuildingId == building && r.Stage == RegistrationStage.Approved)
+            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.UpdatedAt)).ToList();
+        return new Page<RegisteredResident>(residents, Encode(result.LastEvaluatedKey));
+    }
+
     public async Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct)
     {
         var snapshot = await Get(dataTable, Key("REGISTRATION#" + reference, "META"), ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
@@ -180,13 +201,21 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
         var audit = Key("REGISTRATION#" + reference, "EVENT#DECIDED");
         audit["actor"] = S(actor.Email); audit["createdAt"] = S(now.ToString("O")); audit["decision"] = S(next.Stage.ToString());
         audit["reason"] = S(next.DecisionReason ?? "");
-        await Transact([ActorCheck(actor), Update(Key(user, "REGISTRATION")), Update(Key("REGISTRATION#" + reference, "META")),
+        var writes = new List<TransactWriteItem> { ActorCheck(actor), Update(Key(user, "REGISTRATION")), Update(Key("REGISTRATION#" + reference, "META")),
             new() { Delete = new() { TableName = dataTable, Key = Key("BUILDING#" + building, "REGISTRATION#" + reference),
                 ConditionExpression = "#v = :version", ExpressionAttributeNames = new() { ["#v"] = "version" },
                 ExpressionAttributeValues = new() { [":version"] = N(decision.Version) } } },
             new() { Put = new() { TableName = dataTable, Item = member,
                 ConditionExpression = "attribute_not_exists(pk) OR buildingId = :building",
-                ExpressionAttributeValues = new() { [":building"] = S(building) } } }, Put(dataTable, audit)], ct);
+                ExpressionAttributeValues = new() { [":building"] = S(building) } } }, Put(dataTable, audit) };
+        if (decision.Approved)
+        {
+            var resident = Key("BUILDING#" + building, "RESIDENT#" + registration.UserId.ToString("D20", CultureInfo.InvariantCulture));
+            resident["payload"] = S(JsonSerializer.Serialize(next));
+            resident["version"] = N(next.Version);
+            writes.Add(new() { Put = new() { TableName = dataTable, Item = resident } });
+        }
+        await Transact(writes, ct);
     }
 
     public async Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct)

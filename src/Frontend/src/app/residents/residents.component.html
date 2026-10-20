@@ -1,33 +1,92 @@
-<section class="card">
-  <div class="card-header d-flex align-items-center justify-content-between gap-3 py-3">
-    <h2 class="h5 mb-0">Очікують перевірки</h2>
-    <span class="text-body-secondary">{{ residents.length }} у списку</span>
-  </div>
-  <div class="list-group list-group-flush">
-    @for (r of residents; track r.id) {
-      <article
-        class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
-      >
-        <div>
-          <h3 class="h6">{{ r.firstName }} {{ r.lastName }}</h3>
-          <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
-          <p class="text-body-secondary">Подано {{ date(r.updatedAt) }}</p>
-        </div>
-        <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
-          <button class="btn btn-primary" (click)="approve.emit(r)" [disabled]="saving">
-            Надати доступ</button
-          ><button class="btn btn-outline-secondary" (click)="reject.emit(r)" [disabled]="saving">
-            Відхилити
-          </button>
-        </div>
-      </article>
-    }
-  </div>
-  @if (!residents.length && !loading) {
-    <div class="text-center p-4 p-md-5">
-      <span class="badge rounded-circle text-bg-success fs-4 p-3 mb-3 align-self-center">✓</span>
-      <h3 class="h6">Усі реєстрації перевірено</h3>
-      <p>Тут з’являться ім’я, прізвище та телефон нових мешканців.</p>
+<div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Списки мешканців">
+  <button
+    type="button"
+    class="btn"
+    [class.btn-primary]="view === 'pending'"
+    [class.btn-outline-secondary]="view !== 'pending'"
+    [attr.aria-pressed]="view === 'pending'"
+    [disabled]="loading || saving"
+    (click)="viewChange.emit('pending')"
+  >
+    Очікують перевірки
+  </button>
+  <button
+    type="button"
+    class="btn"
+    [class.btn-primary]="view === 'registered'"
+    [class.btn-outline-secondary]="view !== 'registered'"
+    [attr.aria-pressed]="view === 'registered'"
+    [disabled]="loading || saving"
+    (click)="viewChange.emit('registered')"
+  >
+    Зареєстровані мешканці
+  </button>
+</div>
+@if (view === 'pending') {
+  <section class="card">
+    <div class="card-header d-flex align-items-center justify-content-between gap-3 py-3">
+      <h2 class="h5 mb-0">Очікують перевірки</h2>
+      <span class="text-body-secondary">{{ residents.length }} у списку</span>
     </div>
-  }
-</section>
+    <div class="list-group list-group-flush">
+      @for (r of residents; track r.id) {
+        <article
+          class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
+        >
+          <div>
+            <h3 class="h6">{{ r.firstName }} {{ r.lastName }}</h3>
+            <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
+            <p class="text-body-secondary">Подано {{ date(r.updatedAt) }}</p>
+          </div>
+          <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
+            <button class="btn btn-primary" (click)="approve.emit(r)" [disabled]="saving">
+              Надати доступ</button
+            ><button class="btn btn-outline-secondary" (click)="reject.emit(r)" [disabled]="saving">
+              Відхилити
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+    @if (!residents.length && !loading) {
+      <div class="text-center p-4 p-md-5">
+        <span class="badge rounded-circle text-bg-success fs-4 p-3 mb-3 align-self-center">✓</span>
+        <h3 class="h6">Усі реєстрації перевірено</h3>
+        <p>Тут з’являться ім’я, прізвище та телефон нових мешканців.</p>
+      </div>
+    }
+  </section>
+} @else {
+  <section class="card">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
+      <h2 class="h5 mb-0">Зареєстровані мешканці</h2>
+      <span class="text-body-secondary">Завантажено: {{ registeredResidents.length }}</span>
+    </div>
+    <div class="list-group list-group-flush">
+      @for (resident of registeredResidents; track resident.id) {
+        <article
+          class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
+        >
+          <div>
+            <h3 class="h6">{{ resident.firstName }} {{ resident.lastName }}</h3>
+            @if (resident.phone) {
+              <a [href]="'tel:' + resident.phone">{{ resident.phone }}</a>
+            }
+            <p class="text-body-secondary small mt-2 mb-0">
+              Реєстрацію підтверджено {{ date(resident.registeredAt) }}
+            </p>
+          </div>
+          <span class="badge rounded-pill text-bg-success align-self-start">Зареєстровано</span>
+        </article>
+      }
+    </div>
+    @if (!registeredResidents.length && !loading) {
+      <div class="text-center p-4 p-md-5">
+        <h3 class="h6">Підтверджених реєстрацій ще немає</h3>
+        <p class="text-body-secondary mb-0">
+          Після схвалення запиту мешканець з’явиться в цьому списку.
+        </p>
+      </div>
+    }
+  </section>
+}

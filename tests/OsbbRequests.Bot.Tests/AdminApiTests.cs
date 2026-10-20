@@ -112,6 +112,30 @@ public sealed class AdminApiTests
         Assert.Equal(200, (await Handler(store).HandleAsync(Request("/admin/registrations"), default)).StatusCode);
         Assert.Equal(1, store.PrivateReads);
     }
+    [Theory]
+    [InlineData(null, "access", 401)]
+    [InlineData("regular", "id", 401)]
+    [InlineData("target", "access", 403)]
+    public async Task ResidentDirectoryRequiresActiveAdmin(string? user, string tokenUse, int status)
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(
+            Request("/admin/residents", user: user, tokenUse: tokenUse), default));
+        Assert.Equal(status, error.Status);
+        Assert.Equal(0, store.PrivateReads);
+    }
+    [Fact]
+    public async Task RegularAdminCanReadResidentDirectoryWithoutTelegramIds()
+    {
+        var response = await Handler(new FakeStore()).HandleAsync(Request("/admin/residents"), default);
+        Assert.Equal(200, response.StatusCode);
+        using var body = JsonDocument.Parse(response.Body);
+        var resident = body.RootElement.GetProperty("items")[0];
+        Assert.Equal("Олена", resident.GetProperty("firstName").GetString());
+        Assert.False(resident.TryGetProperty("userId", out _));
+        Assert.False(resident.TryGetProperty("buildingId", out _));
+        Assert.Equal("next-page", body.RootElement.GetProperty("cursor").GetString());
+    }
     [Fact]
     public async Task CompletedRequestRequiresExplanation()
     {
@@ -135,6 +159,8 @@ public sealed class AdminApiTests
         { AccessWrites++; Users[target.UserId] = target with { IsActive = change.IsActive }; return Task.CompletedTask; }
         public Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new Page<ResidentRegistration>([], null)); }
+        public Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)
+        { PrivateReads++; return Task.FromResult(new Page<RegisteredResident>([new("reference", "Олена", "Ковальчук", "+380500000000", DateTimeOffset.UnixEpoch)], "next-page")); }
         public Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct) => Task.CompletedTask;
         public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) => Task.FromResult(new Page<ManagedRequest>([], null));
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));

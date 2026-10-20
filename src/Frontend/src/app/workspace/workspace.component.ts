@@ -1,10 +1,18 @@
 import { Component, OnDestroy, OnInit, Output, EventEmitter, inject } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../auth.service';
-import { ApiService, Admin, Registration, ManagedTicket, Ticket, Page } from '../api.service';
+import {
+  ApiService,
+  Admin,
+  Registration,
+  RegisteredResident,
+  ManagedTicket,
+  Ticket,
+  Page,
+} from '../api.service';
 import { errorMessage } from '../error-message';
 import { RequestsComponent } from '../requests/requests.component';
-import { ResidentsComponent } from '../residents/residents.component';
+import { ResidentsComponent, ResidentView } from '../residents/residents.component';
 import { AdministratorsComponent } from '../administrators/administrators.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
@@ -32,6 +40,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   tab: 'requests' | 'residents' | 'admins' = 'requests';
   tickets: ManagedTicket[] = [];
   residents: Registration[] = [];
+  registeredResidents: RegisteredResident[] = [];
+  residentView: ResidentView = 'pending';
   admins: Admin[] = [];
   assignees: {
     userId: string;
@@ -63,6 +73,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.me = null;
     this.tickets = [];
     this.residents = [];
+    this.registeredResidents = [];
+    this.residentView = 'pending';
     this.admins = [];
     this.assignees = [];
     this.selected = null;
@@ -116,10 +128,22 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.notice = '';
     await this.load();
   }
+  async switchResidentView(view: ResidentView): Promise<void> {
+    if (this.saving || this.loading || this.tab !== 'residents' || view === this.residentView)
+      return;
+    this.residentView = view;
+    this.residents = [];
+    this.registeredResidents = [];
+    this.rejecting = null;
+    this.cursor = null;
+    this.notice = '';
+    await this.load();
+  }
   async load(more = false): Promise<void> {
     if (!this.me?.isActive || this.saving) return;
     const epoch = this.epoch;
     const tab = this.tab;
+    const residentView = this.residentView;
     this.loading = true;
     this.error = '';
     const params = new URLSearchParams();
@@ -127,16 +151,32 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     if (tab === 'requests')
       for (const [key, value] of Object.entries(this.filters)) if (value) params.set(key, value);
     const path =
-      tab === 'requests' ? '/requests' : tab === 'residents' ? '/registrations' : '/administrators';
+      tab === 'requests'
+        ? '/requests'
+        : tab === 'residents'
+          ? residentView === 'pending'
+            ? '/registrations'
+            : '/residents'
+          : '/administrators';
     try {
-      const page = await this.api.request<Page<ManagedTicket | Registration | Admin>>(
-        path + '?' + params.toString(),
-      );
-      if (epoch !== this.epoch || tab !== this.tab) return;
+      const page = await this.api.request<
+        Page<ManagedTicket | Registration | RegisteredResident | Admin>
+      >(path + '?' + params.toString());
+      if (
+        epoch !== this.epoch ||
+        tab !== this.tab ||
+        (tab === 'residents' && residentView !== this.residentView)
+      )
+        return;
       if (tab === 'requests')
         this.tickets = [...(more ? this.tickets : []), ...(page.items as ManagedTicket[])];
-      if (tab === 'residents')
+      if (tab === 'residents' && residentView === 'pending')
         this.residents = [...(more ? this.residents : []), ...(page.items as Registration[])];
+      if (tab === 'residents' && residentView === 'registered')
+        this.registeredResidents = [
+          ...(more ? this.registeredResidents : []),
+          ...(page.items as RegisteredResident[]),
+        ];
       if (tab === 'admins')
         this.admins = [...(more ? this.admins : []), ...(page.items as Admin[])];
       this.cursor = page.cursor;

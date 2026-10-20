@@ -28,7 +28,7 @@ class ResidentAdministrationTests(unittest.TestCase):
         before = copy.deepcopy(self.registration)
         writes = self.transaction('Approved')
         self.assertEqual(before, self.registration)
-        self.assertEqual(5, len(writes))
+        self.assertEqual(6, len(writes))
         profile = writes[0]['Update']
         replacement = json.loads(profile['ExpressionAttributeValues'][':next']['S'])
         self.assertEqual('Approved', replacement['Stage'])
@@ -39,9 +39,14 @@ class ResidentAdministrationTests(unittest.TestCase):
         self.assertEqual('building', writes[3]['Put']['Item']['buildingId']['S'])
         self.assertEqual('operator', writes[4]['Put']['Item']['actor']['S'])
         self.assertEqual('BUILDING#building', writes[2]['Delete']['Key']['pk']['S'])
+        resident = writes[5]['Put']['Item']
+        self.assertEqual('BUILDING#building', resident['pk']['S'])
+        self.assertEqual('RESIDENT#' + str(99).zfill(20), resident['sk']['S'])
+        self.assertEqual(replacement, json.loads(resident['payload']['S']))
 
     def test_rejection_records_reason_and_does_not_grant_access(self):
         writes = self.transaction('Rejected', 'Уточніть прізвище')
+        self.assertEqual(5, len(writes))
         replacement = json.loads(writes[0]['Update']['ExpressionAttributeValues'][':next']['S'])
         self.assertEqual('Уточніть прізвище', replacement['DecisionReason'])
         self.assertFalse(writes[3]['Put']['Item']['active']['BOOL'])

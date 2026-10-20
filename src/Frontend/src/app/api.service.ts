@@ -18,6 +18,13 @@ export interface Registration {
   updatedAt: string;
   version: number;
 }
+export interface RegisteredResident {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  registeredAt: string;
+}
 export interface Ticket {
   id: number;
   ownerId: number;

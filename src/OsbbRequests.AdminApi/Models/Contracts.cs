@@ -6,6 +6,7 @@ public sealed record AdminUser(string UserId, string Email, string DisplayName, 
 public sealed record Identity(string UserId, string Email, string DisplayName);
 public sealed record Page<T>(IReadOnlyList<T> Items, string? Cursor);
 public sealed record AccessChange(bool IsActive, int Version);
+public sealed record RegisteredResident(string Id, string? FirstName, string? LastName, string? Phone, DateTimeOffset RegisteredAt);
 public sealed record RegistrationDecision(bool Approved, string? Reason, int Version);
 public sealed record RequestChange(string Status, string Visibility, string? Resolution, string? AssignedTo,
     string Priority, string? PlannedDate, int Version);

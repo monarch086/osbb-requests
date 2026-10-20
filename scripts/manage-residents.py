@@ -59,7 +59,7 @@ def decision_transaction(table, registration, original_payload, decision, reason
                       registrationId={'S': registration['Id']}, reviewedBy={'S': actor}, reviewedAt={'S': now})
     audit = key(registration_key, 'EVENT#DECIDED')
     audit.update(decision={'S': decision}, actor={'S': actor}, createdAt={'S': now}, reason={'S': reason or ''})
-    return {'TransactItems': [
+    writes = [
         conditional_update(table, key(user_key, 'REGISTRATION'), original_payload, updated),
         conditional_update(table, key(registration_key, 'META'), original_payload, updated),
         {'Delete': {
@@ -74,7 +74,13 @@ def decision_transaction(table, registration, original_payload, decision, reason
             'ExpressionAttributeValues': {':building': {'S': registration['BuildingId']}}
         }},
         {'Put': {'TableName': table, 'Item': audit, 'ConditionExpression': 'attribute_not_exists(pk)'}}
-    ]}
+    ]
+    if decision == 'Approved':
+        resident = key('BUILDING#' + registration['BuildingId'], 'RESIDENT#' + str(registration['UserId']).zfill(20))
+        resident.update(payload={'S': json.dumps(updated, ensure_ascii=False, separators=(',', ':'))},
+                        version={'N': str(updated['Version'])})
+        writes.append({'Put': {'TableName': table, 'Item': resident}})
+    return {'TransactItems': writes}
 
 
 def list_pending(table, building, region):

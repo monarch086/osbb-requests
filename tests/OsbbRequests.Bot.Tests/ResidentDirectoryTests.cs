@@ -1,0 +1,101 @@
+using System.Text;
+using System.Text.Json;
+using Amazon;
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using Amazon.Runtime;
+using OsbbRequests.AdminApi.Data;
+using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Shared.Models;
+using Xunit;
+
+namespace OsbbRequests.Bot.Tests;
+
+public sealed class ResidentDirectoryTests
+{
+    private static readonly ResidentRegistration Registration = new(new string('a', 32), 99, "building",
+        RegistrationStage.Pending, 4, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
+        "+380500000000", "Олена", "Тестова");
+    private static readonly AdminUser Actor = new("admin", "admin@example.org", "Admin", true, false, 1);
+    private static Dictionary<string, AttributeValue> Item(ResidentRegistration registration) => new()
+    {
+        ["payload"] = new(JsonSerializer.Serialize(registration)),
+        ["version"] = new() { N = registration.Version.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+    };
+    private static string Cursor(string building, string sk) => Convert.ToBase64String(Encoding.UTF8.GetBytes(
+        JsonSerializer.Serialize(new Dictionary<string, string> { ["pk"] = "BUILDING#" + building, ["sk"] = sk })));
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task OnlyApprovalAddsResidentToDirectoryInSameGuardedTransaction(bool approved)
+    {
+        using var db = new RecordingDynamo { Snapshot = Item(Registration) };
+        await new DynamoAdminStore(db, "admins", "data", "building").DecideAsync(Actor, Registration.Id,
+            new(approved, approved ? null : "Уточніть дані", 4), default);
+        var writes = db.Transaction!.TransactItems;
+        Assert.Contains(writes, w => w.ConditionCheck?.TableName == "admins");
+        Assert.Contains(writes, w => w.Delete?.Key["sk"].S == "REGISTRATION#" + Registration.Id);
+        Assert.Equal(2, writes.Count(w => w.Update?.ConditionExpression.Contains(":previous", StringComparison.Ordinal) == true));
+        var directory = writes.SingleOrDefault(w => w.Put?.Item.GetValueOrDefault("sk")?.S.StartsWith("RESIDENT#", StringComparison.Ordinal) == true);
+        if (!approved) { Assert.Null(directory); return; }
+        Assert.NotNull(directory);
+        Assert.Equal("BUILDING#building", directory.Put.Item["pk"].S);
+        Assert.Equal("RESIDENT#00000000000000000099", directory.Put.Item["sk"].S);
+        var resident = JsonSerializer.Deserialize<ResidentRegistration>(directory.Put.Item["payload"].S)!;
+        Assert.Equal(RegistrationStage.Approved, resident.Stage);
+        Assert.Equal(Registration.FirstName, resident.FirstName);
+        Assert.Equal(5, resident.Version);
+        Assert.False(directory.Put.Item.ContainsKey("expiresAt"));
+    }
+
+    [Fact]
+    public async Task DirectoryUsesScopedConsistentQueryAndPaginatesWithoutExposingInternalIds()
+    {
+        using var db = new RecordingDynamo();
+        db.Result = new()
+        {
+            Items = [Item(Registration with { Stage = RegistrationStage.Approved }),
+                Item(Registration with { BuildingId = "other", Stage = RegistrationStage.Approved }), Item(Registration)],
+            LastEvaluatedKey = new() { ["pk"] = new("BUILDING#building"), ["sk"] = new("RESIDENT#00000000000000000099") }
+        };
+        var store = new DynamoAdminStore(db, "admins", "data", "building");
+        var result = await store.ListResidentsAsync(Cursor("building", "RESIDENT#00000000000000000001"), default);
+        Assert.True(db.Query!.ConsistentRead);
+        Assert.Equal(50, db.Query.Limit);
+        Assert.Equal("BUILDING#building", db.Query.ExpressionAttributeValues[":pk"].S);
+        Assert.Equal("RESIDENT#", db.Query.ExpressionAttributeValues[":prefix"].S);
+        Assert.Equal("RESIDENT#00000000000000000001", db.Query.ExclusiveStartKey["sk"].S);
+        Assert.Single(result.Items);
+        Assert.Equal(Registration.Phone, result.Items[0].Phone);
+        Assert.NotNull(result.Cursor);
+        await store.ListResidentsAsync(result.Cursor, default);
+        Assert.Equal("RESIDENT#00000000000000000099", db.Query.ExclusiveStartKey["sk"].S);
+    }
+
+    [Theory]
+    [InlineData("other", "RESIDENT#1")]
+    [InlineData("building", "REGISTRATION#1")]
+    public async Task ForeignBuildingAndOtherListCursorsAreRejected(string building, string sk)
+    {
+        using var db = new RecordingDynamo();
+        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building")
+            .ListResidentsAsync(Cursor(building, sk), default));
+        Assert.Equal(400, error.Status);
+        Assert.Null(db.Query);
+    }
+
+    private sealed class RecordingDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
+    {
+        public Dictionary<string, AttributeValue>? Snapshot;
+        public QueryRequest? Query;
+        public QueryResponse Result = new() { Items = [] };
+        public TransactWriteItemsRequest? Transaction;
+        public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(new GetItemResponse { Item = Snapshot });
+        public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
+        { Query = request; return Task.FromResult(Result); }
+        public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken cancellationToken = default)
+        { Transaction = request; return Task.FromResult(new TransactWriteItemsResponse()); }
+    }
+}

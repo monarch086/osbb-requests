@@ -44,7 +44,7 @@
             tab === 'requests'
               ? 'Від першого повідомлення до вирішеної проблеми.'
               : tab === 'residents'
-                ? 'Перевірте дані мешканців і надайте доступ до бота.'
+                ? 'Перевіряйте нові запити та переглядайте зареєстрованих мешканців.'
                 : 'Надавайте або відкликайте доступ до роботи зі зверненнями.'
           }}
         </p>
@@ -81,6 +81,9 @@
     }
     @if (tab === 'residents') {
       <app-residents
+        [view]="residentView"
+        [registeredResidents]="registeredResidents"
+        (viewChange)="switchResidentView($event)"
         [residents]="residents"
         [loading]="loading"
         [saving]="saving"
