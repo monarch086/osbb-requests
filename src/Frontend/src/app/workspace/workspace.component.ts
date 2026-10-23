@@ -4,6 +4,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../auth.service';
 import {
   ApiService,
+  NotificationSettings,
   Admin,
   Registration,
   RegisteredResident,
@@ -262,6 +263,23 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     } finally {
       if (epoch === this.epoch && sequence === this.loadSequence) this.loading = false;
     }
+  }
+  async saveNotificationSettings(admin: Admin, settings: NotificationSettings): Promise<void> {
+    if (!this.me?.isSuperAdmin) return;
+    await this.write(async () => {
+      await this.api.request(
+        '/administrators/' + encodeURIComponent(admin.userId) + '/notifications',
+        'PATCH',
+        {
+          ...settings,
+          version: admin.version,
+        },
+      );
+      Object.assign(admin, settings, { version: admin.version + 1 });
+      if (this.me?.userId === admin.userId)
+        Object.assign(this.me, settings, { version: admin.version });
+      this.notice = 'Налаштування сповіщень збережено.';
+    });
   }
   async setAccess(user: Admin): Promise<void> {
     if (!this.me?.isSuperAdmin || user.isSuperAdmin) return;

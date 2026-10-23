@@ -100,7 +100,7 @@ functions:
         functionResponseType: ReportBatchItemFailures
   notificationSender:
     handler: OsbbRequests.Bot::OsbbRequests.Bot.NotificationFunction::FunctionHandler
-    description: Delivers durable resident notifications after administrative request changes.
+    description: Delivers durable resident notifications and subscribed administrator alerts.
     timeout: 60
     maximumRetryAttempts: 2
     maximumEventAge: 300
@@ -119,6 +119,8 @@ functions:
       BOT_TOKEN_PARAMETER: ${self:custom.parameterPrefix}/telegram-bot-token
       COMMAND_DATA_TABLE:
         Ref: CommandDataTable
+      ADMINISTRATORS_TABLE:
+        Ref: AdministratorsTable
       BUILDING_ID: ${self:custom.buildingId}
       ADMIN_TELEGRAM_CHAT_ID: ${env:ADMIN_TELEGRAM_CHAT_ID, ''}
     package:
@@ -283,6 +285,16 @@ resources:
                 ForAllValues:StringEquals:
                   dynamodb:LeadingKeys:
                   - NOTIFICATIONS#${self:custom.buildingId}
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource:
+                Fn::GetAtt:
+                - AdministratorsTable
+                - Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${AdministratorsTable.Arn}/index/DirectoryIndex
             - Effect: Allow
               Action: ssm:GetParameter
               Resource:
@@ -529,6 +541,10 @@ resources:
                   - CreatedAt
                   - UpdatedAt
                   - Version
+                  - TelegramChatId
+                  - NotifyNewResidents
+                  - NotifyNewRequests
+                  - NotifyNewAdministrators
             - Effect: Deny
               Action:
               - dynamodb:PutItem

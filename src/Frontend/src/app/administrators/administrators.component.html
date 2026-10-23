@@ -5,29 +5,40 @@
   </div>
   <div class="list-group list-group-flush">
     @for (a of admins; track a.userId) {
-      <article
-        class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
-      >
-        <div>
-          <h3 class="h6">{{ a.displayName }}</h3>
-          @if (a.email !== a.displayName) {
-            <p>{{ a.email }}</p>
+      <article class="list-group-item p-4">
+        <div
+          class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3"
+        >
+          <div>
+            <h3 class="h6">{{ a.displayName }}</h3>
+            @if (a.email !== a.displayName) {
+              <p>{{ a.email }}</p>
+            }
+            <span class="badge rounded-pill text-bg-secondary">{{
+              a.isSuperAdmin
+                ? 'Супер адміністратор'
+                : a.isActive
+                  ? 'Адміністратор'
+                  : 'Очікує доступу'
+            }}</span>
+          </div>
+          @if (!a.isSuperAdmin) {
+            <button
+              class="btn"
+              [class.btn-outline-danger]="a.isActive"
+              [class.btn-primary]="!a.isActive"
+              (click)="toggleAccess.emit(a)"
+              [disabled]="saving"
+            >
+              {{ a.isActive ? 'Відкликати доступ' : 'Надати доступ' }}
+            </button>
           }
-          <span class="badge rounded-pill text-bg-secondary">{{
-            a.isSuperAdmin ? 'Супер адміністратор' : a.isActive ? 'Адміністратор' : 'Очікує доступу'
-          }}</span>
         </div>
-        @if (!a.isSuperAdmin) {
-          <button
-            class="btn"
-            [class.btn-outline-danger]="a.isActive"
-            [class.btn-primary]="!a.isActive"
-            (click)="toggleAccess.emit(a)"
-            [disabled]="saving"
-          >
-            {{ a.isActive ? 'Відкликати доступ' : 'Надати доступ' }}
-          </button>
-        }
+        <app-administrator-notifications
+          [admin]="a"
+          [saving]="saving"
+          (saved)="saveNotifications.emit({ admin: a, settings: $event })"
+        />
       </article>
     }
   </div>

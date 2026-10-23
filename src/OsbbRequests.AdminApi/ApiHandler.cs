@@ -41,6 +41,15 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         var query = request.QueryStringParameters?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>();
         var cursor = query.GetValueOrDefault("cursor");
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (method == "PATCH" && segments is ["admin", "administrators", var targetId, "notifications"])
+        {
+            if (actor.UserId != targetId && !actor.IsSuperAdmin) throw new ApiError(403, "Недостатньо прав для зміни сповіщень.");
+            var change = Body<NotificationSettingsChange>(request);
+            var target = await store.GetAdminAsync(targetId, ct) ?? throw new ApiError(404, "Користувача не знайдено.");
+            if (change.Version != target.Version) throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            await store.SetNotificationSettingsAsync(actor, target, change, ct);
+            return Reply(200, new { ok = true });
+        }
         if (path == "/admin/administrators" || segments is ["admin", "administrators", _])
         {
             if (!actor.IsSuperAdmin) throw new ApiError(403, "Керувати адміністраторами може лише супер адміністратор.");
@@ -61,7 +70,24 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             return Reply(200, new { items = page.Items.Where(a => a.IsActive).Select(a => new { a.UserId, a.Email }), page.Cursor });
         }
         if (method == "GET" && path == "/admin/residents") return Reply(200, await store.ListResidentsAsync(cursor, ct));
-        if (method == "GET" && path == "/admin/registrations") return Reply(200, await store.ListRegistrationsAsync(cursor, ct));
+        if (method == "GET" && path == "/admin/registrations")
+        {
+            var page = await store.ListRegistrationsAsync(cursor, ct);
+            return Reply(200, new
+            {
+                items = page.Items.Select(r => new
+                {
+                    r.Id,
+                    r.FirstName,
+                    r.LastName,
+                    r.Phone,
+                    r.UpdatedAt,
+                    r.Version,
+                    TelegramChatId = r.UserId.ToString(CultureInfo.InvariantCulture)
+                }),
+                page.Cursor
+            });
+        }
         if (method == "POST" && segments is ["admin", "registrations", var reference, "decision"])
         {
             if (reference.Length != 32 || !reference.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");

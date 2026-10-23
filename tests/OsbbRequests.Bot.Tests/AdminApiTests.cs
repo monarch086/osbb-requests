@@ -114,6 +114,41 @@ public sealed class AdminApiTests
         Assert.Equal(1, store.PrivateReads);
     }
     [Theory]
+    [InlineData("super", "regular", 200)]
+    [InlineData("super", "super", 200)]
+    [InlineData("regular", "regular", 200)]
+    [InlineData("regular", "target", 403)]
+    [InlineData("target", "target", 403)]
+    [InlineData(null, "regular", 401)]
+    public async Task NotificationSettingsRequireActiveOwnerOrSuperAdmin(string? user, string target, int status)
+    {
+        var store = new FakeStore();
+        var request = Request("/admin/administrators/" + target + "/notifications", "PATCH", user,
+            new { telegramChatId = "99", notifyNewResidents = true, notifyNewRequests = false, notifyNewAdministrators = false, version = 1 });
+        if (status == 200)
+        {
+            Assert.Equal(200, (await Handler(store).HandleAsync(request, default)).StatusCode);
+            Assert.Equal(1, store.SettingsWrites);
+        }
+        else
+        {
+            Assert.Equal(status, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(request, default))).Status);
+            Assert.Equal(0, store.SettingsWrites);
+        }
+    }
+
+    [Fact]
+    public async Task NotificationSettingsCannotChangeProtectedRoleOrUseStaleVersion()
+    {
+        var store = new FakeStore();
+        var protectedChange = Request("/admin/administrators/regular/notifications", "PATCH", "super", new { isSuperAdmin = true, version = 1 });
+        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(protectedChange, default))).Status);
+        var staleChange = Request("/admin/administrators/regular/notifications", "PATCH", "super", new { telegramChatId = "99", version = 0 });
+        Assert.Equal(409, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(staleChange, default))).Status);
+        Assert.Equal(0, store.SettingsWrites);
+    }
+
+    [Theory]
     [InlineData(null, "access", 401)]
     [InlineData("regular", "id", 401)]
     [InlineData("target", "access", 403)]
@@ -136,6 +171,7 @@ public sealed class AdminApiTests
         Assert.False(resident.TryGetProperty("userId", out _));
         Assert.False(resident.TryGetProperty("buildingId", out _));
         Assert.Equal("next-page", body.RootElement.GetProperty("cursor").GetString());
+        Assert.Equal("99", resident.GetProperty("telegramChatId").GetString());
     }
     [Theory]
     [InlineData(null, "access", 401)]
@@ -159,6 +195,17 @@ public sealed class AdminApiTests
         Assert.Equal(99, store.LastHistoryRequest!.OwnerId);
         Assert.Equal(7, store.LastHistoryRequest.Id);
         Assert.Equal("building", store.LastHistoryRequest.BuildingId);
+    }
+
+    [Fact]
+    public async Task PendingResidentsExposeChatIdOnlyToAuthorizedAdministrators()
+    {
+        var response = await Handler(new FakeStore()).HandleAsync(Request("/admin/registrations"), default);
+        using var body = JsonDocument.Parse(response.Body);
+        var resident = body.RootElement.GetProperty("items")[0];
+        Assert.Equal("99", resident.GetProperty("telegramChatId").GetString());
+        Assert.False(resident.TryGetProperty("userId", out _));
+        Assert.False(resident.TryGetProperty("buildingId", out _));
     }
 
     [Fact]
@@ -279,17 +326,19 @@ public sealed class AdminApiTests
         public MaintenanceRequest? LastRequest;
         public RequestFilters? LastFilters;
         public MaintenanceRequest? LastHistoryRequest;
+        public int SettingsWrites;
         public int PrivateReads; public int AccessWrites; public int RequestWrites;
         public Task<AdminUser?> GetAdminAsync(string user, CancellationToken ct) => Task.FromResult(Users.GetValueOrDefault(user));
         public Task<AdminUser> RegisterAccountAsync(Identity identity, CancellationToken ct)
         { var user = new AdminUser(identity.UserId, identity.Email, identity.DisplayName, false, false, 1); Users.Add(user.UserId, user); return Task.FromResult(user); }
         public Task<Page<AdminUser>> ListAdminsAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<AdminUser>(Users.Values.ToList(), null));
+        public Task SetNotificationSettingsAsync(AdminUser actor, AdminUser target, NotificationSettingsChange change, CancellationToken ct) { SettingsWrites++; return Task.CompletedTask; }
         public Task SetAccessAsync(AdminUser actor, AdminUser target, AccessChange change, CancellationToken ct)
         { AccessWrites++; Users[target.UserId] = target with { IsActive = change.IsActive }; return Task.CompletedTask; }
         public Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct)
-        { PrivateReads++; return Task.FromResult(new Page<ResidentRegistration>([], null)); }
+        { PrivateReads++; return Task.FromResult(new Page<ResidentRegistration>([new("reference", 99, "building", RegistrationStage.Pending, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "+380500000000", "Олена", "Ковальчук")], null)); }
         public Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)
-        { PrivateReads++; return Task.FromResult(new Page<RegisteredResident>([new("reference", "Олена", "Ковальчук", "+380500000000", DateTimeOffset.UnixEpoch)], "next-page")); }
+        { PrivateReads++; return Task.FromResult(new Page<RegisteredResident>([new("reference", "Олена", "Ковальчук", "+380500000000", DateTimeOffset.UnixEpoch, "99")], "next-page")); }
         public Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct) => Task.CompletedTask;
         public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) { LastFilters = filters; return Task.FromResult(new Page<ManagedRequest>([], null)); }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));

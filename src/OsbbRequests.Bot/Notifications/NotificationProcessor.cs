@@ -16,6 +16,16 @@ public sealed class NotificationProcessor(INotificationRepository repository, IT
             if (!await repository.ClaimAsync(item, lease, clock.GetUtcNow(), ct)) continue;
             try
             {
+                if (item.Notification.IsBroadcast)
+                {
+                    await repository.ExpandAsync(item, lease, clock.GetUtcNow(), ct);
+                    continue;
+                }
+                if (!await repository.CanDeliverAsync(item, ct))
+                {
+                    await repository.CompleteAsync(item, lease, "Skipped", clock.GetUtcNow(), ct);
+                    continue;
+                }
                 await telegram.SendMessageAsync(item.Notification.OwnerId, item.Notification.Text, ct);
                 await repository.CompleteAsync(item, lease, "Delivered", clock.GetUtcNow(), ct);
                 log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=delivered");

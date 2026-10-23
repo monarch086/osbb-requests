@@ -170,6 +170,29 @@ public sealed class NotificationTests
     }
 
     [Fact]
+    public async Task BroadcastIsExpandedWithoutSendingToPlaceholderChat()
+    {
+        var broadcast = Work() with { Notification = Work().Notification with { OwnerId = 0, AdministratorEvent = AdministratorEvent.NewRequest } };
+        var repository = new MemoryNotifications(broadcast);
+        var telegram = new NotificationTelegram();
+        var processor = new NotificationProcessor(repository, telegram, timeProvider: new FixedClock());
+        await processor.RunAsync(default);
+        await processor.RunAsync(default);
+        Assert.Equal(1, repository.Expansions);
+        Assert.Empty(telegram.Sent);
+    }
+
+    [Fact]
+    public async Task UnsubscribedRecipientIsSkippedWithoutTelegramMessage()
+    {
+        var repository = new MemoryNotifications(Work()) { AllowDelivery = false };
+        var telegram = new NotificationTelegram();
+        await new NotificationProcessor(repository, telegram, timeProvider: new FixedClock()).RunAsync(default);
+        Assert.Empty(telegram.Sent);
+        Assert.Equal("Skipped", Assert.Single(repository.Results).Disposition);
+    }
+
+    [Fact]
     public async Task FailedDeliveryLogsOnlyEventIdAndErrorType()
     {
         var repository = new MemoryNotifications(Work());
@@ -374,6 +397,10 @@ public sealed class NotificationTests
     }
     private sealed class MemoryNotifications(params NotificationWorkItem[] items) : INotificationRepository
     {
+        public Task ExpandAsync(NotificationWorkItem item, string lease, DateTimeOffset now, CancellationToken ct) { Expansions++; Items.Remove(item); return Task.CompletedTask; }
+        public int Expansions;
+        public Task<bool> CanDeliverAsync(NotificationWorkItem item, CancellationToken ct) => Task.FromResult(AllowDelivery);
+        public bool AllowDelivery = true;
         public List<NotificationWorkItem> Items = [.. items];
         public List<(NotificationWorkItem Item, string Disposition)> Results = [];
         public List<(NotificationWorkItem Item, DateTimeOffset Due)> Retries = [];

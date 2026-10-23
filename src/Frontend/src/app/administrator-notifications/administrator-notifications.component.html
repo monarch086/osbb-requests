@@ -1,0 +1,69 @@
+<form #form="ngForm" (ngSubmit)="form.valid && submit()" class="border-top pt-3 mt-3">
+  <div class="mb-3">
+    <label class="form-label" [for]="'telegram-chat-' + admin.userId">Telegram Chat Id</label>
+    <input
+      class="form-control"
+      type="text"
+      [id]="'telegram-chat-' + admin.userId"
+      name="telegramChatId"
+      [(ngModel)]="settings.telegramChatId"
+      pattern="[+-]?[0-9]+"
+      maxlength="20"
+      [disabled]="saving"
+      [attr.aria-describedby]="'telegram-help-' + admin.userId"
+    />
+    <p class="form-text" [id]="'telegram-help-' + admin.userId">
+      Бот має мати змогу надсилати повідомлення в цей чат. Для особистого чату спочатку надішліть
+      боту /start.
+    </p>
+  </div>
+  <div class="form-check mb-2">
+    <input
+      class="form-check-input"
+      type="checkbox"
+      [id]="'notify-residents-' + admin.userId"
+      name="notifyNewResidents"
+      [(ngModel)]="settings.notifyNewResidents"
+      [disabled]="saving"
+    />
+    <label class="form-check-label" [for]="'notify-residents-' + admin.userId"
+      >Надсилати сповіщення про нових мешканців</label
+    >
+  </div>
+  <div class="form-check mb-2">
+    <input
+      class="form-check-input"
+      type="checkbox"
+      [id]="'notify-requests-' + admin.userId"
+      name="notifyNewRequests"
+      [(ngModel)]="settings.notifyNewRequests"
+      [disabled]="saving"
+    />
+    <label class="form-check-label" [for]="'notify-requests-' + admin.userId"
+      >Надсилати сповіщення про нові заявки</label
+    >
+  </div>
+  <div class="form-check mb-3">
+    <input
+      class="form-check-input"
+      type="checkbox"
+      [id]="'notify-admins-' + admin.userId"
+      name="notifyNewAdministrators"
+      [(ngModel)]="settings.notifyNewAdministrators"
+      [disabled]="saving"
+    />
+    <label class="form-check-label" [for]="'notify-admins-' + admin.userId"
+      >Надсилати сповіщення про нових адміністраторів</label
+    >
+  </div>
+  @if (missingChat) {
+    <p class="text-danger small" role="status">Для сповіщень вкажіть Telegram Chat Id.</p>
+  }
+  <button
+    class="btn btn-outline-primary"
+    type="submit"
+    [disabled]="saving || form.invalid || missingChat"
+  >
+    Зберегти сповіщення
+  </button>
+</form>

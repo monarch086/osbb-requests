@@ -4,8 +4,11 @@ using OsbbRequests.Shared.Domain;
 namespace OsbbRequests.Shared.Models;
 
 public sealed record ResidentNotification(string Id, string ComplexId, long OwnerId, long? RequestId,
-    int? RequestVersion, string Text, DateTimeOffset CreatedAt)
+    int? RequestVersion, string Text, DateTimeOffset CreatedAt, AdministratorEvent? AdministratorEvent = null, string? AdministratorId = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsBroadcast => AdministratorEvent is not null && AdministratorId is null && OwnerId == 0;
+
     public static ResidentNotification? Create(MaintenanceRequest previous, MaintenanceRequest next, int version, DateTimeOffset now)
     {
         if (previous.Id != next.Id || previous.OwnerId != next.OwnerId || previous.BuildingId != next.BuildingId)

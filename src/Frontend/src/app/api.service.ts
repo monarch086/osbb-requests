@@ -2,7 +2,13 @@ import { inject, Injectable } from '@angular/core';
 import { AuthService } from './auth.service';
 import { UserFacingError } from './error-message';
 
-export interface Admin {
+export interface NotificationSettings {
+  telegramChatId: string | null;
+  notifyNewResidents: boolean;
+  notifyNewRequests: boolean;
+  notifyNewAdministrators: boolean;
+}
+export interface Admin extends NotificationSettings {
   userId: string;
   email: string;
   displayName: string;
@@ -11,6 +17,7 @@ export interface Admin {
   version: number;
 }
 export interface Registration {
+  telegramChatId: string;
   id: string;
   firstName: string;
   lastName: string;
@@ -19,6 +26,7 @@ export interface Registration {
   version: number;
 }
 export interface RegisteredResident {
+  telegramChatId: string;
   id: string;
   firstName: string | null;
   lastName: string | null;

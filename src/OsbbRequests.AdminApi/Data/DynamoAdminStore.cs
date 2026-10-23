@@ -19,7 +19,9 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
     private static AdminUser Admin(Dictionary<string, AttributeValue> item) => new(item["UserId"].S,
         item["Email"].S, item.GetValueOrDefault("DisplayName")?.S ?? item["Email"].S,
         item.GetValueOrDefault("IsActive")?.BOOL == true, item.GetValueOrDefault("IsSuperAdmin")?.BOOL == true,
-        int.Parse(item.GetValueOrDefault("Version")?.N ?? "0", CultureInfo.InvariantCulture));
+        int.Parse(item.GetValueOrDefault("Version")?.N ?? "0", CultureInfo.InvariantCulture),
+        item.GetValueOrDefault("TelegramChatId")?.S, item.GetValueOrDefault("NotifyNewResidents")?.BOOL == true,
+        item.GetValueOrDefault("NotifyNewRequests")?.BOOL == true, item.GetValueOrDefault("NotifyNewAdministrators")?.BOOL == true);
     private static T Payload<T>(Dictionary<string, AttributeValue> item) => JsonSerializer.Deserialize<T>(item["payload"].S)
         ?? throw new InvalidOperationException("Invalid stored payload.");
     private static ManagedRequest Managed(Dictionary<string, AttributeValue> item) => new(Payload<MaintenanceRequest>(item),
@@ -38,7 +40,8 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
         try
         {
             // IsSuperAdmin is intentionally absent. The Lambda IAM role cannot write that attribute.
-            await db.UpdateItemAsync(new UpdateItemRequest
+            var now = DateTimeOffset.UtcNow;
+            var account = new Update
             {
                 TableName = adminsTable,
                 Key = AdminKey(identity.UserId),
@@ -51,12 +54,20 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
                     [":name"] = S(identity.DisplayName),
                     [":inactive"] = new() { BOOL = false },
                     [":directory"] = S("ADMINS"),
-                    [":now"] = S(DateTimeOffset.UtcNow.ToString("O")),
+                    [":now"] = S(now.ToString("O")),
                     [":version"] = N(1)
                 }
+            };
+            await db.TransactWriteItemsAsync(new TransactWriteItemsRequest
+            {
+                TransactItems = [new() { Update = account }, NotificationWrite(AdministratorNotifications.NewAdministrator(identity.UserId, identity.Email, building, now))]
             }, ct);
         }
-        catch (ConditionalCheckFailedException) { }
+        catch (TransactionCanceledException)
+        {
+            if (await GetAdminAsync(identity.UserId, ct) is { } existing) return existing;
+            throw;
+        }
         return await GetAdminAsync(identity.UserId, ct) ?? throw new InvalidOperationException("Account creation failed.");
     }
 
@@ -103,6 +114,46 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
     };
     private static TransactWriteItem Put(string table, Dictionary<string, AttributeValue> item) => new()
     { Put = new() { TableName = table, Item = item, ConditionExpression = "attribute_not_exists(pk)" } };
+
+    public async Task SetNotificationSettingsAsync(AdminUser actor, AdminUser target, NotificationSettingsChange change, CancellationToken ct)
+    {
+        if (!actor.IsActive || (actor.UserId != target.UserId && !actor.IsSuperAdmin))
+            throw new ApiError(403, "Недостатньо прав для зміни сповіщень.");
+        var chat = change.TelegramChatId?.Trim();
+        if (string.IsNullOrEmpty(chat)) chat = null;
+        var settings = new AdministratorNotificationSettings(chat, change.NotifyNewResidents, change.NotifyNewRequests, change.NotifyNewAdministrators);
+        if (chat is not null && (chat.Length > 20 || settings.ChatId is null)) throw new ApiError(400, "Вкажіть коректний Telegram Chat Id.");
+        if (settings.ChatId is null && (change.NotifyNewResidents || change.NotifyNewRequests || change.NotifyNewAdministrators))
+            throw new ApiError(400, "Для сповіщень вкажіть Telegram Chat Id.");
+        chat = settings.ChatId?.ToString(CultureInfo.InvariantCulture);
+        var now = DateTimeOffset.UtcNow.ToString("O");
+        var update = new Update
+        {
+            TableName = adminsTable,
+            Key = AdminKey(target.UserId),
+            UpdateExpression = "SET TelegramChatId = :chat, NotifyNewResidents = :residents, NotifyNewRequests = :requests, NotifyNewAdministrators = :admins, UpdatedAt = :now, #v = :next",
+            ConditionExpression = "#v = :expected" + (actor.UserId == target.UserId ? " AND IsActive = :yes" : ""),
+            ExpressionAttributeNames = new() { ["#v"] = "Version" },
+            ExpressionAttributeValues = new()
+            {
+                [":chat"] = chat is null ? new() { NULL = true } : S(chat),
+                [":residents"] = new() { BOOL = change.NotifyNewResidents },
+                [":requests"] = new() { BOOL = change.NotifyNewRequests },
+                [":admins"] = new() { BOOL = change.NotifyNewAdministrators },
+                [":now"] = S(now),
+                [":next"] = N(change.Version + 1),
+                [":expected"] = N(change.Version)
+            }
+        };
+        var writes = new List<TransactWriteItem>();
+        if (actor.UserId != target.UserId) writes.Add(ActorCheck(actor, super: true));
+        else update.ExpressionAttributeValues[":yes"] = new() { BOOL = true };
+        writes.Add(new() { Update = update });
+        var audit = Key("ADMIN#" + target.UserId, "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
+        audit["actor"] = S(actor.Email); audit["action"] = S("AdminNotificationSettingsChanged"); audit["createdAt"] = S(now);
+        writes.Add(Put(dataTable, audit));
+        await Transact(writes, ct);
+    }
 
     public async Task SetAccessAsync(AdminUser actor, AdminUser target, AccessChange change, CancellationToken ct)
     {
@@ -159,7 +210,7 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
         }, ct);
         var residents = (result.Items ?? []).Select(Payload<ResidentRegistration>)
             .Where(r => r.BuildingId == building && r.Stage == RegistrationStage.Approved)
-            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.UpdatedAt)).ToList();
+            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture))).ToList();
         return new Page<RegisteredResident>(residents, Encode(result.LastEvaluatedKey));
     }
 

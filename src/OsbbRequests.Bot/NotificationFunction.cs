@@ -19,7 +19,7 @@ public sealed class NotificationFunction
         if (long.TryParse(Environment.GetEnvironmentVariable("ADMIN_TELEGRAM_CHAT_ID"), out var chatId) && chatId != 0)
             notifier = new ServiceNotifier(telegram, chatId);
         processor = new(new DynamoNotificationRepository(new AmazonDynamoDBClient(),
-            RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), RuntimeConfiguration.Required("BUILDING_ID")), telegram, notifier);
+            RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), RuntimeConfiguration.Required("BUILDING_ID"), RuntimeConfiguration.Required("ADMINISTRATORS_TABLE")), telegram, notifier);
     }
     public NotificationFunction(NotificationProcessor processor, IServiceNotifier? notifier = null)
     { this.processor = processor; this.notifier = notifier; }

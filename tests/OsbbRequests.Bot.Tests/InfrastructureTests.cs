@@ -161,13 +161,18 @@ public sealed class InfrastructureTests
                 Keyboard: ReplyKeyboard.Remove), CancellationToken.None);
         Assert.Equal(ReplyKeyboard.Remove, result.Keyboard);
         var writes = Assert.IsType<TransactWriteItemsRequest>(client.Transaction).TransactItems;
-        Assert.Equal(4, writes.Count);
+        Assert.Equal(5, writes.Count);
         var profile = Assert.Single(writes, item => item.Put.Item["sk"].S == "REGISTRATION").Put;
         Assert.Equal("#version = :expected", profile.ConditionExpression);
         Assert.Equal("3", profile.ExpressionAttributeValues[":expected"].N);
         Assert.Contains(writes, item => item.Put.Item["pk"].S == "BUILDING#building");
         Assert.Contains(writes, item => item.Put.Item["sk"].S == "META");
         Assert.DoesNotContain(writes, item => item.Put.Item["sk"].S == "MEMBERSHIP");
+        var broadcast = Assert.Single(writes, item => item.Put.Item["pk"].S == "NOTIFICATIONS#building").Put.Item;
+        var notification = JsonSerializer.Deserialize<ResidentNotification>(broadcast["payload"].S)!;
+        Assert.True(notification.IsBroadcast);
+        Assert.Equal(AdministratorEvent.NewResident, notification.AdministratorEvent);
+        Assert.False(broadcast.ContainsKey("expiresAt"));
     }
 
     [Fact]
@@ -196,12 +201,14 @@ public sealed class InfrastructureTests
         var request = new MaintenanceRequest(100, 42, "building", "інше", "двір", "Зламано освітлення", DateTimeOffset.UtcNow, Scope: RequestScope.Complex);
         await repository.CommitAsync(command, new CommandOutcome("Створено", request), CancellationToken.None);
         var transaction = Assert.IsType<TransactWriteItemsRequest>(client.Transaction);
-        Assert.Equal(3, transaction.TransactItems.Count);
+        Assert.Equal(4, transaction.TransactItems.Count);
         Assert.All(transaction.TransactItems, item => Assert.Equal("attribute_not_exists(pk)", item.Put.ConditionExpression));
         var receipt = Assert.Single(transaction.TransactItems, item => item.Put.Item["pk"].S == "UPDATE#100").Put.Item;
         Assert.True(long.Parse(receipt["expiresAt"].N) > DateTimeOffset.UtcNow.AddDays(29).ToUnixTimeSeconds());
         Assert.Equal("USER#42", transaction.TransactItems[1].Put.Item["pk"].S);
         Assert.Equal("REQUEST#100", transaction.TransactItems[2].Put.Item["pk"].S);
+        var broadcast = Assert.Single(transaction.TransactItems, item => item.Put.Item["pk"].S == "NOTIFICATIONS#building").Put.Item;
+        Assert.Equal(AdministratorEvent.NewRequest, JsonSerializer.Deserialize<ResidentNotification>(broadcast["payload"].S)!.AdministratorEvent);
         Assert.All(transaction.TransactItems.Skip(1), item => Assert.False(item.Put.Item.ContainsKey("expiresAt")));
     }
 
@@ -215,7 +222,7 @@ public sealed class InfrastructureTests
         var draft = new RequestDraft(42, "complex", RequestDraftStage.Completed, 7);
         await repository.CommitAsync(new(100, 42, 42, "Ліфт не працює"), new("Створено", request, Draft: new(draft, 6)), default);
         var writes = client.Transaction!.TransactItems;
-        Assert.Equal(4, writes.Count);
+        Assert.Equal(5, writes.Count);
         var stored = Assert.Single(writes, w => w.Put.Item["sk"].S.StartsWith("REQUEST#", StringComparison.Ordinal)).Put.Item;
         Assert.Equal("Building4В", stored["requestTarget"].S);
         using var payload = JsonDocument.Parse(stored["payload"].S);

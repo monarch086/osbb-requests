@@ -178,6 +178,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             history["target"] = new AttributeValue(ComplexLayout.Target(request.Scope, request.BuildingNumber));
             if (request.Floor is { } historyFloor) history["floor"] = new AttributeValue { N = Number(historyFloor) };
             writes.Add(Put(history));
+            writes.Add(NotificationWrite(AdministratorNotifications.NewRequest(request)));
         }
 
         if (outcome.Deletion is { } deletion)
@@ -272,6 +273,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
                 writes.Add(Put(RegistrationItem("REGISTRATION#" + registration.Id, "META", registration)));
                 writes.Add(Put(RegistrationItem("BUILDING#" + registration.BuildingId,
                     "REGISTRATION#" + registration.Id, registration)));
+                writes.Add(NotificationWrite(AdministratorNotifications.NewResident(registration)));
             }
         }
 
@@ -309,6 +311,14 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
         item["payload"] = new AttributeValue(JsonSerializer.Serialize(value));
         item["version"] = new AttributeValue { N = value.Version.ToString(CultureInfo.InvariantCulture) };
         return item;
+    }
+
+    private TransactWriteItem NotificationWrite(ResidentNotification notification)
+    {
+        var item = Key(ResidentNotification.Partition(notification.ComplexId), ResidentNotification.DueKey(notification.CreatedAt, notification.Id));
+        item["payload"] = new(JsonSerializer.Serialize(notification));
+        item["attempts"] = new() { N = "0" };
+        return Put(item);
     }
 
     private TransactWriteItem Put(Dictionary<string, AttributeValue> item) => new()

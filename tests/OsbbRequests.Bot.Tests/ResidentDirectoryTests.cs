@@ -109,6 +109,7 @@ public sealed class ResidentDirectoryTests
         Assert.Equal("RESIDENT#00000000000000000001", db.Query.ExclusiveStartKey["sk"].S);
         Assert.Single(result.Items);
         Assert.Equal(Registration.Phone, result.Items[0].Phone);
+        Assert.Equal("99", result.Items[0].TelegramChatId);
         Assert.NotNull(result.Cursor);
         await store.ListResidentsAsync(result.Cursor, default);
         Assert.Equal("RESIDENT#00000000000000000099", db.Query.ExclusiveStartKey["sk"].S);

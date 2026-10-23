@@ -6,7 +6,7 @@ using OsbbRequests.Shared.Models;
 
 namespace OsbbRequests.Bot.Notifications;
 
-public sealed class DynamoNotificationRepository(IAmazonDynamoDB db, string table, string complexId) : INotificationRepository
+public sealed partial class DynamoNotificationRepository(IAmazonDynamoDB db, string table, string complexId, string? administratorsTable = null) : INotificationRepository
 {
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(long value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
@@ -35,11 +35,12 @@ public sealed class DynamoNotificationRepository(IAmazonDynamoDB db, string tabl
         }, ct);
         return (result.Items ?? []).Select(item => new NotificationWorkItem(item["sk"].S,
             JsonSerializer.Deserialize<ResidentNotification>(item["payload"].S) ?? throw new InvalidOperationException("Invalid notification."),
-            int.Parse(item["attempts"].N, CultureInfo.InvariantCulture))).ToList();
+            int.Parse(item["attempts"].N, CultureInfo.InvariantCulture),
+            item.TryGetValue("audienceCursor", out var cursor) ? JsonSerializer.Deserialize<Dictionary<string, string>>(cursor.S) : null)).ToList();
     }
     public async Task<bool> ClaimAsync(NotificationWorkItem item, string lease, DateTimeOffset now, CancellationToken ct)
     {
-        if (item.Notification.ComplexId != complexId || item.Notification.OwnerId <= 0)
+        if (item.Notification.ComplexId != complexId || (!item.Notification.IsBroadcast && (item.Notification.OwnerId == 0 || (item.Notification.AdministratorId is null && item.Notification.OwnerId < 0))))
             throw new InvalidOperationException("Notification identity mismatch.");
         try
         {
@@ -70,17 +71,17 @@ public sealed class DynamoNotificationRepository(IAmazonDynamoDB db, string tabl
             ExpressionAttributeValues = new() { [":lease"] = S(lease) }
         }
     };
-    public async Task CompleteAsync(NotificationWorkItem item, string lease, string disposition, DateTimeOffset now, CancellationToken ct)
+    private List<TransactWriteItem> CompletionWrites(NotificationWorkItem item, string lease, string disposition, DateTimeOffset now)
     {
         var receipt = Key("RESULT#" + item.Notification.Id);
         receipt["disposition"] = S(disposition);
         receipt["completedAt"] = S(now.ToString("O", CultureInfo.InvariantCulture));
         receipt["expiresAt"] = N(now.AddDays(30).ToUnixTimeSeconds());
-        await db.TransactWriteItemsAsync(new TransactWriteItemsRequest
-        {
-            TransactItems = [Remove(item, lease),
-            new() { Put = new() { TableName = table, Item = receipt, ConditionExpression = "attribute_not_exists(pk)" } }]
-        }, ct);
+        return [Remove(item, lease), new() { Put = new() { TableName = table, Item = receipt, ConditionExpression = "attribute_not_exists(pk)" } }];
+    }
+    public async Task CompleteAsync(NotificationWorkItem item, string lease, string disposition, DateTimeOffset now, CancellationToken ct)
+    {
+        await db.TransactWriteItemsAsync(new TransactWriteItemsRequest { TransactItems = CompletionWrites(item, lease, disposition, now) }, ct);
     }
     public async Task PauseAsync(DateTimeOffset until, CancellationToken ct)
     {
@@ -102,6 +103,7 @@ public sealed class DynamoNotificationRepository(IAmazonDynamoDB db, string tabl
         var next = Key(ResidentNotification.DueKey(dueAt, item.Notification.Id));
         next["payload"] = S(JsonSerializer.Serialize(item.Notification));
         next["attempts"] = N(item.Attempts + 1);
+        if (item.AudienceCursor is not null) next["audienceCursor"] = S(JsonSerializer.Serialize(item.AudienceCursor));
         await db.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
             TransactItems = [Remove(item, lease),

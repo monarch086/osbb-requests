@@ -111,6 +111,7 @@
         [admins]="admins"
         [saving]="saving || loading"
         (toggleAccess)="setAccess($event)"
+        (saveNotifications)="saveNotificationSettings($event.admin, $event.settings)"
       />
     }
     @if (loading) {
