@@ -68,6 +68,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   };
   private appliedFilters: TicketFilters = { ...this.filters };
   private loadSequence = 0;
+  get availablePages(): number {
+    return this.pageCursors.length;
+  }
   get pageItemCount(): number {
     if (this.tab === 'requests') return this.tickets.length;
     if (this.tab === 'admins') return this.admins.length;
@@ -186,13 +189,26 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     await this.loadPage(this.pageIndex, this.pageCursors[this.pageIndex] ?? null);
   }
   async previousPage(): Promise<void> {
-    if (this.loading || this.saving || this.pageIndex === 0) return;
-    const index = this.pageIndex - 1;
-    await this.loadPage(index, this.pageCursors[index] ?? null);
+    await this.goToPage(this.pageIndex);
   }
   async nextPage(): Promise<void> {
-    if (this.loading || this.saving || !this.cursor) return;
-    await this.loadPage(this.pageIndex + 1, this.cursor);
+    if (!this.cursor) return;
+    await this.goToPage(this.pageIndex + 2);
+  }
+  async goToPage(number: number): Promise<void> {
+    if (
+      this.loading ||
+      this.saving ||
+      !Number.isInteger(number) ||
+      number < 1 ||
+      number > this.availablePages ||
+      number === this.pageIndex + 1
+    )
+      return;
+    const index = number - 1;
+    const start = this.pageCursors[index];
+    if (start === undefined || (index > 0 && start === null)) return;
+    await this.loadPage(index, start);
   }
   private async loadPage(index: number, startCursor: string | null): Promise<void> {
     if (!this.me?.isActive || this.saving) return;
@@ -235,7 +251,12 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         this.registeredResidents = page.items as RegisteredResident[];
       if (tab === 'admins') this.admins = page.items as Admin[];
       this.pageIndex = index;
-      this.pageCursors = [...this.pageCursors.slice(0, index), startCursor];
+      this.pageCursors[index] = startCursor;
+      if (page.cursor) {
+        if (this.pageCursors[index + 1] !== page.cursor)
+          this.pageCursors = this.pageCursors.slice(0, index + 1);
+        this.pageCursors[index + 1] = page.cursor;
+      } else this.pageCursors = this.pageCursors.slice(0, index + 1);
       this.cursor = page.cursor;
     } catch (e) {
       if (epoch === this.epoch && sequence === this.loadSequence) this.error = errorMessage(e);

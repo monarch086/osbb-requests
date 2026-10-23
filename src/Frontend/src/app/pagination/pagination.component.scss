@@ -1,0 +1,15 @@
+.page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--bs-border-radius);
+}
+
+.pagination-gap .page-link {
+  min-width: 2rem;
+  color: var(--bs-body-color);
+  background: transparent;
+  border-color: transparent;
+}

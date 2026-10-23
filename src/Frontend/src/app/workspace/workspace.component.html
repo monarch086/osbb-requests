@@ -103,10 +103,12 @@
     }
     <app-pagination
       [pageNumber]="pageIndex + 1"
+      [availablePages]="availablePages"
       [itemCount]="pageItemCount"
       [hasPrevious]="pageIndex > 0"
       [hasNext]="!!cursor"
       [disabled]="loading || saving"
+      (pageSelected)="goToPage($event)"
       (previousPage)="previousPage()"
       (nextPage)="nextPage()"
     />

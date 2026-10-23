@@ -1,9 +1,6 @@
-<nav
-  class="d-flex flex-wrap justify-content-between align-items-center gap-3 my-4"
-  aria-label="Пагінація списку"
->
-  <p class="small text-body-secondary mb-0" role="status">
-    На сторінці: {{ itemCount }} · До 25 записів
+<nav class="my-4" aria-label="Пагінація списку">
+  <p class="visually-hidden" role="status">
+    Сторінка {{ pageNumber }}. На сторінці: {{ itemCount }} · До 25 записів
   </p>
   <ul class="pagination flex-wrap mb-0">
     <li class="page-item" [class.disabled]="disabled || !hasPrevious">
@@ -31,9 +28,29 @@
         </svg>
       </button>
     </li>
-    <li class="page-item active">
-      <span class="page-link" aria-current="page">Сторінка {{ pageNumber }}</span>
-    </li>
+    @for (link of pageLinks; track link.key) {
+      <li
+        class="page-item"
+        [class.active]="link.number === pageNumber"
+        [class.pagination-gap]="link.number === null"
+        [attr.aria-hidden]="link.number === null ? 'true' : null"
+      >
+        @if (link.number === null) {
+          <span class="page-link">…</span>
+        } @else {
+          <button
+            class="page-link"
+            type="button"
+            [disabled]="disabled"
+            [attr.aria-label]="'Сторінка ' + link.number"
+            [attr.aria-current]="link.number === pageNumber ? 'page' : null"
+            (click)="selectPage(link.number)"
+          >
+            {{ link.number }}
+          </button>
+        }
+      </li>
+    }
     <li class="page-item" [class.disabled]="disabled || !hasNext">
       <button
         class="page-link"
