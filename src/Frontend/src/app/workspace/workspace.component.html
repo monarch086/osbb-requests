@@ -54,19 +54,34 @@
       </button>
     </div>
     <nav class="nav nav-pills gap-2 my-4" aria-label="Розділи панелі">
-      <button class="nav-link" [class.active]="tab === 'requests'" (click)="switchTab('requests')">
-        Заявки</button
-      ><button
+      <a
+        class="nav-link"
+        [class.active]="tab === 'requests'"
+        [class.disabled]="loading || saving"
+        [attr.aria-disabled]="loading || saving"
+        [attr.aria-current]="tab === 'requests' ? 'page' : null"
+        [routerLink]="loading || saving ? null : '/requests'"
+        >Заявки</a
+      >
+      <a
         class="nav-link"
         [class.active]="tab === 'residents'"
-        (click)="switchTab('residents')"
+        [class.disabled]="loading || saving"
+        [attr.aria-disabled]="loading || saving"
+        [attr.aria-current]="tab === 'residents' ? 'page' : null"
+        [routerLink]="loading || saving ? null : '/residents'"
+        >Мешканці</a
       >
-        Мешканці
-      </button>
       @if (user.isSuperAdmin) {
-        <button class="nav-link" [class.active]="tab === 'admins'" (click)="switchTab('admins')">
-          Адміністратори
-        </button>
+        <a
+          class="nav-link"
+          [class.active]="tab === 'admins'"
+          [class.disabled]="loading || saving"
+          [attr.aria-disabled]="loading || saving"
+          [attr.aria-current]="tab === 'admins' ? 'page' : null"
+          [routerLink]="loading || saving ? null : '/administrators'"
+          >Адміністратори</a
+        >
       }
     </nav>
     @if (tab === 'requests') {

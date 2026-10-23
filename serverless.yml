@@ -604,6 +604,22 @@ resources:
             StrictTransportSecurity:
               AccessControlMaxAgeSec: 31536000
               Override: true
+    FrontendRouter:
+      Type: AWS::CloudFront::Function
+      Properties:
+        Name: ${self:service}-${sls:stage}-frontend-router
+        AutoPublish: true
+        FunctionConfig:
+          Comment: Serve Angular routes from the SPA entry point
+          Runtime: cloudfront-js-2.0
+        FunctionCode: |
+          function handler(event) {
+            var request = event.request;
+            if (/^\/(requests|residents|administrators)\/?$/.test(request.uri)) {
+              request.uri = '/index.html';
+            }
+            return request;
+          }
     FrontendDistribution:
       Type: AWS::CloudFront::Distribution
       Properties:
@@ -624,6 +640,12 @@ resources:
               OriginAccessIdentity: ''
           DefaultCacheBehavior:
             TargetOriginId: frontend
+            FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN:
+                Fn::GetAtt:
+                - FrontendRouter
+                - FunctionARN
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods:
             - GET

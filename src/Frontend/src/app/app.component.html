@@ -1,5 +1,5 @@
 <header class="topbar navbar bg-white border-bottom px-3 py-3">
-  <a class="brand" href="#"
+  <a class="brand" [routerLink]="saving ? null : '/requests'"
     ><span class="brand-mark">ЗО2</span><span>Зелений острів 2<small>Панель ОСББ</small></span></a
   >
   @if (auth.user$ | async; as user) {
@@ -36,7 +36,7 @@
       </section>
     }
   } @else {
-    <app-workspace (savingChange)="saving = $event" />
+    <router-outlet (activate)="activateWorkspace($event)" (deactivate)="deactivateWorkspace()" />
   }
 </main>
 <footer

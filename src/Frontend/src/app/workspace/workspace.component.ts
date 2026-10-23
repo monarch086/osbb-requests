@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, Output, EventEmitter, inject } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../auth.service';
 import {
@@ -22,6 +23,7 @@ import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component'
 @Component({
   selector: 'app-workspace',
   imports: [
+    RouterLink,
     RequestsComponent,
     PaginationComponent,
     ResidentsComponent,
@@ -33,6 +35,8 @@ import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component'
 })
 export class WorkspaceComponent implements OnInit, OnDestroy {
   @Output() savingChange = new EventEmitter<boolean>();
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private auth = inject(AuthService);
   private api = inject(ApiService);
   me: Admin | null = null;
@@ -102,7 +106,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.clear();
   }
   private clear(): void {
-    this.tab = 'requests';
+    this.tab = this.route.snapshot.data['tab'] as typeof this.tab;
     this.filters = {
       status: '',
       category: '',
@@ -131,7 +135,10 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       const user = await this.api.request<Admin>('/me');
       if (epoch !== this.epoch) return;
       this.me = user;
-      if (!user.isSuperAdmin && this.tab === 'admins') this.tab = 'requests';
+      if (!user.isSuperAdmin && this.tab === 'admins') {
+        await this.router.navigateByUrl('/requests', { replaceUrl: true });
+        return;
+      }
       if (user.isActive) {
         const assignees: {
           userId: string;
@@ -157,16 +164,6 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     } finally {
       if (epoch === this.epoch) this.loading = false;
     }
-  }
-  async switchTab(tab: 'requests' | 'residents' | 'admins'): Promise<void> {
-    if (this.saving || this.loading || (tab === 'admins' && !this.me?.isSuperAdmin)) return;
-    this.tab = tab;
-    this.resetPagination();
-    this.selected = null;
-    this.draft = null;
-    this.rejecting = null;
-    this.notice = '';
-    await this.load();
   }
   async switchResidentView(view: ResidentView): Promise<void> {
     if (this.saving || this.loading || this.tab !== 'residents' || view === this.residentView)
