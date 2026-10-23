@@ -303,19 +303,45 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
         write.Put.ConditionExpression = "attribute_not_exists(pk)";
         return write;
     }
-    public async Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(long requestId, CancellationToken ct)
+    public async Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct)
     {
+        if (request.BuildingId != building) throw new ApiError(404, "Заявку не знайдено.");
         var response = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,
             ConsistentRead = true,
             KeyConditionExpression = "pk = :pk AND begins_with(sk, :prefix)",
-            ExpressionAttributeValues = new() { [":pk"] = S("REQUEST#" + requestId.ToString(CultureInfo.InvariantCulture)), [":prefix"] = S("EVENT#") },
+            ExpressionAttributeValues = new() { [":pk"] = S("REQUEST#" + request.Id.ToString(CultureInfo.InvariantCulture)), [":prefix"] = S("EVENT#") },
             ScanIndexForward = false,
             Limit = 100
         }, ct);
-        return (response.Items ?? []).Select(i => i.Where(p => p.Key is not ("pk" or "sk"))
-            .ToDictionary(p => p.Key, p => p.Value.S ?? p.Value.N ?? "")).OrderByDescending(i => i.GetValueOrDefault("createdAt")).ToList();
+        var items = response.Items ?? [];
+        var creatorName = "Мешканець";
+        if (items.Any(item => item.GetValueOrDefault("sk")?.S == "EVENT#CREATED"))
+        {
+            var profile = await Get(dataTable, Key("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION"), ct);
+            if (profile is not null)
+            {
+                var resident = Payload<ResidentRegistration>(profile);
+                if (resident.BuildingId == building && resident.UserId == request.OwnerId)
+                {
+                    var name = string.Join(" ", new[] { resident.FirstName, resident.LastName }
+                        .Where(part => !string.IsNullOrWhiteSpace(part)).Select(part => part!.Trim()));
+                    if (name.Length > 0) creatorName = name;
+                }
+            }
+        }
+        return items.Select(item =>
+        {
+            var entry = item.Where(p => p.Key is not ("pk" or "sk" or "actorId"))
+                .ToDictionary(p => p.Key, p => p.Value.S ?? p.Value.N ?? "");
+            if (item.GetValueOrDefault("sk")?.S == "EVENT#CREATED")
+            {
+                entry["action"] = "Created";
+                entry["actor"] = creatorName;
+            }
+            return entry;
+        }).OrderByDescending(item => item.GetValueOrDefault("createdAt")).ToList();
     }
     private async Task Transact(List<TransactWriteItem> writes, CancellationToken ct)
     {

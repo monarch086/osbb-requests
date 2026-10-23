@@ -95,7 +95,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             long.TryParse(segments[3], NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id >= 0)
         {
             var current = await store.GetRequestAsync(owner, id, ct) ?? throw new ApiError(404, "Заявку не знайдено.");
-            if (method == "GET" && segments.Length == 5 && segments[4] == "history") return Reply(200, new { items = await store.HistoryAsync(id, ct) });
+            if (method == "GET" && segments.Length == 5 && segments[4] == "history") return Reply(200, new { items = await store.HistoryAsync(current.Request, ct) });
             if (method == "GET" && segments.Length == 4) return Reply(200, current);
             if (method == "PATCH" && segments.Length == 4)
             {

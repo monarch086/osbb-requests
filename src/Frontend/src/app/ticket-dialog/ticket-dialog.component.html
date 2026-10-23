@@ -182,7 +182,13 @@
         <h3 class="h5 mt-4">Історія змін</h3>
         @for (event of history; track $index) {
           <div class="border-top py-3">
-            <strong>{{ event['status'] ? labels[event['status']] : 'Оновлення заявки' }}</strong
+            <strong>{{
+              event['action'] === 'Created'
+                ? 'Створено заявку'
+                : event['status']
+                  ? labels[event['status']]
+                  : 'Оновлення заявки'
+            }}</strong
             ><small class="d-block text-body-secondary mt-1"
               >{{ event['createdAt'] ? date(event['createdAt']) : '' }} ·
               {{ event['actor'] || 'Мешканець' }}</small

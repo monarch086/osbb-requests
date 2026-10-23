@@ -137,6 +137,30 @@ public sealed class AdminApiTests
         Assert.False(resident.TryGetProperty("buildingId", out _));
         Assert.Equal("next-page", body.RootElement.GetProperty("cursor").GetString());
     }
+    [Theory]
+    [InlineData(null, "access", 401)]
+    [InlineData("regular", "id", 401)]
+    [InlineData("target", "access", 403)]
+    public async Task RequestHistoryRequiresActiveAdmin(string? user, string tokenUse, int status)
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(
+            Request("/admin/requests/99/7/history", user: user, tokenUse: tokenUse), default));
+        Assert.Equal(status, error.Status);
+        Assert.Null(store.LastHistoryRequest);
+    }
+
+    [Fact]
+    public async Task HistoryReceivesVerifiedRequestOwnerAndComplex()
+    {
+        var store = new FakeStore();
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/99/7/history"), default);
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(99, store.LastHistoryRequest!.OwnerId);
+        Assert.Equal(7, store.LastHistoryRequest.Id);
+        Assert.Equal("building", store.LastHistoryRequest.BuildingId);
+    }
+
     [Fact]
     public async Task CompletedRequestRequiresExplanation()
     {
@@ -254,6 +278,7 @@ public sealed class AdminApiTests
         public Dictionary<string, AdminUser> Users { get; } = new() { ["super"] = Super, ["regular"] = Regular, ["target"] = new("target", "new@example.org", "New", false, false, 1) };
         public MaintenanceRequest? LastRequest;
         public RequestFilters? LastFilters;
+        public MaintenanceRequest? LastHistoryRequest;
         public int PrivateReads; public int AccessWrites; public int RequestWrites;
         public Task<AdminUser?> GetAdminAsync(string user, CancellationToken ct) => Task.FromResult(Users.GetValueOrDefault(user));
         public Task<AdminUser> RegisterAccountAsync(Identity identity, CancellationToken ct)
@@ -269,6 +294,6 @@ public sealed class AdminApiTests
         public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) { LastFilters = filters; return Task.FromResult(new Page<ManagedRequest>([], null)); }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
         public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
-        public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(long id, CancellationToken ct) => Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]);
+        public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct) { LastHistoryRequest = request; return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]); }
     }
 }
