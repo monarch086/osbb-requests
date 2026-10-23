@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import tempfile
+from zoneinfo import ZoneInfo
 
 
 def call_aws(service, operation, region, payload=None):
@@ -80,6 +81,21 @@ def decision_transaction(table, registration, original_payload, decision, reason
         resident.update(payload={'S': json.dumps(updated, ensure_ascii=False, separators=(',', ':'))},
                         version={'N': str(updated['Version'])})
         writes.append({'Put': {'TableName': table, 'Item': resident}})
+        timestamp = datetime.fromisoformat(now.replace('Z', '+00:00')).astimezone(timezone.utc)
+        due_time = timestamp.strftime('%Y-%m-%dT%H:%M:%S.') + f'{timestamp.microsecond:06d}0+00:00'
+        local_date = timestamp.astimezone(ZoneInfo('Europe/Kyiv')).strftime('%d.%m.%Y %H:%M')
+        notification_id = 'registration-' + registration['Id'] + '-v' + str(updated['Version'])
+        notification = {
+            'Id': notification_id, 'ComplexId': registration['BuildingId'], 'OwnerId': registration['UserId'],
+            'RequestId': None, 'RequestVersion': None, 'CreatedAt': now,
+            'Text': 'Вашу реєстрацію в ЖК «Зелений острів 2» схвалено.\n'
+                    'Вам надано доступ до бота комплексу.\n'
+                    f'Підтверджено: {local_date} (Київ)\n\n'
+                    'Створити заявку: /new\nВаші заявки: /my\nЗаявки комплексу: /complex'
+        }
+        pending = key('NOTIFICATIONS#' + registration['BuildingId'], 'DUE#' + due_time + '#' + notification_id)
+        pending.update(payload={'S': json.dumps(notification, ensure_ascii=False, separators=(',', ':'))}, attempts={'N': '0'})
+        writes.append({'Put': {'TableName': table, 'Item': pending, 'ConditionExpression': 'attribute_not_exists(pk)'}})
     return {'TransactItems': writes}
 
 
@@ -151,7 +167,8 @@ def main():
                                        datetime.now(timezone.utc).isoformat())
     call_aws('dynamodb', 'transact-write-items', args.region, transaction)
     print('Access approved.' if decision == 'Approved' else 'Registration rejected.')
-    print('The resident can check the decision using /start. No Telegram message was sent by this tool.')
+    print('Telegram approval notification queued for delivery.' if decision == 'Approved' else
+          'The resident can check the decision using /start.')
 
 
 if __name__ == '__main__':

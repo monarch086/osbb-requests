@@ -28,7 +28,7 @@ class ResidentAdministrationTests(unittest.TestCase):
         before = copy.deepcopy(self.registration)
         writes = self.transaction('Approved')
         self.assertEqual(before, self.registration)
-        self.assertEqual(6, len(writes))
+        self.assertEqual(7, len(writes))
         profile = writes[0]['Update']
         replacement = json.loads(profile['ExpressionAttributeValues'][':next']['S'])
         self.assertEqual('Approved', replacement['Stage'])
@@ -43,6 +43,28 @@ class ResidentAdministrationTests(unittest.TestCase):
         self.assertEqual('BUILDING#building', resident['pk']['S'])
         self.assertEqual('RESIDENT#' + str(99).zfill(20), resident['sk']['S'])
         self.assertEqual(replacement, json.loads(resident['payload']['S']))
+
+    def test_approval_enqueues_private_notification_atomically_without_ttl(self):
+        writes = self.transaction('Approved')
+        put = writes[6]['Put']
+        item = put['Item']
+        notification = json.loads(item['payload']['S'])
+        self.assertEqual('NOTIFICATIONS#building', item['pk']['S'])
+        self.assertEqual('DUE#2026-10-20T11:00:00.0000000+00:00#registration-' + 'a' * 32 + '-v5', item['sk']['S'])
+        self.assertEqual('registration-' + 'a' * 32 + '-v5', notification['Id'])
+        self.assertEqual(99, notification['OwnerId'])
+        self.assertEqual('building', notification['ComplexId'])
+        self.assertIsNone(notification['RequestId'])
+        self.assertIn('схвалено', notification['Text'])
+        self.assertIn('20.10.2026 14:00 (Київ)', notification['Text'])
+        self.assertIn('/new', notification['Text'])
+        self.assertNotIn(self.registration['Phone'], notification['Text'])
+        self.assertNotIn(self.registration['LastName'], notification['Text'])
+        self.assertNotIn('expiresAt', item)
+        self.assertNotIn('requestBuildingId', item)
+        self.assertEqual('0', item['attempts']['N'])
+        self.assertEqual('attribute_not_exists(pk)', put['ConditionExpression'])
+        self.assertEqual(notification, json.loads(self.transaction('Approved')[6]['Put']['Item']['payload']['S']))
 
     def test_rejection_records_reason_and_does_not_grant_access(self):
         writes = self.transaction('Rejected', 'Уточніть прізвище')

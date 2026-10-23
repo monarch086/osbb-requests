@@ -12,7 +12,7 @@ public sealed class DynamoNotificationRepository(IAmazonDynamoDB db, string tabl
     private static AttributeValue N(long value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
     private Dictionary<string, AttributeValue> Key(string sk) => new()
     {
-        ["pk"] = S(RequestNotification.Partition(complexId)),
+        ["pk"] = S(ResidentNotification.Partition(complexId)),
         ["sk"] = S(sk)
     };
     public async Task<IReadOnlyList<NotificationWorkItem>> ListDueAsync(DateTimeOffset now, CancellationToken ct)
@@ -28,13 +28,13 @@ public sealed class DynamoNotificationRepository(IAmazonDynamoDB db, string tabl
             KeyConditionExpression = "pk = :pk AND sk BETWEEN :start AND :end",
             ExpressionAttributeValues = new()
             {
-                [":pk"] = S(RequestNotification.Partition(complexId)),
+                [":pk"] = S(ResidentNotification.Partition(complexId)),
                 [":start"] = S("DUE#"),
-                [":end"] = S(RequestNotification.DueKey(now, "~"))
+                [":end"] = S(ResidentNotification.DueKey(now, "~"))
             }
         }, ct);
         return (result.Items ?? []).Select(item => new NotificationWorkItem(item["sk"].S,
-            JsonSerializer.Deserialize<RequestNotification>(item["payload"].S) ?? throw new InvalidOperationException("Invalid notification."),
+            JsonSerializer.Deserialize<ResidentNotification>(item["payload"].S) ?? throw new InvalidOperationException("Invalid notification."),
             int.Parse(item["attempts"].N, CultureInfo.InvariantCulture))).ToList();
     }
     public async Task<bool> ClaimAsync(NotificationWorkItem item, string lease, DateTimeOffset now, CancellationToken ct)
@@ -99,7 +99,7 @@ public sealed class DynamoNotificationRepository(IAmazonDynamoDB db, string tabl
     }
     public async Task RetryAsync(NotificationWorkItem item, string lease, DateTimeOffset dueAt, CancellationToken ct)
     {
-        var next = Key(RequestNotification.DueKey(dueAt, item.Notification.Id));
+        var next = Key(ResidentNotification.DueKey(dueAt, item.Notification.Id));
         next["payload"] = S(JsonSerializer.Serialize(item.Notification));
         next["attempts"] = N(item.Attempts + 1);
         await db.TransactWriteItemsAsync(new TransactWriteItemsRequest

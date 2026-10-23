@@ -22,8 +22,42 @@ public sealed class NotificationTests
     private static readonly AdminUser Admin = new("admin", "admin@example.invalid", "Адміністратор", true, false, 1);
     private static MaintenanceRequest Request() => new(7, 42, "complex", "інше", "", "Опис заявки", Now,
         Scope: RequestScope.Building, BuildingNumber: "4Б", Floor: 12);
-    private static NotificationWorkItem Work(string id = "7-v2", int attempts = 0) => new(RequestNotification.DueKey(Now, id),
+    private static NotificationWorkItem Work(string id = "7-v2", int attempts = 0) => new(ResidentNotification.DueKey(Now, id),
         new(id, "complex", 42, 7, 2, "Оновлення вашої заявки №7", Now), attempts);
+
+    [Fact]
+    public async Task ApprovalNotificationRetriesThenDeliversOnlyToApprovedResident()
+    {
+        var registration = new OsbbRequests.Shared.Models.ResidentRegistration(new string('a', 32), 99, "complex", RegistrationStage.Approved, 5,
+            Now.AddDays(-1), Now, "+380500000000", "Олена", "Тестова");
+        var notification = ResidentNotification.RegistrationApproved(registration);
+        var repository = new MemoryNotifications(new NotificationWorkItem(ResidentNotification.DueKey(Now, notification.Id), notification, 0));
+        var telegram = new NotificationTelegram { Error = new InvalidOperationException("HTTP 503") };
+        var processor = new NotificationProcessor(repository, telegram, timeProvider: new FixedClock());
+        await processor.RunAsync(default);
+        Assert.Single(repository.Retries);
+        Assert.Empty(repository.Results);
+        telegram.Error = null;
+        await processor.RunAsync(default);
+        await processor.RunAsync(default);
+        var message = Assert.Single(telegram.Sent);
+        Assert.Equal(99, message.ChatId);
+        Assert.Contains("Вашу реєстрацію в ЖК «Зелений острів 2» схвалено.", message.Text);
+        Assert.Contains("20.10.2026 13:00 (Київ)", message.Text);
+        Assert.Equal("Delivered", Assert.Single(repository.Results).Disposition);
+    }
+
+    [Fact]
+    public void ExistingRequestNotificationPayloadStillDeserializes()
+    {
+        const string payload = """
+            {"Id":"7-v2","ComplexId":"complex","OwnerId":42,"RequestId":7,"RequestVersion":2,"Text":"Оновлення заявки","CreatedAt":"2026-10-20T10:00:00+00:00"}
+            """;
+        var notification = JsonSerializer.Deserialize<ResidentNotification>(payload)!;
+        Assert.Equal(7, notification.RequestId);
+        Assert.Equal(2, notification.RequestVersion);
+        Assert.Equal(42, notification.OwnerId);
+    }
 
     [Theory]
     [InlineData(RequestStatus.InProgress, "В роботі")]
@@ -33,7 +67,7 @@ public sealed class NotificationTests
     public void StatusChangeCreatesOwnerNotificationWithUkrainianStatusAndDate(RequestStatus status, string label)
     {
         var old = Request();
-        var notification = RequestNotification.Create(old, old with { Status = status, Resolution = "Пояснення" }, 5, Now)!;
+        var notification = ResidentNotification.Create(old, old with { Status = status, Resolution = "Пояснення" }, 5, Now)!;
         Assert.Equal(42, notification.OwnerId);
         Assert.Equal("complex", notification.ComplexId);
         Assert.Equal("7-v5", notification.Id);
@@ -51,7 +85,7 @@ public sealed class NotificationTests
     public void CommentChangeNotifiesWithoutStatusChange(string? previous, string? next)
     {
         var old = Request() with { Resolution = previous };
-        var result = RequestNotification.Create(old, old with { Resolution = next }, 2, Now)!;
+        var result = ResidentNotification.Create(old, old with { Resolution = next }, 2, Now)!;
         Assert.DoesNotContain("→", result.Text);
         Assert.Contains(next ?? "видалено", result.Text);
     }
@@ -63,22 +97,22 @@ public sealed class NotificationTests
     public void UnchangedStatusAndCommentDoNotCreateNotification(string? previous, string? next)
     {
         var old = Request() with { Resolution = previous };
-        Assert.Null(RequestNotification.Create(old, old with { Resolution = next, Priority = "High", AssignedTo = "admin", Visibility = RequestVisibility.Public }, 2, Now));
+        Assert.Null(ResidentNotification.Create(old, old with { Resolution = next, Priority = "High", AssignedTo = "admin", Visibility = RequestVisibility.Public }, 2, Now));
     }
 
     [Fact]
     public void CannotRedirectNotificationToAnotherOwnerOrComplex()
     {
         var old = Request();
-        Assert.Throws<InvalidOperationException>(() => RequestNotification.Create(old, old with { OwnerId = 99 }, 2, Now));
-        Assert.Throws<InvalidOperationException>(() => RequestNotification.Create(old, old with { BuildingId = "other" }, 2, Now));
+        Assert.Throws<InvalidOperationException>(() => ResidentNotification.Create(old, old with { OwnerId = 99 }, 2, Now));
+        Assert.Throws<InvalidOperationException>(() => ResidentNotification.Create(old, old with { BuildingId = "other" }, 2, Now));
     }
 
     [Fact]
     public void MaximumCommentFitsSinglePlainTextTelegramMessage()
     {
         var old = Request();
-        var result = RequestNotification.Create(old, old with { Status = RequestStatus.Completed, Resolution = "<b>" + new string('О', 993) + "</b>" }, 2, Now)!;
+        var result = ResidentNotification.Create(old, old with { Status = RequestStatus.Completed, Resolution = "<b>" + new string('О', 993) + "</b>" }, 2, Now)!;
         Assert.True(result.Text.Length <= 4096);
         Assert.Contains("<b>", result.Text);
     }
@@ -100,7 +134,7 @@ public sealed class NotificationTests
         Assert.Equal("4", Assert.Single(writes, w => w.Update is not null).Update.ExpressionAttributeValues[":expected"].N);
         if (!statusChanged && !commentChanged) return;
         var pending = Assert.Single(writes, w => w.Put?.Item["pk"].S == "NOTIFICATIONS#complex").Put;
-        var job = JsonSerializer.Deserialize<RequestNotification>(pending.Item["payload"].S)!;
+        var job = JsonSerializer.Deserialize<ResidentNotification>(pending.Item["payload"].S)!;
         Assert.Equal(42, job.OwnerId);
         Assert.Equal("7-v5", job.Id);
         Assert.Equal("0", pending.Item["attempts"].N);
@@ -240,7 +274,7 @@ public sealed class NotificationTests
         Assert.Single(result);
         Assert.True(db.Query!.ConsistentRead);
         Assert.Equal("NOTIFICATIONS#complex", db.Query.ExpressionAttributeValues[":pk"].S);
-        Assert.Equal(RequestNotification.DueKey(Now, "~"), db.Query.ExpressionAttributeValues[":end"].S);
+        Assert.Equal(ResidentNotification.DueKey(Now, "~"), db.Query.ExpressionAttributeValues[":end"].S);
         Assert.Equal(25, db.Query.Limit);
         Assert.Null(db.Query.IndexName);
     }
@@ -298,7 +332,7 @@ public sealed class NotificationTests
         var writes = db.Transaction!.TransactItems;
         Assert.Equal(2, writes.Count);
         var pending = Assert.Single(writes, w => w.Put is not null).Put.Item;
-        Assert.Equal(RequestNotification.DueKey(Now.AddMinutes(4), "7-v2"), pending["sk"].S);
+        Assert.Equal(ResidentNotification.DueKey(Now.AddMinutes(4), "7-v2"), pending["sk"].S);
         Assert.Equal("3", pending["attempts"].N);
         Assert.False(pending.ContainsKey("expiresAt"));
         Assert.False(pending.ContainsKey("leaseToken"));

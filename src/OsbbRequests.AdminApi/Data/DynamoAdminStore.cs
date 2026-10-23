@@ -218,6 +218,7 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
             resident["payload"] = S(JsonSerializer.Serialize(next));
             resident["version"] = N(next.Version);
             writes.Add(new() { Put = new() { TableName = dataTable, Item = resident } });
+            writes.Add(NotificationWrite(ResidentNotification.RegistrationApproved(next)));
         }
         await Transact(writes, ct);
     }
@@ -287,16 +288,20 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
                 [":target"] = S(ComplexLayout.Target(next.Scope, next.BuildingNumber)),
                 [":floor"] = next.Floor is { } floor ? N(floor) : new() { NULL = true } }
         } }, Put(dataTable, audit) };
-        if (RequestNotification.Create(current.Request, next, current.Version + 1, timestamp) is { } notification)
+        if (ResidentNotification.Create(current.Request, next, current.Version + 1, timestamp) is { } notification)
         {
-            var item = Key(RequestNotification.Partition(building), RequestNotification.DueKey(timestamp, notification.Id));
-            item["payload"] = S(JsonSerializer.Serialize(notification));
-            item["attempts"] = N(0);
-            var write = Put(dataTable, item);
-            write.Put.ConditionExpression = "attribute_not_exists(pk)";
-            writes.Add(write);
+            writes.Add(NotificationWrite(notification));
         }
         await Transact(writes, ct);
+    }
+    private TransactWriteItem NotificationWrite(ResidentNotification notification)
+    {
+        var item = Key(ResidentNotification.Partition(building), ResidentNotification.DueKey(notification.CreatedAt, notification.Id));
+        item["payload"] = S(JsonSerializer.Serialize(notification));
+        item["attempts"] = N(0);
+        var write = Put(dataTable, item);
+        write.Put.ConditionExpression = "attribute_not_exists(pk)";
+        return write;
     }
     public async Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(long requestId, CancellationToken ct)
     {

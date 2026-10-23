@@ -3,10 +3,10 @@ using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.Shared.Models;
 
-public sealed record RequestNotification(string Id, string ComplexId, long OwnerId, long RequestId,
-    int RequestVersion, string Text, DateTimeOffset CreatedAt)
+public sealed record ResidentNotification(string Id, string ComplexId, long OwnerId, long? RequestId,
+    int? RequestVersion, string Text, DateTimeOffset CreatedAt)
 {
-    public static RequestNotification? Create(MaintenanceRequest previous, MaintenanceRequest next, int version, DateTimeOffset now)
+    public static ResidentNotification? Create(MaintenanceRequest previous, MaintenanceRequest next, int version, DateTimeOffset now)
     {
         if (previous.Id != next.Id || previous.OwnerId != next.OwnerId || previous.BuildingId != next.BuildingId)
             throw new InvalidOperationException("Notification request identity mismatch.");
@@ -25,6 +25,19 @@ public sealed record RequestNotification(string Id, string ComplexId, long Owner
         text += $"\n\nДеталі: /request {next.Id}";
         return new(next.Id.ToString(CultureInfo.InvariantCulture) + "-v" + version.ToString(CultureInfo.InvariantCulture),
             next.BuildingId, next.OwnerId, next.Id, version, text, now);
+    }
+
+    public static ResidentNotification RegistrationApproved(ResidentRegistration registration)
+    {
+        if (registration.Stage != RegistrationStage.Approved || registration.UserId <= 0)
+            throw new InvalidOperationException("Notification requires an approved registration.");
+        var date = TimeZoneInfo.ConvertTime(registration.UpdatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
+        var text = "Вашу реєстрацію в ЖК «Зелений острів 2» схвалено.\n" +
+            "Вам надано доступ до бота комплексу.\n" +
+            $"Підтверджено: {date:dd.MM.yyyy HH:mm} (Київ)\n\n" +
+            "Створити заявку: /new\nВаші заявки: /my\nЗаявки комплексу: /complex";
+        return new("registration-" + registration.Id + "-v" + registration.Version.ToString(CultureInfo.InvariantCulture),
+            registration.BuildingId, registration.UserId, null, null, text, registration.UpdatedAt);
     }
 
     public static string DueKey(DateTimeOffset dueAt, string id) => "DUE#" + dueAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) + "#" + id;

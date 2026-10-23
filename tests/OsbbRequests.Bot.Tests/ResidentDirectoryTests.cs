@@ -38,7 +38,24 @@ public sealed class ResidentDirectoryTests
         Assert.Contains(writes, w => w.Delete?.Key["sk"].S == "REGISTRATION#" + Registration.Id);
         Assert.Equal(2, writes.Count(w => w.Update?.ConditionExpression.Contains(":previous", StringComparison.Ordinal) == true));
         var directory = writes.SingleOrDefault(w => w.Put?.Item.GetValueOrDefault("sk")?.S.StartsWith("RESIDENT#", StringComparison.Ordinal) == true);
-        if (!approved) { Assert.Null(directory); return; }
+        var pending = writes.Where(w => w.Put?.Item.GetValueOrDefault("pk")?.S == "NOTIFICATIONS#building").ToList();
+        if (!approved) { Assert.Null(directory); Assert.Empty(pending); return; }
+        var job = Assert.Single(pending).Put;
+        var notification = JsonSerializer.Deserialize<ResidentNotification>(job.Item["payload"].S)!;
+        Assert.Equal(99, notification.OwnerId);
+        Assert.Equal("building", notification.ComplexId);
+        Assert.Equal("registration-" + Registration.Id + "-v5", notification.Id);
+        Assert.Null(notification.RequestId);
+        Assert.Contains("схвалено", notification.Text);
+        Assert.Contains("/new", notification.Text);
+        Assert.DoesNotContain(Registration.Phone!, notification.Text);
+        Assert.DoesNotContain(Registration.LastName!, notification.Text);
+        Assert.DoesNotContain(Actor.Email, notification.Text);
+        Assert.StartsWith("DUE#", job.Item["sk"].S);
+        Assert.Equal("0", job.Item["attempts"].N);
+        Assert.Equal("attribute_not_exists(pk)", job.ConditionExpression);
+        Assert.False(job.Item.ContainsKey("expiresAt"));
+        Assert.False(job.Item.ContainsKey("requestBuildingId"));
         Assert.NotNull(directory);
         Assert.Equal("BUILDING#building", directory.Put.Item["pk"].S);
         Assert.Equal("RESIDENT#00000000000000000099", directory.Put.Item["sk"].S);
@@ -47,6 +64,30 @@ public sealed class ResidentDirectoryTests
         Assert.Equal(Registration.FirstName, resident.FirstName);
         Assert.Equal(5, resident.Version);
         Assert.False(directory.Put.Item.ContainsKey("expiresAt"));
+    }
+
+    [Theory]
+    [InlineData(RegistrationStage.Approved, 4, "building", 409)]
+    [InlineData(RegistrationStage.Pending, 3, "building", 409)]
+    [InlineData(RegistrationStage.Pending, 4, "other", 404)]
+    public async Task InvalidApprovalDoesNotQueueNotification(RegistrationStage stage, int version, string complex, int status)
+    {
+        using var db = new RecordingDynamo { Snapshot = Item(Registration with { Stage = stage, Version = version, BuildingId = complex }) };
+        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building")
+            .DecideAsync(Actor, Registration.Id, new(true, null, 4), default));
+        Assert.Equal(status, error.Status);
+        Assert.Null(db.Transaction);
+    }
+
+    [Fact]
+    public async Task ApprovalConflictHasNoSeparateNotificationWrite()
+    {
+        using var db = new RecordingDynamo { Snapshot = Item(Registration), Conflict = true };
+        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building")
+            .DecideAsync(Actor, Registration.Id, new(true, null, 4), default));
+        Assert.Equal(409, error.Status);
+        Assert.Equal(1, db.TransactionCalls);
+        Assert.Single(db.Transaction!.TransactItems, w => w.Put?.Item.GetValueOrDefault("pk")?.S == "NOTIFICATIONS#building");
     }
 
     [Fact]
@@ -139,11 +180,13 @@ public sealed class ResidentDirectoryTests
         public QueryRequest? Query;
         public QueryResponse Result = new() { Items = [] };
         public TransactWriteItemsRequest? Transaction;
+        public int TransactionCalls;
+        public bool Conflict;
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult(new GetItemResponse { Item = Snapshot });
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
         { Query = request; return Task.FromResult(Result); }
         public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken cancellationToken = default)
-        { Transaction = request; return Task.FromResult(new TransactWriteItemsResponse()); }
+        { Transaction = request; TransactionCalls++; if (Conflict) throw new TransactionCanceledException("Conflict"); return Task.FromResult(new TransactWriteItemsResponse()); }
     }
 }

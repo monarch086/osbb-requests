@@ -2,7 +2,7 @@ using OsbbRequests.Shared.Models;
 
 namespace OsbbRequests.Bot.Notifications;
 
-public sealed record NotificationWorkItem(string SortKey, RequestNotification Notification, int Attempts);
+public sealed record NotificationWorkItem(string SortKey, ResidentNotification Notification, int Attempts);
 public interface INotificationRepository
 {
     Task<IReadOnlyList<NotificationWorkItem>> ListDueAsync(DateTimeOffset now, CancellationToken ct);
