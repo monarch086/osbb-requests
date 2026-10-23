@@ -152,9 +152,9 @@
         </div>
         <div class="row-meta text-end d-flex flex-column align-items-end gap-2">
           <span
-            class="badge rounded-pill"
-            [class.text-bg-warning]="item.request.status === 'New'"
-            [class.text-bg-secondary]="item.request.status !== 'New'"
+            [class]="
+              'badge rounded-pill ' + (badgeClasses[item.request.status] || 'text-bg-secondary')
+            "
             >{{ labels[item.request.status] }}</span
           ><small class="text-body-secondary">{{ date(item.request.createdAt) }}</small
           ><span aria-hidden="true">↗</span>

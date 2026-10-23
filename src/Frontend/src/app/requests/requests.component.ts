@@ -17,6 +17,7 @@ import {
   selector: 'app-requests',
   imports: [FormsModule, NgSelectComponent, NgOptionComponent],
   templateUrl: './requests.component.html',
+  styleUrl: './requests.component.scss',
 })
 export class RequestsComponent {
   @Input() tickets: ManagedTicket[] = [];
@@ -39,6 +40,13 @@ export class RequestsComponent {
   readonly statuses = ticketStatuses;
   readonly categories = ticketCategories;
   readonly labels = statusLabels;
+  readonly badgeClasses: Record<string, string> = {
+    New: 'text-bg-warning',
+    InProgress: 'text-bg-primary status-in-progress',
+    AwaitingClarification: 'text-bg-secondary',
+    Completed: 'text-bg-success',
+    Rejected: 'text-bg-danger',
+  };
   readonly date = formatDate;
   get newCount(): number {
     return this.tickets.filter((t) => t.request.status === 'New').length;
