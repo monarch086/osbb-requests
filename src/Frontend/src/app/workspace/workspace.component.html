@@ -42,7 +42,7 @@
         <p class="text-body-secondary">
           {{
             tab === 'requests'
-              ? 'Від першого повідомлення до вирішеної проблеми.'
+              ? 'Керуйте заявками мешканців.'
               : tab === 'residents'
                 ? 'Перевіряйте нові запити та переглядайте зареєстрованих мешканців.'
                 : 'Надавайте або відкликайте доступ до роботи зі зверненнями.'
@@ -92,20 +92,24 @@
       />
     }
     @if (tab === 'admins' && user.isSuperAdmin) {
-      <app-administrators [admins]="admins" [saving]="saving" (toggleAccess)="setAccess($event)" />
+      <app-administrators
+        [admins]="admins"
+        [saving]="saving || loading"
+        (toggleAccess)="setAccess($event)"
+      />
     }
     @if (loading) {
       <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>
     }
-    @if (cursor) {
-      <button
-        class="btn btn-outline-secondary d-block mx-auto my-4"
-        (click)="load(true)"
-        [disabled]="loading || saving"
-      >
-        Завантажити ще
-      </button>
-    }
+    <app-pagination
+      [pageNumber]="pageIndex + 1"
+      [itemCount]="pageItemCount"
+      [hasPrevious]="pageIndex > 0"
+      [hasNext]="!!cursor"
+      [disabled]="loading || saving"
+      (previousPage)="previousPage()"
+      (nextPage)="nextPage()"
+    />
   }
 }
 @if (rejecting; as registration) {

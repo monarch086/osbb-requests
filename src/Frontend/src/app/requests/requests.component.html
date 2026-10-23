@@ -1,9 +1,9 @@
-<section class="row g-3 mb-4" aria-label="Завантажені заявки">
+<section class="row g-3 mb-4" aria-label="Заявки на поточній сторінці">
   <div class="col-4">
     <div
       class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
     >
-      <span>Всього</span><strong class="fs-3">{{ tickets.length }}</strong>
+      <span>На сторінці</span><strong class="fs-3">{{ tickets.length }}</strong>
     </div>
   </div>
   <div class="col-4">
@@ -133,7 +133,7 @@
       <button
         class="list-group-item list-group-item-action d-flex justify-content-between gap-3 p-3 p-md-4"
         (click)="openTicket.emit(item)"
-        [disabled]="saving"
+        [disabled]="saving || loading"
       >
         <div class="ticket-summary">
           <span class="text-body-secondary small"
@@ -161,9 +161,9 @@
   </div>
   @if (!tickets.length && !loading) {
     <div class="text-center p-4 p-md-5">
-      <h3 class="h5">Заявок за цими умовами немає</h3>
+      <h3 class="h5">На цій сторінці заявок немає</h3>
       <p class="text-body-secondary mb-0">
-        Змініть фільтри або завантажте наступну сторінку, якщо вона доступна.
+        Перейдіть на наступну сторінку, якщо вона доступна, або змініть фільтри.
       </p>
     </div>
   }

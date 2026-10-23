@@ -85,7 +85,7 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
             IndexName = "DirectoryIndex",
             KeyConditionExpression = "Directory = :directory",
             ExpressionAttributeValues = new() { [":directory"] = S("ADMINS") },
-            Limit = 50,
+            Limit = 25,
             ExclusiveStartKey = Decode(cursor, "Directory", "ADMINS")
         }, ct);
         return new Page<AdminUser>((response.Items ?? []).Select(Admin).ToList(), Encode(response.LastEvaluatedKey));
@@ -127,14 +127,17 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
     public async Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct)
     {
         var pk = "BUILDING#" + building;
+        var start = Decode(cursor, "pk", pk);
+        if (start is not null && start.GetValueOrDefault("sk")?.S?.StartsWith("REGISTRATION#", StringComparison.Ordinal) != true)
+            throw new ApiError(400, "Некоректна сторінка.");
         var result = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,
             ConsistentRead = true,
             KeyConditionExpression = "pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues = new() { [":pk"] = S(pk), [":prefix"] = S("REGISTRATION#") },
-            ExclusiveStartKey = Decode(cursor, "pk", pk),
-            Limit = 50
+            ExclusiveStartKey = start,
+            Limit = 25
         }, ct);
         return new Page<ResidentRegistration>((result.Items ?? []).Select(Payload<ResidentRegistration>).ToList(), Encode(result.LastEvaluatedKey));
     }
@@ -152,7 +155,7 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
             KeyConditionExpression = "pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues = new() { [":pk"] = S(pk), [":prefix"] = S("RESIDENT#") },
             ExclusiveStartKey = start,
-            Limit = 50
+            Limit = 25
         }, ct);
         var residents = (result.Items ?? []).Select(Payload<ResidentRegistration>)
             .Where(r => r.BuildingId == building && r.Stage == RegistrationStage.Approved)
@@ -244,7 +247,7 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
             FilterExpression = parts.Count > 0 ? string.Join(" AND ", parts) : null,
             ExclusiveStartKey = Decode(cursor, "requestBuildingId", building),
             ScanIndexForward = false,
-            Limit = 50
+            Limit = 25
         }, ct);
         return new Page<ManagedRequest>((result.Items ?? []).Select(Managed).ToList(), Encode(result.LastEvaluatedKey));
     }

@@ -62,7 +62,7 @@ public sealed class ResidentDirectoryTests
         var store = new DynamoAdminStore(db, "admins", "data", "building");
         var result = await store.ListResidentsAsync(Cursor("building", "RESIDENT#00000000000000000001"), default);
         Assert.True(db.Query!.ConsistentRead);
-        Assert.Equal(50, db.Query.Limit);
+        Assert.Equal(25, db.Query.Limit);
         Assert.Equal("BUILDING#building", db.Query.ExpressionAttributeValues[":pk"].S);
         Assert.Equal("RESIDENT#", db.Query.ExpressionAttributeValues[":prefix"].S);
         Assert.Equal("RESIDENT#00000000000000000001", db.Query.ExclusiveStartKey["sk"].S);

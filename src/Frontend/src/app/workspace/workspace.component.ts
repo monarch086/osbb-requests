@@ -10,6 +10,7 @@ import {
   Ticket,
   Page,
 } from '../api.service';
+import { PaginationComponent } from '../pagination/pagination.component';
 import { TicketFilters } from '../shared/ticket-presentation';
 import { errorMessage } from '../error-message';
 import { RequestsComponent } from '../requests/requests.component';
@@ -22,6 +23,7 @@ import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component'
   selector: 'app-workspace',
   imports: [
     RequestsComponent,
+    PaginationComponent,
     ResidentsComponent,
     AdministratorsComponent,
     RegistrationRejectionDialogComponent,
@@ -49,6 +51,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     email: string;
   }[] = [];
   cursor: string | null = null;
+  pageIndex = 0;
+  private pageCursors: (string | null)[] = [null];
   selected: ManagedTicket | null = null;
   draft: Ticket | null = null;
   history: Record<string, string>[] = [];
@@ -62,6 +66,24 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     target: '',
     floor: '',
   };
+  private appliedFilters: TicketFilters = { ...this.filters };
+  private loadSequence = 0;
+  get pageItemCount(): number {
+    if (this.tab === 'requests') return this.tickets.length;
+    if (this.tab === 'admins') return this.admins.length;
+    return this.residentView === 'pending'
+      ? this.residents.length
+      : this.registeredResidents.length;
+  }
+  private resetPagination(): void {
+    this.pageIndex = 0;
+    this.pageCursors = [null];
+    this.cursor = null;
+    this.tickets = [];
+    this.residents = [];
+    this.registeredResidents = [];
+    this.admins = [];
+  }
   private subscription?: Subscription;
   private epoch = 0;
   ngOnInit(): void {
@@ -87,18 +109,15 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       target: '',
       floor: '',
     };
+    this.appliedFilters = { ...this.filters };
+    this.resetPagination();
     this.me = null;
-    this.tickets = [];
-    this.residents = [];
-    this.registeredResidents = [];
     this.residentView = 'pending';
-    this.admins = [];
     this.assignees = [];
     this.selected = null;
     this.draft = null;
     this.rejecting = null;
     this.history = [];
-    this.cursor = null;
     this.notice = '';
   }
   async workspace(): Promise<void> {
@@ -128,7 +147,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         } while (cursor && epoch === this.epoch);
         if (epoch !== this.epoch) return;
         this.assignees = assignees;
-        await this.load();
+        await this.loadPage(0, null);
       }
     } catch (e) {
       if (epoch === this.epoch) this.error = errorMessage(e);
@@ -139,6 +158,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   async switchTab(tab: 'requests' | 'residents' | 'admins'): Promise<void> {
     if (this.saving || this.loading || (tab === 'admins' && !this.me?.isSuperAdmin)) return;
     this.tab = tab;
+    this.resetPagination();
     this.selected = null;
     this.draft = null;
     this.rejecting = null;
@@ -149,31 +169,43 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     if (this.saving || this.loading || this.tab !== 'residents' || view === this.residentView)
       return;
     this.residentView = view;
-    this.residents = [];
-    this.registeredResidents = [];
+    this.resetPagination();
     this.rejecting = null;
-    this.cursor = null;
     this.notice = '';
     await this.load();
   }
   async applyRequestFilters(filters: TicketFilters): Promise<void> {
     if (this.loading || this.saving) return;
     this.filters = { ...filters };
-    this.cursor = null;
-    this.tickets = [];
+    this.appliedFilters = { ...filters };
+    this.resetPagination();
     await this.load();
   }
-  async load(more = false): Promise<void> {
+  async load(): Promise<void> {
+    if (this.loading || this.saving) return;
+    await this.loadPage(this.pageIndex, this.pageCursors[this.pageIndex] ?? null);
+  }
+  async previousPage(): Promise<void> {
+    if (this.loading || this.saving || this.pageIndex === 0) return;
+    const index = this.pageIndex - 1;
+    await this.loadPage(index, this.pageCursors[index] ?? null);
+  }
+  async nextPage(): Promise<void> {
+    if (this.loading || this.saving || !this.cursor) return;
+    await this.loadPage(this.pageIndex + 1, this.cursor);
+  }
+  private async loadPage(index: number, startCursor: string | null): Promise<void> {
     if (!this.me?.isActive || this.saving) return;
+    const sequence = ++this.loadSequence;
     const epoch = this.epoch;
     const tab = this.tab;
     const residentView = this.residentView;
     this.loading = true;
     this.error = '';
     const params = new URLSearchParams();
-    if (more && this.cursor) params.set('cursor', this.cursor);
+    if (startCursor) params.set('cursor', startCursor);
     if (tab === 'requests') {
-      for (const [key, value] of Object.entries(this.filters)) {
+      for (const [key, value] of Object.entries(this.appliedFilters)) {
         if (typeof value === 'string' && value) params.set(key, value);
       }
     }
@@ -191,26 +223,24 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       >(path + '?' + params.toString());
       if (
         epoch !== this.epoch ||
+        sequence !== this.loadSequence ||
         tab !== this.tab ||
         (tab === 'residents' && residentView !== this.residentView)
       )
         return;
-      if (tab === 'requests')
-        this.tickets = [...(more ? this.tickets : []), ...(page.items as ManagedTicket[])];
+      if (tab === 'requests') this.tickets = page.items as ManagedTicket[];
       if (tab === 'residents' && residentView === 'pending')
-        this.residents = [...(more ? this.residents : []), ...(page.items as Registration[])];
+        this.residents = page.items as Registration[];
       if (tab === 'residents' && residentView === 'registered')
-        this.registeredResidents = [
-          ...(more ? this.registeredResidents : []),
-          ...(page.items as RegisteredResident[]),
-        ];
-      if (tab === 'admins')
-        this.admins = [...(more ? this.admins : []), ...(page.items as Admin[])];
+        this.registeredResidents = page.items as RegisteredResident[];
+      if (tab === 'admins') this.admins = page.items as Admin[];
+      this.pageIndex = index;
+      this.pageCursors = [...this.pageCursors.slice(0, index), startCursor];
       this.cursor = page.cursor;
     } catch (e) {
-      if (epoch === this.epoch) this.error = errorMessage(e);
+      if (epoch === this.epoch && sequence === this.loadSequence) this.error = errorMessage(e);
     } finally {
-      if (epoch === this.epoch) this.loading = false;
+      if (epoch === this.epoch && sequence === this.loadSequence) this.loading = false;
     }
   }
   async setAccess(user: Admin): Promise<void> {
@@ -242,7 +272,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     });
   }
   async open(ticket: ManagedTicket): Promise<void> {
-    if (this.saving) return;
+    if (this.saving || this.loading) return;
     this.selected = ticket;
     this.draft = { ...ticket.request };
     this.history = [];
