@@ -62,7 +62,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   history: Record<string, string>[] = [];
   rejecting: Registration | null = null;
   filters: TicketFilters = {
-    status: '',
+    status: ['New', 'InProgress'],
     category: '',
     search: '',
     from: '',
@@ -70,7 +70,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     target: '',
     floor: '',
   };
-  private appliedFilters: TicketFilters = { ...this.filters };
+  private appliedFilters: TicketFilters = { ...this.filters, status: [...this.filters.status] };
   private loadSequence = 0;
   get availablePages(): number {
     return this.pageCursors.length;
@@ -108,7 +108,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private clear(): void {
     this.tab = this.route.snapshot.data['tab'] as typeof this.tab;
     this.filters = {
-      status: '',
+      status: ['New', 'InProgress'],
       category: '',
       search: '',
       from: '',
@@ -116,7 +116,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       target: '',
       floor: '',
     };
-    this.appliedFilters = { ...this.filters };
+    this.appliedFilters = { ...this.filters, status: [...this.filters.status] };
     this.resetPagination();
     this.me = null;
     this.residentView = 'pending';
@@ -176,8 +176,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   }
   async applyRequestFilters(filters: TicketFilters): Promise<void> {
     if (this.loading || this.saving) return;
-    this.filters = { ...filters };
-    this.appliedFilters = { ...filters };
+    this.filters = { ...filters, status: [...filters.status] };
+    this.appliedFilters = { ...filters, status: [...filters.status] };
     this.resetPagination();
     await this.load();
   }
@@ -218,8 +218,10 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     const params = new URLSearchParams();
     if (startCursor) params.set('cursor', startCursor);
     if (tab === 'requests') {
-      for (const [key, value] of Object.entries(this.appliedFilters)) {
-        if (typeof value === 'string' && value) params.set(key, value);
+      const { status, ...filters } = this.appliedFilters;
+      if (status.length) params.set('status', status.join(','));
+      for (const [key, value] of Object.entries(filters)) {
+        if (value) params.set(key, value);
       }
     }
     const path =

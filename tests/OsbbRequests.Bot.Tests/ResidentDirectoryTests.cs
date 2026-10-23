@@ -118,14 +118,14 @@ public sealed class ResidentDirectoryTests
             }
         };
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
-        var page = await store.ListRequestsAsync(new(status, "електрика", null, null, null, "Building4Б", 25), null, default);
+        var page = await store.ListRequestsAsync(new(status is null ? [] : [status], "електрика", null, null, null, "Building4Б", 25), null, default);
         Assert.Equal("BuildingRequestsIndex", db.Query!.IndexName);
         Assert.Contains("requestCategory = :requestCategory", db.Query.FilterExpression);
         Assert.DoesNotContain(":completed", db.Query.FilterExpression);
         if (status is not null)
         {
-            Assert.Contains("requestStatus = :requestStatus", db.Query.FilterExpression);
-            Assert.Equal(status, db.Query.ExpressionAttributeValues[":requestStatus"].S);
+            Assert.Contains("requestStatus IN (:status0)", db.Query.FilterExpression);
+            Assert.Equal(status, db.Query.ExpressionAttributeValues[":status0"].S);
         }
         else Assert.DoesNotContain("requestStatus", db.Query.FilterExpression);
         Assert.Empty(page.Items);

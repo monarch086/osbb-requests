@@ -3,7 +3,7 @@ import type { Ticket } from '../api.service';
 export interface TicketFilters {
   target: string;
   floor: string;
-  status: string;
+  status: string[];
   category: string;
   search: string;
   from: string;

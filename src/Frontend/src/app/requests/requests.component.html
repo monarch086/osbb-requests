@@ -77,11 +77,14 @@
         labelForId="request-status"
         name="status"
         [(ngModel)]="filters.status"
-        [clearable]="false"
+        [multiple]="true"
+        [closeOnSelect]="false"
+        [clearable]="true"
         [searchable]="false"
+        placeholder="Усі статуси"
+        clearAllText="Усі статуси"
         [disabled]="loading || saving"
       >
-        <ng-option value="">Усі статуси</ng-option>
         @for (s of statuses; track s) {
           <ng-option [value]="s">{{ labels[s] }}</ng-option>
         }

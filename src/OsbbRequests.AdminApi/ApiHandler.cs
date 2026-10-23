@@ -71,7 +71,9 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         if (method == "GET" && path == "/admin/requests")
         {
             var status = query.GetValueOrDefault("status");
-            if (status is { Length: > 0 } && !Enum.TryParse<RequestStatus>(status, out _)) throw new ApiError(400, "Некоректний статус.");
+            var statuses = string.IsNullOrEmpty(status) ? [] : status.Split(',').Distinct(StringComparer.Ordinal).ToArray();
+            if (status?.Length > 150 || statuses.Any(value => !Enum.GetNames<RequestStatus>().Contains(value, StringComparer.Ordinal)))
+                throw new ApiError(400, "Некоректний статус.");
             var from = Date(query.GetValueOrDefault("from")); var to = Date(query.GetValueOrDefault("to"));
             if (from is not null && to is not null && string.CompareOrdinal(from, to) > 0) throw new ApiError(400, "Некоректний період.");
             if (query.GetValueOrDefault("search")?.Length > 200) throw new ApiError(400, "Пошук: до 200 символів.");
@@ -85,7 +87,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     throw new ApiError(400, "Поверх: від 1 до 25.");
                 floor = floorNumber;
             }
-            return Reply(200, await store.ListRequestsAsync(new(status, query.GetValueOrDefault("category"),
+            return Reply(200, await store.ListRequestsAsync(new(statuses, query.GetValueOrDefault("category"),
                 query.GetValueOrDefault("search"), from, to, target, floor), cursor, ct));
         }
         if (segments.Length is 4 or 5 && segments[0] == "admin" && segments[1] == "requests" &&

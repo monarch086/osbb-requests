@@ -232,8 +232,18 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
             condition += " AND requestCreatedAt BETWEEN :from AND :to";
         }
         var parts = new List<string>();
-        foreach (var (field, value) in new[] { ("requestStatus", filters.Status), ("requestCategory", filters.Category) })
-            if (!string.IsNullOrEmpty(value)) { values[":" + field] = S(value); parts.Add(field + " = :" + field); }
+        if (filters.Statuses is { Count: > 0 } statuses)
+        {
+            var parameters = new List<string>();
+            foreach (var status in statuses)
+            {
+                var parameter = ":status" + parameters.Count.ToString(CultureInfo.InvariantCulture);
+                values[parameter] = S(status);
+                parameters.Add(parameter);
+            }
+            parts.Add("requestStatus IN (" + string.Join(", ", parameters) + ")");
+        }
+        if (!string.IsNullOrEmpty(filters.Category)) { values[":requestCategory"] = S(filters.Category); parts.Add("requestCategory = :requestCategory"); }
         if (!string.IsNullOrWhiteSpace(filters.Search)) { values[":search"] = S(filters.Search.ToLowerInvariant()); parts.Add("contains(searchText, :search)"); }
         if (filters.Target == "Unspecified") parts.Add("attribute_not_exists(requestTarget)");
         else if (!string.IsNullOrEmpty(filters.Target)) { values[":target"] = S(filters.Target); parts.Add("requestTarget = :target"); }

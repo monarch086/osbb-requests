@@ -25,7 +25,7 @@ export class RequestsComponent {
   @Output() applyFilters = new EventEmitter<TicketFilters>();
   @Output() openTicket = new EventEmitter<ManagedTicket>();
   @Input() filters: TicketFilters = {
-    status: '',
+    status: ['New', 'InProgress'],
     category: '',
     search: '',
     from: '',
@@ -47,6 +47,6 @@ export class RequestsComponent {
     return this.tickets.filter((t) => t.request.status === 'InProgress').length;
   }
   submitFilters(): void {
-    this.applyFilters.emit({ ...this.filters });
+    this.applyFilters.emit({ ...this.filters, status: [...this.filters.status] });
   }
 }

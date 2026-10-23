@@ -70,6 +70,25 @@ public sealed class AdminPaginationTests
         Assert.Equal(1, db.QueryCount);
     }
 
+    [Fact]
+    public async Task MultipleStatusesUseOneQueryCombinedWithOtherFiltersAndCursor()
+    {
+        using var db = new PagedDynamo("requests");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var filters = new OsbbRequests.AdminApi.Models.RequestFilters(["New", "InProgress"], "інше", "опис", null, null, "Complex");
+        var first = await store.ListRequestsAsync(filters, null, default);
+        await store.ListRequestsAsync(filters, first.Cursor, default);
+        var query = db.Query!;
+        Assert.Equal(2, db.QueryCount);
+        Assert.Equal(25, query.Limit);
+        Assert.NotEmpty(query.ExclusiveStartKey);
+        Assert.Equal("BuildingRequestsIndex", query.IndexName);
+        Assert.Equal("requestStatus IN (:status0, :status1) AND requestCategory = :requestCategory AND contains(searchText, :search) AND requestTarget = :target", query.FilterExpression);
+        Assert.Equal("New", query.ExpressionAttributeValues[":status0"].S);
+        Assert.Equal("InProgress", query.ExpressionAttributeValues[":status1"].S);
+        Assert.Equal("complex", query.ExpressionAttributeValues[":building"].S);
+    }
+
     private sealed class PagedDynamo(string list) : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public QueryRequest? Query;

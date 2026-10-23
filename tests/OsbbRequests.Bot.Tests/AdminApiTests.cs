@@ -218,13 +218,34 @@ public sealed class AdminApiTests
     [InlineData(null)]
     [InlineData("Completed")]
     [InlineData("New")]
-    public async Task StatusIsTheOnlyRequestStatusFilter(string? status)
+    [InlineData("")]
+    [InlineData("New,InProgress")]
+    [InlineData("Completed,Rejected")]
+    [InlineData("New,New")]
+    public async Task StatusFilterAcceptsOneOrMultipleStatuses(string? status)
     {
         var store = new FakeStore();
         var query = new Dictionary<string, string>();
         if (status is not null) query["status"] = status;
         await Handler(store).HandleAsync(Request("/admin/requests", query: query), default);
-        Assert.Equal(status, store.LastFilters!.Status);
+        Assert.Equal(string.IsNullOrEmpty(status) ? [] : status.Split(',').Distinct().ToArray(), store.LastFilters!.Statuses);
+    }
+    [Theory]
+    [InlineData("Unknown")]
+    [InlineData("New,Unknown")]
+    [InlineData("New,")]
+    [InlineData(",New")]
+    [InlineData("New,,InProgress")]
+    [InlineData("0")]
+    [InlineData("999")]
+    [InlineData("new")]
+    public async Task StatusFilterRejectsInvalidValues(string status)
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests", query:
+            new() { ["status"] = status }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Null(store.LastFilters);
     }
     private sealed class FakeIdentity : IIdentityProvider
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
