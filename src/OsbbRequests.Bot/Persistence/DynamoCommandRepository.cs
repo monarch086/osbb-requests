@@ -73,7 +73,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             if (request is null || request.BuildingId != complexId || request.Visibility != RequestVisibility.Public ||
                 request.Status is not (RequestStatus.New or RequestStatus.InProgress)) continue;
             items.Add(new(request.Id, request.Status, request.CreatedAt, request.Scope, request.BuildingNumber,
-                request.Floor, request.Category, request.Location, request.Description));
+                request.Floor, request.Category, request.Location, request.Description, request.Entrance));
         }
         var next = page.LastEvaluatedKey?.GetValueOrDefault("requestCreatedAt")?.S;
         return new(items, next);
@@ -158,7 +158,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
         var writes = new List<TransactWriteItem> { Put(replyItem) };
         if (outcome.NewRequest is { } request)
         {
-            if (!ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor))
+            if (!ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor, request.Entrance))
                 throw new InvalidOperationException("Request scope is required.");
             var item = Key("USER#" + Number(request.OwnerId), RequestKey(request.Id));
             item["payload"] = new AttributeValue(JsonSerializer.Serialize(request));
@@ -175,6 +175,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             history["actorId"] = new AttributeValue { N = Number(request.OwnerId) };
             history["createdAt"] = new AttributeValue(request.CreatedAt.ToString("O", CultureInfo.InvariantCulture));
             history["status"] = new AttributeValue("New");
+            if (request.Entrance is { } entrance) history["entrance"] = new AttributeValue { N = Number(entrance) };
             history["target"] = new AttributeValue(ComplexLayout.Target(request.Scope, request.BuildingNumber));
             if (request.Floor is { } historyFloor) history["floor"] = new AttributeValue { N = Number(historyFloor) };
             writes.Add(Put(history));

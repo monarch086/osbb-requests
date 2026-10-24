@@ -322,13 +322,13 @@ public sealed class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, str
     }
     public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
     {
-        if (!ComplexLayout.IsValid(next.Scope, next.BuildingNumber, next.Floor)) throw new ApiError(400, "Некоректна прив’язка заявки.");
+        if (!ComplexLayout.IsValid(next.Scope, next.BuildingNumber, next.Floor, next.Entrance)) throw new ApiError(400, "Некоректна прив’язка заявки.");
         var timestamp = DateTimeOffset.UtcNow;
         var now = timestamp.ToString("O");
         var audit = Key("REQUEST#" + next.Id.ToString(CultureInfo.InvariantCulture), "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
         audit["actor"] = S(actor.Email); audit["createdAt"] = S(now); audit["status"] = S(next.Status.ToString());
         audit["previousStatus"] = S(current.Request.Status.ToString()); audit["resolution"] = S(next.Resolution ?? "");
-        audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility, next.Scope, next.BuildingNumber, next.Floor }));
+        audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility, next.Scope, next.BuildingNumber, next.Floor, next.Entrance }));
         var writes = new List<TransactWriteItem> { ActorCheck(actor), new() { Update = new() {
             TableName = dataTable, Key = Key("USER#" + next.OwnerId.ToString(CultureInfo.InvariantCulture), RequestKey(next.Id)),
             UpdateExpression = "SET #payload = :payload, #v = :next, requestStatus = :status, requestTarget = :target, requestFloor = :floor",

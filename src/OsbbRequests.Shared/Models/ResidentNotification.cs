@@ -20,7 +20,7 @@ public sealed record ResidentNotification(string Id, string ComplexId, long Owne
         if (!statusChanged && !commentChanged) return null;
         var date = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         var text = $"Оновлення вашої заявки №{next.Id}\n" +
-            $"{ComplexLayout.Label(next.Scope, next.BuildingNumber, next.Floor)}\n" +
+            $"{ComplexLayout.Label(next.Scope, next.BuildingNumber, next.Floor, next.Entrance)}\n" +
             $"Оновлено: {date:dd.MM.yyyy HH:mm} (Київ)\n" +
             (statusChanged ? $"Статус: {Label(previous.Status)} → {Label(next.Status)}" : $"Статус: {Label(next.Status)}");
         if (comment.Length > 0) text += "\n\nПояснення для мешканця:\n" + comment;

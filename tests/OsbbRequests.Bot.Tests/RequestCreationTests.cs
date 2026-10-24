@@ -22,6 +22,8 @@ public sealed class RequestCreationTests
         await Apply(repository, 1, "/new");
         Assert.Equal(RequestDraftStage.Scope, repository.Drafts[42].Stage);
         await Apply(repository, 2, "Будинок 4Д");
+        Assert.Equal(RequestDraftStage.Entrance, repository.Drafts[42].Stage);
+        await Apply(repository, 30, "2");
         Assert.Equal(RequestDraftStage.Floor, repository.Drafts[42].Stage);
         await Apply(repository, 3, "25");
         await Apply(repository, 4, "електрика");
@@ -36,6 +38,7 @@ public sealed class RequestCreationTests
         Assert.Equal(RequestScope.Building, request.Scope);
         Assert.Equal("4Д", request.BuildingNumber);
         Assert.Equal(25, request.Floor);
+        Assert.Equal(2, request.Entrance);
         Assert.Equal("building", request.BuildingId);
         Assert.Equal(RequestVisibility.Public, request.Visibility);
         Assert.Empty(request.Location);

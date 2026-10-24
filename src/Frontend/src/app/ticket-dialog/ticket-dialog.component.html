@@ -53,6 +53,23 @@
             </div>
             @if (draft.scope === 'Building') {
               <div class="col-12 col-md-6">
+                <label class="form-label" for="ticket-entrance">Під’їзд</label>
+                <ng-select
+                  labelForId="ticket-entrance"
+                  name="entrance"
+                  placeholder="Не зазначено"
+                  [(ngModel)]="draft.entrance"
+                  [clearable]="false"
+                  [searchable]="false"
+                  [disabled]="saving"
+                  appendTo="body"
+                >
+                  @for (entrance of entrances; track entrance.value) {
+                    <ng-option [value]="entrance.value">{{ entrance.label }}</ng-option>
+                  }
+                </ng-select>
+              </div>
+              <div class="col-12 col-md-6">
                 <label class="form-label" for="ticket-floor">Поверх</label>
                 <ng-select
                   labelForId="ticket-floor"

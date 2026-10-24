@@ -8,7 +8,8 @@ public enum ReplyKeyboard
     Remove,
     RequestScope,
     RequestFloor,
-    RequestCategory
+    RequestCategory,
+    RequestEntrance
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion);

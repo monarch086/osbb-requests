@@ -312,7 +312,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   async open(ticket: ManagedTicket): Promise<void> {
     if (this.saving || this.loading) return;
     this.selected = ticket;
-    this.draft = { ...ticket.request };
+    this.draft = { ...ticket.request, entrance: ticket.request.entrance ?? null };
     this.history = [];
     this.error = '';
     const epoch = this.epoch;
@@ -333,6 +333,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         scope: draft.scope,
         buildingNumber: draft.buildingNumber,
         floor: draft.floor,
+        entrance: draft.entrance,
         status: draft.status,
         visibility: draft.visibility,
         resolution: draft.resolution,

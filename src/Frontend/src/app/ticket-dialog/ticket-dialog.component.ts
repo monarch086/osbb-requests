@@ -8,6 +8,7 @@ import {
   formatDate,
   requestTargets,
   buildingFloors,
+  entranceOptions,
   floorLabel,
   requestTarget,
   requestLocationLabel,
@@ -30,6 +31,11 @@ export class TicketDialogComponent {
   @Output() saved = new EventEmitter<Ticket>();
   @Output() closed = new EventEmitter<void>();
   readonly targets = requestTargets;
+  get entrances(): typeof entranceOptions {
+    return this.draft.buildingNumber === '4Б'
+      ? entranceOptions.filter((option) => option.value !== 2)
+      : entranceOptions;
+  }
   readonly floors = buildingFloors;
   readonly floorLabel = floorLabel;
   readonly locationLabel = requestLocationLabel;
@@ -42,6 +48,7 @@ export class TicketDialogComponent {
       ? value.slice('Building'.length)
       : null;
     this.draft.floor = null;
+    this.draft.entrance = this.draft.buildingNumber === '4Б' ? 1 : null;
   }
   readonly statuses = ticketStatuses;
   readonly labels = statusLabels;

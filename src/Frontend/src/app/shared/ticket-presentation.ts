@@ -44,6 +44,11 @@ export const requestTargets = [
   { value: 'Complex', label: 'Весь комплекс' },
   ...buildingNumbers.map((number) => ({ value: `Building${number}`, label: `Будинок ${number}` })),
 ];
+export const entranceOptions = [
+  { value: null, label: 'Не зазначено' },
+  { value: 1, label: '1' },
+  { value: 2, label: '2' },
+];
 export const buildingFloors = [0, ...Array.from({ length: 25 }, (_, index) => index + 1)];
 export function floorLabel(floor: number): string {
   return floor === 0 ? 'Парадне' : floor.toString();
@@ -59,7 +64,7 @@ export function requestLocationLabel(ticket: Ticket): string {
   if (ticket.scope === 'Complex') return 'Весь комплекс';
   if (ticket.scope === 'Building')
     return (
-      `Будинок ${ticket.buildingNumber}` +
+      `Будинок ${ticket.buildingNumber} · під’їзд ${ticket.entrance ?? 'Не зазначено'}` +
       (ticket.floor === 0
         ? ' · Парадне'
         : ticket.floor

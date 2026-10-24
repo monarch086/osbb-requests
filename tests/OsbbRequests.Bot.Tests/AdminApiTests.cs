@@ -218,6 +218,60 @@ public sealed class AdminApiTests
         Assert.Equal(0, store.RequestWrites);
     }
     [Theory]
+    [InlineData("4Б", null, 200)]
+    [InlineData("4Б", 1, 200)]
+    [InlineData("4Б", 2, 400)]
+    [InlineData("4В", null, 200)]
+    [InlineData("4В", 1, 200)]
+    [InlineData("4Г", 2, 200)]
+    [InlineData("4Д", 0, 400)]
+    [InlineData("4В", 3, 400)]
+    public async Task AdminEntranceValidationPreservesUnspecifiedLegacyValues(string building, int? entrance, int expected)
+    {
+        var store = new FakeStore();
+        var request = Request("/admin/requests/99/1", "PATCH", body: new
+        {
+            status = "New",
+            visibility = "Public",
+            priority = "Normal",
+            version = 1,
+            scope = "Building",
+            buildingNumber = building,
+            floor = 12,
+            entrance
+        });
+        if (expected == 200)
+        {
+            Assert.Equal(200, (await Handler(store).HandleAsync(request, default)).StatusCode);
+            Assert.Equal(entrance, store.LastRequest!.Entrance);
+        }
+        else
+        {
+            Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(request, default))).Status);
+            Assert.Equal(0, store.RequestWrites);
+        }
+    }
+
+    [Fact]
+    public async Task ComplexRequestCannotHaveEntrance()
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body: new
+        {
+            status = "New",
+            visibility = "Public",
+            priority = "Normal",
+            version = 1,
+            scope = "Complex",
+            buildingNumber = (string?)null,
+            floor = (int?)null,
+            entrance = 1
+        }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Equal(0, store.RequestWrites);
+    }
+
+    [Theory]
     [InlineData("Building", "4Б", 0)]
     [InlineData("Building", "4Б", 1)]
     [InlineData("Building", "4Д", 25)]

@@ -32,7 +32,7 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
         var date = TimeZoneInfo.ConvertTime(request.CreatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         return $"№{request.Id} — {CommandHandler.StatusLabel(request.Status)}\n" +
             $"Подано: {date:dd.MM.yyyy HH:mm} (Київ)\n" +
-            $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor)}\n" +
+            $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance)}\n" +
             $"{RequestListText.Limit(request.Category, 80)}" +
             (string.IsNullOrEmpty(request.Location) ? "" : ": " + RequestListText.Limit(request.Location, 200)) + "\n" + RequestListText.Limit(request.Description, 2000);
     }

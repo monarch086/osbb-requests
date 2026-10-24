@@ -132,8 +132,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     change.Priority is not ("Low" or "Normal" or "High" or "Urgent")) throw new ApiError(400, "Некоректні параметри заявки.");
                 if (change.Resolution?.Length > 1000 || status is RequestStatus.Completed or RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
                     throw new ApiError(400, "Для виконання або відхилення потрібне пояснення до 1000 символів.");
-                if (!Enum.TryParse<RequestScope>(change.Scope, out var scope) || !ComplexLayout.IsValid(scope, change.BuildingNumber, change.Floor))
-                    throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або весь комплекс. Поверх може бути лише 1–25 і лише для будинку.");
+                if (!Enum.TryParse<RequestScope>(change.Scope, out var scope) || !ComplexLayout.IsValid(scope, change.BuildingNumber, change.Floor, change.Entrance))
+                    throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або весь комплекс. Для будинку оберіть поверх 1–25 або «Парадне»; під’їзд — 1, 2 або «Не зазначено» (для 4Б лише 1 або «Не зазначено»).");
                 var date = Date(change.PlannedDate);
                 if (!string.IsNullOrEmpty(change.AssignedTo) && (await store.GetAdminAsync(change.AssignedTo, ct))?.IsActive != true)
                     throw new ApiError(400, "Оберіть активного адміністратора.");
@@ -142,6 +142,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     Scope = scope,
                     BuildingNumber = change.BuildingNumber,
                     Floor = change.Floor,
+                    Entrance = change.Entrance,
                     Status = status,
                     Visibility = visibility,
                     Resolution = change.Resolution?.Trim(),

@@ -34,7 +34,7 @@ public static class AdministratorNotifications
     public static ResidentNotification NewRequest(MaintenanceRequest request) => new(
         "new-request-" + request.Id.ToString(CultureInfo.InvariantCulture), request.BuildingId, 0, request.Id, 1,
         $"Нова заявка №{request.Id} у ЖК «Зелений острів 2».\n" +
-        ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor) + "\nКатегорія: " + request.Category +
+        ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + "\nКатегорія: " + request.Category +
         "\nСтворено: " + Date(request.CreatedAt) + "\nПерегляньте заявку в розділі «Заявки» вебпанелі.", request.CreatedAt, AdministratorEvent.NewRequest);
 
     public static ResidentNotification NewAdministrator(string id, string email, string complex, DateTimeOffset now) => new(

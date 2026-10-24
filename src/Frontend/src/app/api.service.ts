@@ -39,6 +39,7 @@ export interface Ticket {
   scope: 'Complex' | 'Building' | null;
   buildingNumber: string | null;
   floor: number | null;
+  entrance: number | null;
   category: string;
   location: string;
   description: string;

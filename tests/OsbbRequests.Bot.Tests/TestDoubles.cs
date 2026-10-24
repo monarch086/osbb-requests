@@ -25,7 +25,7 @@ internal sealed class MemoryRepository : ICommandRepository
             .OrderByDescending(SortKey, StringComparer.Ordinal).Take(6).ToList();
         var page = candidates.Take(5).ToList();
         var items = page.Where(r => r.Visibility == RequestVisibility.Public && r.Status is RequestStatus.New or RequestStatus.InProgress)
-            .Select(r => new PublicRequestSummary(r.Id, r.Status, r.CreatedAt, r.Scope, r.BuildingNumber, r.Floor, r.Category, r.Location, r.Description)).ToList();
+            .Select(r => new PublicRequestSummary(r.Id, r.Status, r.CreatedAt, r.Scope, r.BuildingNumber, r.Floor, r.Category, r.Location, r.Description, r.Entrance)).ToList();
         return Task.FromResult(new PublicRequestPage(items, candidates.Count > 5 ? SortKey(page[^1]) : null));
     }
     public HashSet<long> Residents { get; } = [42];

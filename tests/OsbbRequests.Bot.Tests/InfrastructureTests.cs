@@ -213,6 +213,24 @@ public sealed class InfrastructureTests
         Assert.All(transaction.TransactItems.Skip(1), item => Assert.False(item.Put.Item.ContainsKey("expiresAt")));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(null)]
+    public async Task RequestEntranceIsPersistedInPayloadAndCreationAuditAtomically(int? entrance)
+    {
+        using var client = new CapturingDynamo();
+        var request = new MaintenanceRequest(100, 42, "complex", "інше", "", "Зламано двері парадного", DateTimeOffset.UtcNow,
+            Scope: RequestScope.Building, BuildingNumber: "4В", Floor: 0, Entrance: entrance);
+        await new DynamoCommandRepository(client, "data").CommitAsync(new(100, 42, 42, "Зламано двері парадного"), new("Створено", request), default);
+        var writes = client.Transaction!.TransactItems;
+        var stored = Assert.Single(writes, write => write.Put.Item["sk"].S.StartsWith("REQUEST#", StringComparison.Ordinal)).Put.Item;
+        Assert.Equal(entrance, JsonSerializer.Deserialize<MaintenanceRequest>(stored["payload"].S)!.Entrance);
+        var audit = Assert.Single(writes, write => write.Put.Item["sk"].S == "EVENT#CREATED").Put.Item;
+        if (entrance is not null) Assert.Equal(entrance.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), audit["entrance"].N);
+        else Assert.False(audit.ContainsKey("entrance"));
+    }
+
     [Fact]
     public async Task WizardFinalizationCommitsDraftVersionRequestTargetHistoryAndReplyAtomically()
     {
@@ -324,6 +342,9 @@ public sealed class InfrastructureTests
     [InlineData(ReplyKeyboard.RequestScope, "Будинок 4Д")]
     [InlineData(ReplyKeyboard.RequestFloor, "Без поверху")]
     [InlineData(ReplyKeyboard.RequestFloor, "Парадне")]
+    [InlineData(ReplyKeyboard.RequestEntrance, "1")]
+    [InlineData(ReplyKeyboard.RequestEntrance, "2")]
+    [InlineData(ReplyKeyboard.RequestEntrance, "Не зазначено")]
     [InlineData(ReplyKeyboard.RequestCategory, "сантехніка")]
     public async Task WizardChoicesAreDeliveredAsReplyKeyboardButtons(ReplyKeyboard keyboard, string choice)
     {
