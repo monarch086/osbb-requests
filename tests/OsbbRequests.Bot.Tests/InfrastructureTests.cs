@@ -77,7 +77,8 @@ public sealed class InfrastructureTests
         Assert.Equal("USER#99", client.Get.Key["pk"].S);
         var json = JsonSerializer.Serialize(page);
         Assert.DoesNotContain("OwnerId", json);
-        Assert.DoesNotContain("Description", json);
+        if (visible) Assert.Equal(request.Description, Assert.Single(page.Items).Description);
+        else Assert.DoesNotContain("Description", json);
         Assert.DoesNotContain("Resolution", json);
     }
 

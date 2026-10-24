@@ -14,11 +14,16 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
         if (arguments.Length > 0 && !TryCursor(arguments, out before))
             return new("Скористайтеся /complex або командою наступної сторінки зі списку заявок комплексу.");
         var page = await repository.ListPublicRequestsAsync(complexId, before, ct);
-        var text = page.Items.Count == 0
+        string? NextCommand(int count)
+        {
+            var next = count > 0 && count < page.Items.Count
+                ? page.Items[count - 1].CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + page.Items[count - 1].Id.ToString(CultureInfo.InvariantCulture)
+                : page.NextBefore;
+            return next is null ? null : "/complex " + Encode(next);
+        }
+        var text = RequestListText.Build(page.Items.Count == 0
             ? "На цій сторінці немає відкритих заявок для мешканців комплексу."
-            : "Заявки комплексу — нові та в роботі:\n\n" + string.Join("\n\n", page.Items.Select(Format));
-        if (page.NextBefore is { } next)
-            text += "\n\nНаступна сторінка: /complex " + Encode(next);
+            : "Заявки комплексу — нові та в роботі:", page.Items.Select(Format).ToList(), NextCommand);
         return new(text);
     }
 
@@ -28,11 +33,10 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
         return $"№{request.Id} — {CommandHandler.StatusLabel(request.Status)}\n" +
             $"Подано: {date:dd.MM.yyyy HH:mm} (Київ)\n" +
             $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor)}\n" +
-            $"{Limit(request.Category, 80)}" +
-            (string.IsNullOrEmpty(request.Location) ? "" : ": " + Limit(request.Location, 200));
+            $"{RequestListText.Limit(request.Category, 80)}" +
+            (string.IsNullOrEmpty(request.Location) ? "" : ": " + RequestListText.Limit(request.Location, 200)) + "\n" + RequestListText.Limit(request.Description, 2000);
     }
 
-    private static string Limit(string value, int length) => value.Length <= length ? value : value[..length] + "…";
     private static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     private static bool TryCursor(string value, out string? before)
     {

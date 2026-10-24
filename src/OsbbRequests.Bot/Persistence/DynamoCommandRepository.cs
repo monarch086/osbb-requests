@@ -73,7 +73,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             if (request is null || request.BuildingId != complexId || request.Visibility != RequestVisibility.Public ||
                 request.Status is not (RequestStatus.New or RequestStatus.InProgress)) continue;
             items.Add(new(request.Id, request.Status, request.CreatedAt, request.Scope, request.BuildingNumber,
-                request.Floor, request.Category, request.Location));
+                request.Floor, request.Category, request.Location, request.Description));
         }
         var next = page.LastEvaluatedKey?.GetValueOrDefault("requestCreatedAt")?.S;
         return new(items, next);

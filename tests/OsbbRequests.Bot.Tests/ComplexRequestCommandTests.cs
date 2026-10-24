@@ -12,7 +12,7 @@ public sealed class ComplexRequestCommandTests
     private static CommandEnvelope Message(long id, string text) => new(id, 42, 42, text);
     private static MaintenanceRequest Request(long id = 7, long owner = 42,
         RequestStatus status = RequestStatus.New, RequestVisibility visibility = RequestVisibility.Public,
-        string complex = "building") => new(id, owner, complex, "електрика", "Біля ліфта", "Приватна частина не для списку",
+        string complex = "building") => new(id, owner, complex, "електрика", "Біля ліфта", "Не працює освітлення біля ліфта",
             new DateTimeOffset(2026, 10, 20, 10, 0, 0, TimeSpan.Zero).AddMinutes(id), status, visibility,
             Resolution: "Приватна відповідь адміністратора", Scope: RequestScope.Building, BuildingNumber: "4Б", Floor: 12);
     private static async Task<CommandOutcome> Apply(MemoryRepository repository, long id, string text)
@@ -42,7 +42,8 @@ public sealed class ComplexRequestCommandTests
         Assert.DoesNotContain("№9", result.Reply);
         Assert.DoesNotContain("№10", result.Reply);
         Assert.DoesNotContain("№11", result.Reply);
-        Assert.DoesNotContain("Приватна", result.Reply);
+        Assert.Contains("Не працює освітлення біля ліфта", result.Reply);
+        Assert.DoesNotContain("Приватна відповідь адміністратора", result.Reply);
         Assert.DoesNotContain("99", result.Reply);
         Assert.DoesNotContain("100", result.Reply);
     }
@@ -93,6 +94,35 @@ public sealed class ComplexRequestCommandTests
         var result = await Apply(repository, 1, "/complex");
         Assert.True(result.Reply.Length <= 4096);
         Assert.Contains("Наступна сторінка", result.Reply);
+    }
+
+    [Fact]
+    public async Task LongDescriptionsPaginateWithoutSkippingPublicRequestsBetweenPrivateOnes()
+    {
+        var repository = new MemoryRepository();
+        for (var id = 1; id <= 13; id++)
+            repository.Requests.Add(Request(id, owner: 999, visibility: id % 3 == 0 ? RequestVisibility.Private : RequestVisibility.Public)
+                with
+            { Description = ($"Опис{id}:").PadRight(2000, 'О') });
+        var seen = new List<long>();
+        var command = "/complex";
+        for (var update = 1; update <= 15; update++)
+        {
+            var page = await Apply(repository, update, command);
+            Assert.True(page.Reply.Length <= 4096);
+            var ids = System.Text.RegularExpressions.Regex.Matches(page.Reply, @"^№(\d+)", System.Text.RegularExpressions.RegexOptions.Multiline)
+                .Select(match => long.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+            foreach (var id in ids)
+            {
+                Assert.NotEqual(0, id % 3);
+                Assert.Contains(repository.Requests.Single(request => request.Id == id).Description, page.Reply);
+            }
+            seen.AddRange(ids);
+            var parts = page.Reply.Split("Наступна сторінка: ");
+            if (parts.Length == 1) break;
+            command = parts[1];
+        }
+        Assert.Equal(Enumerable.Range(1, 13).Reverse().Where(id => id % 3 != 0).Select(id => (long)id), seen);
     }
 
     [Theory]

@@ -85,10 +85,16 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         if (page.Items.Count == 0)
             return new CommandOutcome("Заявок на цій сторінці немає. Створити заявку: /new.");
 
-        var lines = page.Items.Where(r => r.BuildingId == buildingId).Select(r => $"№{r.Id} — {StatusLabel(r.Status)}\n{ComplexLayout.Label(r.Scope, r.BuildingNumber, r.Floor)}\n{r.Category}{(string.IsNullOrEmpty(r.Location) ? "" : ": " + r.Location)}\n/request {r.Id}");
-        var reply = "Ваші заявки:\n\n" + string.Join("\n\n", lines);
-        if (page.NextBeforeId is { } next)
-            reply += $"\n\nНаступна сторінка: /my {next}";
+        var requests = page.Items.Where(r => r.BuildingId == buildingId && r.OwnerId == userId).ToList();
+        var lines = requests.Select(r => $"№{r.Id} — {StatusLabel(r.Status)}\n{ComplexLayout.Label(r.Scope, r.BuildingNumber, r.Floor)}\n" +
+            RequestListText.Limit(r.Category, 80) + (string.IsNullOrEmpty(r.Location) ? "" : ": " + RequestListText.Limit(r.Location, 200)) +
+            "\n" + RequestListText.Limit(r.Description, 2000) + $"\n/request {r.Id}").ToList();
+        string? NextCommand(int count)
+        {
+            var next = count > 0 && count < requests.Count ? requests[count - 1].Id : page.NextBeforeId;
+            return next is null ? null : "/my " + next.Value.ToString(CultureInfo.InvariantCulture);
+        }
+        var reply = RequestListText.Build("Ваші заявки:", lines, NextCommand);
         return new CommandOutcome(reply);
     }
 
