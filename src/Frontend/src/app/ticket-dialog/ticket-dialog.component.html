@@ -65,7 +65,7 @@
                 >
                   <ng-option [value]="null">Без поверху</ng-option>
                   @for (floor of floors; track floor) {
-                    <ng-option [value]="floor">{{ floor }}</ng-option>
+                    <ng-option [value]="floor">{{ floorLabel(floor) }}</ng-option>
                   }
                 </ng-select>
               </div>

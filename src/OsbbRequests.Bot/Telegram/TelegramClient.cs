@@ -31,7 +31,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             var rows = keyboard switch
             {
                 ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { "Весь комплекс" }).ToArray(),
-                ReplyKeyboard.RequestFloor => [["Без поверху"]],
+                ReplyKeyboard.RequestFloor => [["Парадне", "Без поверху"]],
                 _ => RequestCreationService.Categories.Split(", ").Select(category => new[] { category }).ToArray()
             };
             payload["reply_markup"] = new { keyboard = rows.Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = true };

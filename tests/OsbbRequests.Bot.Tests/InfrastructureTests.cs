@@ -323,6 +323,7 @@ public sealed class InfrastructureTests
     [Theory]
     [InlineData(ReplyKeyboard.RequestScope, "Будинок 4Д")]
     [InlineData(ReplyKeyboard.RequestFloor, "Без поверху")]
+    [InlineData(ReplyKeyboard.RequestFloor, "Парадне")]
     [InlineData(ReplyKeyboard.RequestCategory, "сантехніка")]
     public async Task WizardChoicesAreDeliveredAsReplyKeyboardButtons(ReplyKeyboard keyboard, string choice)
     {

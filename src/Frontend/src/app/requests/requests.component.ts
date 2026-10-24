@@ -6,6 +6,7 @@ import {
   TicketFilters,
   requestTargets,
   buildingFloors,
+  floorLabel,
   requestLocationLabel,
   ticketStatuses,
   ticketCategories,
@@ -36,6 +37,7 @@ export class RequestsComponent {
   };
   readonly targets = requestTargets;
   readonly floors = buildingFloors;
+  readonly floorLabel = floorLabel;
   readonly locationLabel = requestLocationLabel;
   readonly statuses = ticketStatuses;
   readonly categories = ticketCategories;

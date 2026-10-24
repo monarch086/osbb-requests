@@ -56,7 +56,7 @@
       >
         <ng-option value="">Усі поверхи</ng-option>
         @for (floor of floors; track floor) {
-          <ng-option [value]="floor.toString()">{{ floor }}</ng-option>
+          <ng-option [value]="floor.toString()">{{ floorLabel(floor) }}</ng-option>
         }
       </ng-select>
     </div>

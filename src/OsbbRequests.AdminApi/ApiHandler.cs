@@ -109,8 +109,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             int? floor = null;
             if (query.GetValueOrDefault("floor") is { Length: > 0 } floorText)
             {
-                if (!int.TryParse(floorText, NumberStyles.None, CultureInfo.InvariantCulture, out var floorNumber) || floorNumber is < 1 or > ComplexLayout.FloorCount)
-                    throw new ApiError(400, "Поверх: від 1 до 25.");
+                if (!int.TryParse(floorText, NumberStyles.None, CultureInfo.InvariantCulture, out var floorNumber) || floorNumber is < ComplexLayout.EntranceFloor or > ComplexLayout.FloorCount)
+                    throw new ApiError(400, "Оберіть «Парадне» або поверх від 1 до 25.");
                 floor = floorNumber;
             }
             return Reply(200, await store.ListRequestsAsync(new(statuses, query.GetValueOrDefault("category"),

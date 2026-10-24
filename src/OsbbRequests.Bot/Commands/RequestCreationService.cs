@@ -13,7 +13,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         "Бот запитає будинок або весь комплекс, поверх (для будинку), категорію та опис. Скасувати: /cancel.\n\n" +
         "Або однією командою:\n/new 4В | 12 | сантехніка | Протікає труба\n" +
         "/new комплекс | - | електрика | Не працює освітлення\n\n" +
-        "Будинки: 4Б, 4В, 4Г, 4Д. Поверхи: 1–25; «-» — без поверху. Категорії: " + Categories +
+        "Будинки: 4Б, 4В, 4Г, 4Д. Поверхи: 1–25 або «Парадне»; «-» — без поверху. Категорії: " + Categories +
         ". Опис: 10–2000 символів. Заявка буде видимою для всіх мешканців комплексу.";
     public static bool IsActive(RequestDraft draft) => draft.Stage is not (RequestDraftStage.Completed or RequestDraftStage.Cancelled);
 
@@ -110,6 +110,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     private static bool TryFloor(string text, out int? floor)
     {
         floor = null;
+        if (text.Equals("Парадне", StringComparison.OrdinalIgnoreCase)) { floor = ComplexLayout.EntranceFloor; return true; }
         if (text is "-" || text.Equals("Без поверху", StringComparison.OrdinalIgnoreCase)) return true;
         if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var number) || number is < 1 or > ComplexLayout.FloorCount)
             return false;
@@ -120,8 +121,8 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     {
         RequestDraftStage.Scope => new("ЖК «Зелений острів 2».\n" +
             "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «Весь комплекс». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
-        RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Вкажіть поверх від 1 до 25 або оберіть «Без поверху» " +
-            "для фасаду, підвалу, входу чи проблеми всього будинку. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),
+        RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Вкажіть поверх від 1 до 25, оберіть «Парадне» або «Без поверху» " +
+            "для фасаду, підвалу чи проблеми всього будинку. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),
         RequestDraftStage.Category => new("Оберіть категорію: " + Categories + ". Заявка буде видимою для всіх мешканців комплексу. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestCategory),
         _ => new("Опишіть проблему (10–2000 символів). Після цього заявку буде створено для всіх мешканців комплексу. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove)
     };

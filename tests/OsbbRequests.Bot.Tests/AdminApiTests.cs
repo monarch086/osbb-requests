@@ -218,6 +218,7 @@ public sealed class AdminApiTests
         Assert.Equal(0, store.RequestWrites);
     }
     [Theory]
+    [InlineData("Building", "4Б", 0)]
     [InlineData("Building", "4Б", 1)]
     [InlineData("Building", "4Д", 25)]
     [InlineData("Building", "4В", null)]
@@ -240,9 +241,10 @@ public sealed class AdminApiTests
     [InlineData("Building", "4А", 1)]
     [InlineData("Building", "1", 1)]
     [InlineData("Building", "4B", 1)]
-    [InlineData("Building", "4Б", 0)]
+    [InlineData("Building", "4Б", -1)]
     [InlineData("Building", "4Б", 26)]
     [InlineData("Complex", "4Б", null)]
+    [InlineData("Complex", null, 0)]
     [InlineData("Complex", null, 1)]
     public async Task ApiRejectsInvalidOrMissingTarget(string? scope, string? building, int? floor)
     {
@@ -271,11 +273,20 @@ public sealed class AdminApiTests
         Assert.Equal("Building4Д", store.LastFilters!.Target);
         Assert.Equal(25, store.LastFilters.Floor);
     }
+    [Fact]
+    public async Task EntranceFloorCanBeFilteredWithoutConfusingItWithNoFilter()
+    {
+        var store = new FakeStore();
+        var result = await Handler(store).HandleAsync(Request("/admin/requests", query: new() { ["target"] = "Building4Б", ["floor"] = "0" }), default);
+        Assert.Equal(200, result.StatusCode);
+        Assert.Equal(0, store.LastFilters!.Floor);
+    }
+
     [Theory]
     [InlineData("Building5", "1")]
     [InlineData("Building1", "1")]
     [InlineData("Building4А", "1")]
-    [InlineData("Building4Б", "0")]
+    [InlineData("Building4Б", "-1")]
     [InlineData("Building4Б", "26")]
     public async Task ApiRejectsInvalidLocationFilters(string target, string floor)
     {

@@ -8,6 +8,7 @@ import {
   formatDate,
   requestTargets,
   buildingFloors,
+  floorLabel,
   requestTarget,
   requestLocationLabel,
 } from '../shared/ticket-presentation';
@@ -30,6 +31,7 @@ export class TicketDialogComponent {
   @Output() closed = new EventEmitter<void>();
   readonly targets = requestTargets;
   readonly floors = buildingFloors;
+  readonly floorLabel = floorLabel;
   readonly locationLabel = requestLocationLabel;
   get target(): string | null {
     return requestTarget(this.draft);

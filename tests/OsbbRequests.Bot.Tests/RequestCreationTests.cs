@@ -46,6 +46,29 @@ public sealed class RequestCreationTests
     }
 
     [Fact]
+    public async Task EntranceSelectionPersistsSeparatelyFromUnspecifiedFloorAndAppearsInLists()
+    {
+        var repository = new MemoryRepository();
+        await Apply(repository, 1, "/new");
+        await Apply(repository, 2, "Будинок 4Б");
+        await Apply(repository, 3, "Парадне");
+        Assert.Equal(ComplexLayout.EntranceFloor, repository.Drafts[42].Floor);
+        await Apply(repository, 4, "інше");
+        await Apply(repository, 5, "Зламано двері парадного");
+        var request = Assert.Single(repository.Requests);
+        Assert.Equal(0, request.Floor);
+        Assert.Contains("Парадне", repository.Replies[5].Text);
+        foreach (var command in new[] { "/my", "/complex", "/request 5" })
+        {
+            var reply = (await Handler(repository).HandleAsync(Message(6, command), default)).Reply;
+            Assert.Contains("Парадне", reply);
+            Assert.DoesNotContain("поверх 0", reply);
+        }
+        Assert.NotEqual(ComplexLayout.Label(request.Scope, request.BuildingNumber, 0), ComplexLayout.Label(request.Scope, request.BuildingNumber, null));
+        Assert.False(ComplexLayout.IsValid(RequestScope.Complex, null, 0));
+    }
+
+    [Fact]
     public async Task ComplexWizardSkipsFloorAndCancellationClearsDraft()
     {
         var repository = new MemoryRepository();
@@ -63,6 +86,8 @@ public sealed class RequestCreationTests
 
     [Theory]
     [InlineData("/new комплекс | - | електрика | Не працює освітлення", RequestScope.Complex, null, null)]
+    [InlineData("/new 4Б | Парадне | сантехніка | Протікає труба", RequestScope.Building, "4Б", 0)]
+    [InlineData("/new 4В | парадне | інше | Зламано двері входу", RequestScope.Building, "4В", 0)]
     [InlineData("/new 4Б | 1 | сантехніка | Протікає труба", RequestScope.Building, "4Б", 1)]
     [InlineData("/new 4Д | 25 | сантехніка | Протікає труба", RequestScope.Building, "4Д", 25)]
     [InlineData("/new 4В | 12 | сантехніка | Протікає труба", RequestScope.Building, "4В", 12)]
