@@ -41,6 +41,12 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         var query = request.QueryStringParameters?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>();
         var cursor = query.GetValueOrDefault("cursor");
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (path == "/admin/messages")
+        {
+            if (!actor.IsSuperAdmin) throw new ApiError(403, "Надсилати й переглядати повідомлення може лише супер адміністратор.");
+            if (method == "GET") return Reply(200, await store.ListMessagesAsync(cursor, ct));
+            if (method == "POST") return Reply(200, await store.SendMessageAsync(actor, Body<MessageChange>(request), ct));
+        }
         if (method == "PATCH" && segments is ["admin", "administrators", var targetId, "notifications"])
         {
             if (actor.UserId != targetId && !actor.IsSuperAdmin) throw new ApiError(403, "Недостатньо прав для зміни сповіщень.");

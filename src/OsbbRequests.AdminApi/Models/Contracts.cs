@@ -7,6 +7,8 @@ public sealed record AdminUser(string UserId, string Email, string DisplayName, 
 public sealed record NotificationSettingsChange(string? TelegramChatId, bool NotifyNewResidents, bool NotifyNewRequests, bool NotifyNewAdministrators, int Version);
 public sealed record Identity(string UserId, string Email, string DisplayName);
 public sealed record Page<T>(IReadOnlyList<T> Items, string? Cursor);
+public sealed record MessageChange(string Id, string Text);
+public sealed record BroadcastMessage(string Id, string Text, string CreatedBy, string CreatedById, DateTimeOffset CreatedAt);
 public sealed record AccessChange(bool IsActive, int Version);
 public sealed record RegisteredResident(string Id, string? FirstName, string? LastName, string? Phone, DateTimeOffset RegisteredAt, string? TelegramChatId = null);
 public sealed record RegistrationDecision(bool Approved, string? Reason, int Version);

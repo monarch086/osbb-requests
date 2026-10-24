@@ -4,6 +4,8 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../auth.service';
 import {
   ApiService,
+  BroadcastMessage,
+  MessageChange,
   NotificationSettings,
   Admin,
   Registration,
@@ -12,6 +14,7 @@ import {
   Ticket,
   Page,
 } from '../api.service';
+import { MessagesComponent } from '../messages/messages.component';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { TicketFilters } from '../shared/ticket-presentation';
 import { errorMessage } from '../error-message';
@@ -25,6 +28,7 @@ import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component'
   selector: 'app-workspace',
   imports: [
     RouterLink,
+    MessagesComponent,
     RequestsComponent,
     PaginationComponent,
     ResidentsComponent,
@@ -45,7 +49,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   saving = false;
   error = '';
   notice = '';
-  tab: 'requests' | 'residents' | 'admins' = 'requests';
+  tab: 'requests' | 'residents' | 'messages' | 'admins' = 'requests';
+  messages: BroadcastMessage[] = [];
+  sentMessageId: string | null = null;
   tickets: ManagedTicket[] = [];
   residents: Registration[] = [];
   registeredResidents: RegisteredResident[] = [];
@@ -78,6 +84,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   }
   get pageItemCount(): number {
     if (this.tab === 'requests') return this.tickets.length;
+    if (this.tab === 'messages') return this.messages.length;
     if (this.tab === 'admins') return this.admins.length;
     return this.residentView === 'pending'
       ? this.residents.length
@@ -87,6 +94,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.pageIndex = 0;
     this.pageCursors = [null];
     this.cursor = null;
+    this.messages = [];
     this.tickets = [];
     this.residents = [];
     this.registeredResidents = [];
@@ -127,6 +135,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.rejecting = null;
     this.history = [];
     this.notice = '';
+    this.sentMessageId = null;
   }
   async workspace(): Promise<void> {
     const epoch = this.epoch;
@@ -136,7 +145,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       const user = await this.api.request<Admin>('/me');
       if (epoch !== this.epoch) return;
       this.me = user;
-      if (!user.isSuperAdmin && this.tab === 'admins') {
+      if (!user.isSuperAdmin && (this.tab === 'admins' || this.tab === 'messages')) {
         await this.router.navigateByUrl('/requests', { replaceUrl: true });
         return;
       }
@@ -232,10 +241,12 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
           ? residentView === 'pending'
             ? '/registrations'
             : '/residents'
-          : '/administrators';
+          : tab === 'messages'
+            ? '/messages'
+            : '/administrators';
     try {
       const page = await this.api.request<
-        Page<ManagedTicket | Registration | RegisteredResident | Admin>
+        Page<ManagedTicket | Registration | RegisteredResident | Admin | BroadcastMessage>
       >(path + '?' + params.toString());
       if (
         epoch !== this.epoch ||
@@ -249,6 +260,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         this.residents = page.items as Registration[];
       if (tab === 'residents' && residentView === 'registered')
         this.registeredResidents = page.items as RegisteredResident[];
+      if (tab === 'messages') this.messages = page.items as BroadcastMessage[];
       if (tab === 'admins') this.admins = page.items as Admin[];
       this.pageIndex = index;
       this.pageCursors[index] = startCursor;
@@ -262,6 +274,22 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       if (epoch === this.epoch && sequence === this.loadSequence) this.error = errorMessage(e);
     } finally {
       if (epoch === this.epoch && sequence === this.loadSequence) this.loading = false;
+    }
+  }
+  async sendMessage(change: MessageChange): Promise<void> {
+    if (!this.me?.isSuperAdmin || !this.me.isActive || this.loading || this.saving) return;
+    const epoch = this.epoch;
+    let sent = false;
+    await this.write(async () => {
+      const result = await this.api.request<BroadcastMessage>('/messages', 'POST', change);
+      if (epoch !== this.epoch) return;
+      this.sentMessageId = result.id;
+      this.notice = 'Повідомлення передано на розсилку мешканцям у Telegram.';
+      sent = true;
+    });
+    if (sent && epoch === this.epoch) {
+      this.resetPagination();
+      await this.load();
     }
   }
   async saveNotificationSettings(admin: Admin, settings: NotificationSettings): Promise<void> {

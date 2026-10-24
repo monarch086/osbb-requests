@@ -5,6 +5,8 @@ namespace OsbbRequests.AdminApi.Data;
 
 public interface IAdminStore
 {
+    Task<Page<BroadcastMessage>> ListMessagesAsync(string? cursor, CancellationToken ct);
+    Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct);
     Task<AdminUser?> GetAdminAsync(string userId, CancellationToken ct);
     Task<AdminUser> RegisterAccountAsync(Identity identity, CancellationToken ct);
     Task<Page<AdminUser>> ListAdminsAsync(string? cursor, CancellationToken ct);

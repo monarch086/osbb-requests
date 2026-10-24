@@ -286,6 +286,16 @@ resources:
                   dynamodb:LeadingKeys:
                   - NOTIFICATIONS#${self:custom.buildingId}
             - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::GetAtt:
+                - CommandDataTable
+                - Arn
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:LeadingKeys:
+                  - BUILDING#${self:custom.buildingId}
+            - Effect: Allow
               Action: dynamodb:GetItem
               Resource:
                 Fn::GetAtt:
@@ -631,7 +641,7 @@ resources:
         FunctionCode: |
           function handler(event) {
             var request = event.request;
-            if (/^\/(requests|residents|administrators)\/?$/.test(request.uri)) {
+            if (/^\/(requests|residents|messages|administrators)\/?$/.test(request.uri)) {
               request.uri = '/index.html';
             }
             return request;

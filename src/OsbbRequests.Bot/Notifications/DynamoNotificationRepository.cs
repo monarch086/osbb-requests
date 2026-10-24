@@ -44,18 +44,21 @@ public sealed partial class DynamoNotificationRepository(IAmazonDynamoDB db, str
             throw new InvalidOperationException("Notification identity mismatch.");
         try
         {
+            var values = new Dictionary<string, AttributeValue>
+            {
+                [":lease"] = S(lease),
+                [":until"] = N(now.AddSeconds(90).ToUnixTimeSeconds()),
+                [":now"] = N(now.ToUnixTimeSeconds())
+            };
+            if (item.AudienceCursor is not null) values[":cursor"] = S(JsonSerializer.Serialize(item.AudienceCursor));
             await db.UpdateItemAsync(new UpdateItemRequest
             {
                 TableName = table,
                 Key = Key(item.SortKey),
                 UpdateExpression = "SET leaseToken = :lease, leaseExpiresAt = :until",
-                ConditionExpression = "attribute_exists(pk) AND (attribute_not_exists(leaseExpiresAt) OR leaseExpiresAt <= :now)",
-                ExpressionAttributeValues = new()
-                {
-                    [":lease"] = S(lease),
-                    [":until"] = N(now.AddSeconds(90).ToUnixTimeSeconds()),
-                    [":now"] = N(now.ToUnixTimeSeconds())
-                }
+                ConditionExpression = "attribute_exists(pk) AND (attribute_not_exists(leaseExpiresAt) OR leaseExpiresAt <= :now) AND " +
+                    (item.AudienceCursor is null ? "attribute_not_exists(audienceCursor)" : "audienceCursor = :cursor"),
+                ExpressionAttributeValues = values
             }, ct);
             return true;
         }

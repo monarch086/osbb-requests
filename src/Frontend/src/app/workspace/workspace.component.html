@@ -36,7 +36,9 @@
               ? 'Заявки комплексу'
               : tab === 'residents'
                 ? 'Реєстрації мешканців'
-                : 'Команда адміністраторів'
+                : tab === 'messages'
+                  ? 'Повідомлення мешканцям'
+                  : 'Команда адміністраторів'
           }}
         </h1>
         <p class="text-body-secondary">
@@ -45,7 +47,9 @@
               ? 'Керуйте заявками мешканців.'
               : tab === 'residents'
                 ? 'Перевіряйте нові запити та переглядайте зареєстрованих мешканців.'
-                : 'Надавайте або відкликайте доступ до роботи зі зверненнями.'
+                : tab === 'messages'
+                  ? 'Надсилайте оголошення мешканцям комплексу.'
+                  : 'Надавайте або відкликайте доступ до роботи зі зверненнями.'
           }}
         </p>
       </div>
@@ -73,6 +77,15 @@
         >Мешканці</a
       >
       @if (user.isSuperAdmin) {
+        <a
+          class="nav-link"
+          [class.active]="tab === 'messages'"
+          [class.disabled]="loading || saving"
+          [attr.aria-disabled]="loading || saving"
+          [attr.aria-current]="tab === 'messages' ? 'page' : null"
+          [routerLink]="loading || saving ? null : '/messages'"
+          >Повідомлення</a
+        >
         <a
           class="nav-link"
           [class.active]="tab === 'admins'"
@@ -104,6 +117,15 @@
         [saving]="saving"
         (approve)="decide($event, true)"
         (reject)="rejecting = $event"
+      />
+    }
+    @if (tab === 'messages' && user.isSuperAdmin) {
+      <app-messages
+        [messages]="messages"
+        [loading]="loading"
+        [saving]="saving"
+        [sentMessageId]="sentMessageId"
+        (sendMessage)="sendMessage($event)"
       />
     }
     @if (tab === 'admins' && user.isSuperAdmin) {

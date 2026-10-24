@@ -1,0 +1,51 @@
+<section class="card mb-4">
+  <div class="card-body p-4">
+    <h2 class="h5">Нове повідомлення</h2>
+    <p class="text-body-secondary" id="message-audience">
+      Повідомлення отримають у Telegram усі схвалені мешканці зі списку «Зареєстровані мешканці».
+      Доставка може тривати кілька хвилин.
+    </p>
+    <form #messageForm="ngForm" (ngSubmit)="send()">
+      <label class="form-label" for="broadcast-text">Текст повідомлення</label>
+      <textarea
+        id="broadcast-text"
+        name="text"
+        class="form-control"
+        rows="6"
+        required
+        maxlength="4096"
+        [(ngModel)]="text"
+        [disabled]="saving"
+        aria-describedby="message-audience message-length"
+      ></textarea>
+      <p class="form-text" id="message-length">{{ text.length }} / 4096 символів</p>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="loading || saving || messageForm.invalid || !text.trim()"
+      >
+        {{ saving ? 'Надсилаємо…' : 'Надіслати всім мешканцям' }}
+      </button>
+    </form>
+  </div>
+</section>
+<section class="card">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3 py-3">
+    <h2 class="h5 mb-0">Історія повідомлень</h2>
+    <span class="text-body-secondary">На сторінці: {{ messages.length }}</span>
+  </div>
+  <div class="list-group list-group-flush">
+    @for (message of messages; track message.id) {
+      <article class="list-group-item p-4">
+        <p class="text-body-secondary small text-break">
+          {{ date(message.createdAt) }} · {{ message.createdBy }}
+        </p>
+        <p class="message-text">{{ message.text }}</p>
+        <span class="badge text-bg-secondary">Передано на розсилку</span>
+      </article>
+    }
+  </div>
+  @if (!messages.length && !loading) {
+    <p class="text-body-secondary text-center p-4 mb-0">На цій сторінці немає повідомлень.</p>
+  }
+</section>

@@ -8,6 +8,7 @@ export const routes: Routes = [
   ...[
     { path: 'requests', tab: 'requests' },
     { path: 'residents', tab: 'residents' },
+    { path: 'messages', tab: 'messages' },
     { path: 'administrators', tab: 'admins' },
   ].map(({ path, tab }) => ({
     path,

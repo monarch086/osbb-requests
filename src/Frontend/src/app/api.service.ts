@@ -2,6 +2,15 @@ import { inject, Injectable } from '@angular/core';
 import { AuthService } from './auth.service';
 import { UserFacingError } from './error-message';
 
+export interface MessageChange {
+  id: string;
+  text: string;
+}
+export interface BroadcastMessage extends MessageChange {
+  createdBy: string;
+  createdById: string;
+  createdAt: string;
+}
 export interface NotificationSettings {
   telegramChatId: string | null;
   notifyNewResidents: boolean;

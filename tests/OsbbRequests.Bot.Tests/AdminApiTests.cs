@@ -383,10 +383,29 @@ public sealed class AdminApiTests
         Assert.Equal(400, error.Status);
         Assert.Null(store.LastFilters);
     }
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("POST")]
+    public async Task OnlyActiveSuperAdministratorsCanAccessMessages(string method)
+    {
+        var store = new FakeStore();
+        foreach (var user in new[] { "regular", "target" })
+        {
+            var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/messages", method, user: user,
+                body: new { id = "a51503dd-a080-4a9a-9875-26300c6d702d", text = "Оголошення" }), default));
+            Assert.Equal(403, error.Status);
+        }
+        var result = await Handler(store).HandleAsync(Request("/admin/messages", method, user: "super",
+            body: new { id = "a51503dd-a080-4a9a-9875-26300c6d702d", text = "Оголошення" }), default);
+        Assert.Equal(200, result.StatusCode);
+    }
+
     private sealed class FakeIdentity : IIdentityProvider
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
     private sealed class FakeStore : IAdminStore
     {
+        public Task<Page<BroadcastMessage>> ListMessagesAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<BroadcastMessage>([], null));
+        public Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct) => Task.FromResult(new BroadcastMessage(change.Id, change.Text, actor.Email, actor.UserId, DateTimeOffset.UtcNow));
         public Dictionary<string, AdminUser> Users { get; } = new() { ["super"] = Super, ["regular"] = Regular, ["target"] = new("target", "new@example.org", "New", false, false, 1) };
         public MaintenanceRequest? LastRequest;
         public RequestFilters? LastFilters;

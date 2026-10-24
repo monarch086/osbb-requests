@@ -30,6 +30,11 @@ public sealed partial class DynamoNotificationRepository
     }
     public async Task ExpandAsync(NotificationWorkItem item, string lease, DateTimeOffset now, CancellationToken ct)
     {
+        if (item.Notification.ResidentBroadcastId is not null)
+        {
+            await ExpandResidentsAsync(item, lease, now, ct);
+            return;
+        }
         var notification = item.Notification;
         if (!notification.IsBroadcast || notification.ComplexId != complexId || administratorsTable is null)
             throw new InvalidOperationException("Invalid administrator broadcast.");
@@ -54,7 +59,12 @@ public sealed partial class DynamoNotificationRepository
             job["attempts"] = N(0);
             writes.Add(new() { Put = new() { TableName = table, Item = job, ConditionExpression = "attribute_not_exists(pk)" } });
         }
-        if (page.LastEvaluatedKey is { Count: > 0 })
+        await SaveExpansionAsync(item, lease, now, writes, page.LastEvaluatedKey, ct);
+    }
+    private async Task SaveExpansionAsync(NotificationWorkItem item, string lease, DateTimeOffset now,
+        List<TransactWriteItem> writes, Dictionary<string, AttributeValue>? nextCursor, CancellationToken ct)
+    {
+        if (nextCursor is { Count: > 0 })
         {
             writes.Add(new()
             {
@@ -66,7 +76,7 @@ public sealed partial class DynamoNotificationRepository
                     ConditionExpression = "leaseToken = :lease",
                     ExpressionAttributeValues = new()
                     {
-                        [":cursor"] = S(JsonSerializer.Serialize(page.LastEvaluatedKey.ToDictionary(pair => pair.Key, pair => pair.Value.S))),
+                        [":cursor"] = S(JsonSerializer.Serialize(nextCursor.ToDictionary(pair => pair.Key, pair => pair.Value.S))),
                         [":lease"] = S(lease)
                     }
                 }
