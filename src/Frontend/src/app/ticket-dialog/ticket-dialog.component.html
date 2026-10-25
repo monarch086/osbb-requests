@@ -123,6 +123,9 @@
               <ng-select
                 labelForId="ticket-priority"
                 name="priority"
+                [items]="priorities"
+                bindLabel="label"
+                bindValue="value"
                 [(ngModel)]="draft.priority"
                 [clearable]="false"
                 [searchable]="false"
@@ -130,10 +133,12 @@
                 appendTo="body"
                 required
               >
-                <ng-option value="Low">Низький</ng-option
-                ><ng-option value="Normal">Звичайний</ng-option
-                ><ng-option value="High">Високий</ng-option
-                ><ng-option value="Urgent">Терміновий</ng-option>
+                <ng-template ng-label-tmp let-item="item">
+                  <span [class]="'badge rounded-pill ' + item.badgeClass">{{ item.label }}</span>
+                </ng-template>
+                <ng-template ng-option-tmp let-item="item">
+                  <span [class]="'badge rounded-pill ' + item.badgeClass">{{ item.label }}</span>
+                </ng-template>
               </ng-select>
             </div>
             <div class="col-12 col-md-6">

@@ -2,3 +2,13 @@
 .status-in-progress {
   --bs-primary-rgb: 13, 110, 253;
 }
+
+.border-start-warning {
+  --bs-border-color: var(--bs-warning);
+  --bs-border-width: 4px;
+}
+
+.border-start-danger {
+  --bs-border-color: var(--bs-danger);
+  --bs-border-width: 4px;
+}

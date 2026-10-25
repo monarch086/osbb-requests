@@ -8,6 +8,7 @@ stages:
     params:
       botUsername: OsbbRequestsBot
       residentApprovalMode: Automatic
+      requestSortMode: Priority
   dev:
     params:
       botUsername: zeleniy_ostriv2_bot
@@ -156,6 +157,7 @@ functions:
       COMMAND_DATA_TABLE:
         Ref: CommandDataTable
       BUILDING_ID: ${self:custom.buildingId}
+      REQUEST_SORT_MODE: ${param:requestSortMode}
 resources:
   Resources:
     CommandDataTable:
@@ -173,6 +175,8 @@ resources:
         - AttributeName: requestBuildingId
           AttributeType: S
         - AttributeName: requestCreatedAt
+          AttributeType: S
+        - AttributeName: requestPriorityCreatedAt
           AttributeType: S
         KeySchema:
         - AttributeName: pk
@@ -192,6 +196,14 @@ resources:
           - AttributeName: requestBuildingId
             KeyType: HASH
           - AttributeName: requestCreatedAt
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: BuildingPriorityRequestsIndex
+          KeySchema:
+          - AttributeName: requestBuildingId
+            KeyType: HASH
+          - AttributeName: requestPriorityCreatedAt
             KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -589,6 +601,10 @@ resources:
                 - CommandDataTable
                 - Arn
               - Fn::Sub: ${CommandDataTable.Arn}/index/BuildingRequestsIndex
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${CommandDataTable.Arn}/index/BuildingPriorityRequestsIndex
     FrontendBucket:
       Type: AWS::S3::Bucket
       DeletionPolicy: Retain

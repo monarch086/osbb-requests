@@ -21,7 +21,7 @@ public sealed class AdminPaginationTests
     public async Task ListsReturnAtMost25ItemsAndTraverseAllCursorsWithoutDuplicates(string list)
     {
         using var db = new PagedDynamo(list);
-        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
         var ids = new List<string>();
         string? cursor = null;
         foreach (var expectedCount in new[] { 25, 25, 1 })
@@ -64,7 +64,7 @@ public sealed class AdminPaginationTests
     public async Task ResidentDirectoryCursorCannotBeUsedForPendingRegistrations()
     {
         using var db = new PagedDynamo("residents");
-        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
         var directory = await store.ListResidentsAsync(null, default);
         await Assert.ThrowsAsync<OsbbRequests.AdminApi.Models.ApiError>(() => store.ListRegistrationsAsync(directory.Cursor, default));
         Assert.Equal(1, db.QueryCount);
@@ -74,7 +74,7 @@ public sealed class AdminPaginationTests
     public async Task MultipleStatusesUseOneQueryCombinedWithOtherFiltersAndCursor()
     {
         using var db = new PagedDynamo("requests");
-        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
         var filters = new OsbbRequests.AdminApi.Models.RequestFilters(["New", "InProgress"], "інше", "опис", null, null, "Complex");
         var first = await store.ListRequestsAsync(filters, null, default);
         await store.ListRequestsAsync(filters, first.Cursor, default);

@@ -4,6 +4,7 @@ import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
 import { ManagedTicket } from '../api.service';
 import {
   TicketFilters,
+  ticketPriorities,
   requestTargets,
   buildingFloors,
   floorLabel,
@@ -35,6 +36,7 @@ export class RequestsComponent {
     target: '',
     floor: '',
   };
+  readonly priorities = ticketPriorities;
   readonly targets = requestTargets;
   readonly floors = buildingFloors;
   readonly floorLabel = floorLabel;

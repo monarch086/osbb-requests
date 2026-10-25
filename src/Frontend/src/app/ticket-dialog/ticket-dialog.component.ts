@@ -1,9 +1,15 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
+import {
+  NgSelectComponent,
+  NgOptionComponent,
+  NgLabelTemplateDirective,
+  NgOptionTemplateDirective,
+} from '@ng-select/ng-select';
 import { Ticket, RequestAuthor } from '../api.service';
 import {
   ticketStatuses,
+  ticketPriorities,
   statusLabels,
   formatDate,
   requestTargets,
@@ -16,7 +22,13 @@ import {
 
 @Component({
   selector: 'app-ticket-dialog',
-  imports: [FormsModule, NgSelectComponent, NgOptionComponent],
+  imports: [
+    FormsModule,
+    NgSelectComponent,
+    NgOptionComponent,
+    NgLabelTemplateDirective,
+    NgOptionTemplateDirective,
+  ],
   templateUrl: './ticket-dialog.component.html',
 })
 export class TicketDialogComponent {
@@ -59,6 +71,7 @@ export class TicketDialogComponent {
     this.draft.floor = null;
     this.draft.entrance = this.draft.buildingNumber === '4Б' ? 1 : null;
   }
+  readonly priorities = ticketPriorities;
   readonly statuses = ticketStatuses;
   readonly labels = statusLabels;
   readonly date = formatDate;

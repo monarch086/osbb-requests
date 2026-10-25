@@ -73,3 +73,10 @@ export function requestLocationLabel(ticket: Ticket): string {
     );
   return 'Будинок не уточнено';
 }
+
+export const ticketPriorities = [
+  { value: 'Low', label: 'Низький', badgeClass: 'text-bg-secondary' },
+  { value: 'Normal', label: 'Звичайний', badgeClass: 'text-bg-light' },
+  { value: 'High', label: 'Високий', badgeClass: 'text-bg-warning' },
+  { value: 'Urgent', label: 'Терміновий', badgeClass: 'text-bg-danger' },
+];

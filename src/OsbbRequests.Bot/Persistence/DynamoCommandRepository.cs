@@ -164,6 +164,7 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
             item["payload"] = new AttributeValue(JsonSerializer.Serialize(request));
             item["requestBuildingId"] = new AttributeValue(request.BuildingId);
             item["requestCreatedAt"] = new AttributeValue(request.CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + Number(request.Id));
+            item["requestPriorityCreatedAt"] = new(RequestPriorityOrder.Key(request));
             item["requestStatus"] = new AttributeValue(request.Status.ToString());
             item["requestCategory"] = new AttributeValue(request.Category);
             item["searchText"] = new AttributeValue((request.Location + " " + request.Description).ToLowerInvariant());

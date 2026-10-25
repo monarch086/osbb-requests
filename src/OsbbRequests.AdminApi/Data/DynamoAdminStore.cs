@@ -9,7 +9,7 @@ using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
-public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building) : IAdminStore
+public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true) : IAdminStore
 {
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(int value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
@@ -274,7 +274,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         await Transact(writes, ct);
     }
 
-    public async Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct)
+    private async Task<Page<ManagedRequest>> ListRequestsByDateAsync(RequestFilters filters, string? cursor, CancellationToken ct)
     {
         var values = new Dictionary<string, AttributeValue> { [":building"] = S(building) };
         var condition = "requestBuildingId = :building";
@@ -283,6 +283,22 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             values[":from"] = S(filters.From ?? "0000"); values[":to"] = S((filters.To ?? "9999") + "~");
             condition += " AND requestCreatedAt BETWEEN :from AND :to";
         }
+        var filterExpression = RequestFilterExpression(filters, values);
+        var result = await db.QueryAsync(new QueryRequest
+        {
+            TableName = dataTable,
+            IndexName = "BuildingRequestsIndex",
+            KeyConditionExpression = condition,
+            ExpressionAttributeValues = values,
+            FilterExpression = filterExpression,
+            ExclusiveStartKey = Decode(cursor, "requestBuildingId", building),
+            ScanIndexForward = false,
+            Limit = 25
+        }, ct);
+        return new Page<ManagedRequest>((result.Items ?? []).Select(Managed).ToList(), Encode(result.LastEvaluatedKey));
+    }
+    private static string? RequestFilterExpression(RequestFilters filters, Dictionary<string, AttributeValue> values)
+    {
         var parts = new List<string>();
         if (filters.Statuses is { Count: > 0 } statuses)
         {
@@ -300,18 +316,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         if (filters.Target == "Unspecified") parts.Add("attribute_not_exists(requestTarget)");
         else if (!string.IsNullOrEmpty(filters.Target)) { values[":target"] = S(filters.Target); parts.Add("requestTarget = :target"); }
         if (filters.Floor is { } floor) { values[":floor"] = N(floor); parts.Add("requestFloor = :floor"); }
-        var result = await db.QueryAsync(new QueryRequest
-        {
-            TableName = dataTable,
-            IndexName = "BuildingRequestsIndex",
-            KeyConditionExpression = condition,
-            ExpressionAttributeValues = values,
-            FilterExpression = parts.Count > 0 ? string.Join(" AND ", parts) : null,
-            ExclusiveStartKey = Decode(cursor, "requestBuildingId", building),
-            ScanIndexForward = false,
-            Limit = 25
-        }, ct);
-        return new Page<ManagedRequest>((result.Items ?? []).Select(Managed).ToList(), Encode(result.LastEvaluatedKey));
+        return parts.Count > 0 ? string.Join(" AND ", parts) : null;
     }
     public async Task<ManagedRequest?> GetRequestAsync(long ownerId, long requestId, CancellationToken ct)
     {
@@ -341,12 +346,13 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility, next.Scope, next.BuildingNumber, next.Floor, next.Entrance }));
         var writes = new List<TransactWriteItem> { ActorCheck(actor), new() { Update = new() {
             TableName = dataTable, Key = Key("USER#" + next.OwnerId.ToString(CultureInfo.InvariantCulture), RequestKey(next.Id)),
-            UpdateExpression = "SET #payload = :payload, #v = :next, requestStatus = :status, requestTarget = :target, requestFloor = :floor",
+            UpdateExpression = "SET #payload = :payload, #v = :next, requestStatus = :status, requestTarget = :target, requestFloor = :floor, requestPriorityCreatedAt = :priorityOrder",
             ConditionExpression = "#v = :expected",
             ExpressionAttributeNames = new() { ["#payload"] = "payload", ["#v"] = "version" },
             ExpressionAttributeValues = new() { [":payload"] = S(JsonSerializer.Serialize(next)), [":next"] = N(current.Version + 1),
                 [":expected"] = N(current.Version), [":status"] = S(next.Status.ToString()),
                 [":target"] = S(ComplexLayout.Target(next.Scope, next.BuildingNumber)),
+                [":priorityOrder"] = S(RequestPriorityOrder.Key(next)),
                 [":floor"] = next.Floor is { } floor ? N(floor) : new() { NULL = true } }
         } }, Put(dataTable, audit) };
         if (ResidentNotification.Create(current.Request, next, current.Version + 1, timestamp) is { } notification)

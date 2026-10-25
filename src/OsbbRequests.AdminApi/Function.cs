@@ -16,8 +16,14 @@ public sealed class Function
     private readonly ApiHandler handler;
     private static string Config(string name) => Environment.GetEnvironmentVariable(name)
         ?? throw new InvalidOperationException("Missing configuration: " + name);
+    private static bool PrioritySorting() => Environment.GetEnvironmentVariable("REQUEST_SORT_MODE") switch
+    {
+        null or "Priority" => true,
+        "Date" => false,
+        _ => throw new InvalidOperationException("REQUEST_SORT_MODE must be Priority or Date.")
+    };
     public Function() : this(new ApiHandler(new DynamoAdminStore(new AmazonDynamoDBClient(), Config("ADMINISTRATORS_TABLE"),
-        Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID")), new CognitoIdentity(new AmazonCognitoIdentityProviderClient())))
+        Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting()), new CognitoIdentity(new AmazonCognitoIdentityProviderClient())))
     { }
     public Function(ApiHandler handler) => this.handler = handler;
     public async Task<APIGatewayHttpApiV2ProxyResponse> FunctionHandler(APIGatewayHttpApiV2ProxyRequest request, ILambdaContext context)

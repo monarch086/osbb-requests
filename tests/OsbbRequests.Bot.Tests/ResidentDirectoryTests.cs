@@ -135,7 +135,7 @@ public sealed class ResidentDirectoryTests
     public async Task RequestBuildingAndFloorFiltersRemainQueriesWithinTheComplex()
     {
         using var db = new RecordingDynamo();
-        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
         await store.ListRequestsAsync(new(null, null, null, null, null, "Building4В", 25), null, default);
         Assert.Equal("complex", db.Query!.ExpressionAttributeValues[":building"].S);
         Assert.Equal("Building4В", db.Query.ExpressionAttributeValues[":target"].S);
@@ -163,7 +163,7 @@ public sealed class ResidentDirectoryTests
                 ["requestCreatedAt"] = new("date")
             }
         };
-        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
         var page = await store.ListRequestsAsync(new(status is null ? [] : [status], "електрика", null, null, null, "Building4Б", 25), null, default);
         Assert.Equal("BuildingRequestsIndex", db.Query!.IndexName);
         Assert.Contains("requestCategory = :requestCategory", db.Query.FilterExpression);

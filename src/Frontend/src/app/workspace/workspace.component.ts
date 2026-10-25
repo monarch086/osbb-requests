@@ -368,6 +368,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   async saveTicket(draft: Ticket): Promise<void> {
     const selected = this.selected;
     if (!selected) return;
+    const priorityChanged = selected.request.priority !== draft.priority;
+    const epoch = this.epoch;
+    let saved = false;
     await this.write(async () => {
       await this.api.request(this.ticketPath(selected), 'PATCH', {
         scope: draft.scope,
@@ -387,7 +390,12 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.selected = null;
       this.draft = null;
       this.notice = 'Зміни заявки збережено.';
+      saved = true;
     });
+    if (saved && priorityChanged && epoch === this.epoch) {
+      this.resetPagination();
+      await this.load();
+    }
   }
   private ticketPath(ticket: ManagedTicket): string {
     return '/requests/' + ticket.request.ownerId + '/' + ticket.request.id;
