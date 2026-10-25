@@ -29,7 +29,9 @@ public static class AdministratorNotifications
         "new-resident-" + resident.Id + "-v" + resident.Version.ToString(CultureInfo.InvariantCulture), resident.BuildingId, 0, null, null,
         "Нова реєстрація мешканця в ЖК «Зелений острів 2».\n" +
         string.Join(" ", new[] { resident.FirstName, resident.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))) +
-        "\nПодано: " + Date(resident.UpdatedAt) + "\nПотребує перевірки в розділі «Мешканці» вебпанелі.", resident.UpdatedAt, AdministratorEvent.NewResident);
+        "\nПодано: " + Date(resident.UpdatedAt) + (resident.Stage == RegistrationStage.Approved
+            ? "\nРеєстрацію схвалено автоматично. Мешканцю надано доступ."
+            : "\nПотребує перевірки в розділі «Мешканці» вебпанелі."), resident.UpdatedAt, AdministratorEvent.NewResident);
 
     public static ResidentNotification NewRequest(MaintenanceRequest request) => new(
         "new-request-" + request.Id.ToString(CultureInfo.InvariantCulture), request.BuildingId, 0, request.Id, 1,

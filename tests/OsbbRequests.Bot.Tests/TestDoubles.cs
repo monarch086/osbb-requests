@@ -86,6 +86,7 @@ internal sealed class MemoryRepository : ICommandRepository
             if (Registrations.GetValueOrDefault(command.UserId)?.Version != change.ExpectedVersion)
                 throw new InvalidOperationException("Registration version conflict.");
             Registrations[command.UserId] = change.Value;
+            if (change.AutomaticallyApproved) Residents.Add(command.UserId);
         }
         if (outcome.Draft is { } draft)
         {

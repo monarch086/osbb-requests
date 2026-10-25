@@ -7,9 +7,9 @@ using OsbbRequests.Shared.Domain;
 namespace OsbbRequests.Bot.Commands;
 
 public sealed class CommandHandler(ICommandRepository repository, string botUsername, string buildingId,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null, ResidentApprovalMode residentApprovalMode = ResidentApprovalMode.Automatic)
 {
-    private readonly RegistrationService registrations = new(repository, buildingId, timeProvider ?? TimeProvider.System);
+    private readonly RegistrationService registrations = new(repository, buildingId, timeProvider ?? TimeProvider.System, residentApprovalMode);
     private readonly ResidentProfileService profiles = new(repository, buildingId, timeProvider ?? TimeProvider.System);
     private readonly RequestCreationService requests = new(repository, buildingId, timeProvider ?? TimeProvider.System);
     private readonly RequestLookupService lookup = new(repository, buildingId);
@@ -24,7 +24,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         "/my — власні заявки\n/complex — відкриті заявки для мешканців комплексу\n" +
         "/request номер — деталі власної заявки\n/delete номер — видалити власну нову заявку з підтвердженням\n" +
         "Номер можна ввести одразу або наступним повідомленням після /request або /delete.\n\n" +
-        "Для роботи із заявками голова ОСББ має надати вам доступ. Фото та коментарі ще не підтримуються.";
+        "Для роботи із заявками завершіть реєстрацію. Фото та коментарі ще не підтримуються.";
 
     public async Task<CommandOutcome> HandleAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {

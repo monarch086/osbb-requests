@@ -18,7 +18,7 @@ public sealed class RegistrationTests
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
         return (repository, telegram, new CommandProcessor(repository,
-            new CommandHandler(repository, "OsbbBot", "building"), telegram));
+            new CommandHandler(repository, "OsbbBot", "building", residentApprovalMode: ResidentApprovalMode.Manual), telegram));
     }
 
     [Fact]

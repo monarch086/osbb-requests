@@ -26,7 +26,7 @@ public sealed class CommandFunction
         var telegram = new TelegramClient(Http, secrets);
         processor = new CommandProcessor(repository,
             new CommandHandler(repository, RuntimeConfiguration.Required("TELEGRAM_BOT_USERNAME"),
-                RuntimeConfiguration.Required("BUILDING_ID")), telegram, RuntimeConfiguration.Required("BUILDING_ID"));
+                RuntimeConfiguration.Required("BUILDING_ID"), residentApprovalMode: ResidentApprovalConfiguration.Parse(Environment.GetEnvironmentVariable("RESIDENT_APPROVAL_MODE"))), telegram, RuntimeConfiguration.Required("BUILDING_ID"));
         retryScheduler = new QueueRetryScheduler(new Amazon.SQS.AmazonSQSClient(),
             RuntimeConfiguration.Required("COMMAND_QUEUE_URL"));
         if (long.TryParse(Environment.GetEnvironmentVariable("ADMIN_TELEGRAM_CHAT_ID"), out var chatId) && chatId != 0)

@@ -269,7 +269,9 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
                 };
             }
             writes.Add(write);
-            if (registration.Stage == RegistrationStage.Pending)
+            if (change.AutomaticallyApproved)
+                AddAutomaticApprovalWrites(writes, registration, change.ExpectedVersion);
+            else if (registration.Stage == RegistrationStage.Pending)
             {
                 writes.Add(Put(RegistrationItem("REGISTRATION#" + registration.Id, "META", registration)));
                 writes.Add(Put(RegistrationItem("BUILDING#" + registration.BuildingId,

@@ -14,4 +14,4 @@ public enum ReplyKeyboard
     ProfileDeleteConfirmation
 }
 
-public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion);
+public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion, bool AutomaticallyApproved = false);

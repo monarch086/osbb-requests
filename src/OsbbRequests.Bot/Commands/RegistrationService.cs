@@ -7,7 +7,7 @@ using OsbbRequests.Bot.Persistence;
 
 namespace OsbbRequests.Bot.Commands;
 
-public sealed partial class RegistrationService(ICommandRepository repository, string buildingId, TimeProvider clock)
+public sealed partial class RegistrationService(ICommandRepository repository, string buildingId, TimeProvider clock, ResidentApprovalMode approvalMode = ResidentApprovalMode.Automatic)
 {
     public async Task<CommandOutcome> StartAsync(long userId, CancellationToken cancellationToken, bool restart = false)
     {
@@ -19,11 +19,12 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         if (current is { Stage: RegistrationStage.Pending })
             return Status(current);
         if (current is not null && IsDraft(current.Stage))
-            return Prompt(current.Stage);
+            return Prompt(current.Stage, approvalMode);
         var now = clock.GetUtcNow();
         var registration = new ResidentRegistration(Guid.NewGuid().ToString("N"), userId, buildingId,
-            RegistrationStage.AwaitingPhone, (current?.Version ?? 0) + 1, now, now);
-        return Prompt(registration.Stage) with { Registration = new RegistrationChange(registration, current?.Version) };
+            RegistrationStage.AwaitingPhone, (current?.Version ?? 0) + 1, now, now,
+            PersonalDataDeletedAt: current?.PersonalDataDeleted == true ? now : current?.PersonalDataDeletedAt);
+        return Prompt(registration.Stage, approvalMode) with { Registration = new RegistrationChange(registration, current?.Version) };
     }
 
     public async Task<CommandOutcome> CancelAsync(long userId, CancellationToken cancellationToken)
@@ -62,7 +63,14 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         if (current.BuildingId != buildingId)
             throw new InvalidOperationException("Registration building mismatch.");
 
-        return Advance(current, envelope, clock.GetUtcNow());
+        var outcome = Advance(current, envelope, clock.GetUtcNow());
+        if (approvalMode != ResidentApprovalMode.Automatic || outcome.Registration?.Value.Stage != RegistrationStage.Pending)
+            return outcome;
+        var change = outcome.Registration;
+        var approved = change.Value with { Stage = RegistrationStage.Approved, ApprovedAt = change.Value.UpdatedAt };
+        return new CommandOutcome("Реєстрацію завершено! Вам автоматично надано доступ до бота ЖК «Зелений острів 2».\n\n" +
+            "Створити заявку: /new\nВаші заявки: /my\nЗаявки комплексу: /complex",
+            Registration: change with { Value = approved, AutomaticallyApproved = true }, Keyboard: ReplyKeyboard.Remove);
     }
 
     public static CommandOutcome Advance(ResidentRegistration current, CommandEnvelope envelope, DateTimeOffset now)
@@ -115,10 +123,12 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
     public static bool IsDraft(RegistrationStage stage) => stage is RegistrationStage.AwaitingPhone or
         RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName or RegistrationStage.AwaitingBuilding or RegistrationStage.AwaitingApartment;
 
-    public static CommandOutcome Prompt(RegistrationStage stage) => stage switch
+    public static CommandOutcome Prompt(RegistrationStage stage, ResidentApprovalMode approvalMode = ResidentApprovalMode.Manual) => stage switch
     {
         RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації в системі потрібні ваш мобільний номер, ім’я, прізвище, будинок і номер квартири. " +
-            "Їх побачить адміністратор ОСББ для перевірки та надання доступу.\n\n" +
+            (approvalMode == ResidentApprovalMode.Automatic
+                ? "Після заповнення всіх даних доступ буде надано автоматично. Дані профілю доступні адміністраторам комплексу.\n\n"
+                : "Їх побачить адміністратор ОСББ для перевірки та надання доступу.\n\n") +
             "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, оберіть будинок і введіть номер квартири. Скасувати: /cancel.",
             Keyboard: ReplyKeyboard.RequestContact),
         RegistrationStage.AwaitingFirstName => new CommandOutcome("Дякуємо! Тепер введіть своє ім’я.", Keyboard: ReplyKeyboard.Remove),
