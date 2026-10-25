@@ -17,9 +17,9 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
     public const string Categories = RequestCreationService.Categories;
     public const string NewUsage = RequestCreationService.Usage;
     public const string Help = "Бот ЖК «Зелений острів 2».\n" +
-        "/start — початок роботи\n/help — довідка\n/register — реєстрація для доступу до комплексу\n" +
+        "/start — початок роботи та реєстрація\n/help — довідка\n" +
         "/edit_profile — змінити інформацію про себе\n/delete_profile — видалити інформацію про себе\n" +
-        "/cancel — скасувати поточний діалог\n/categories — категорії\n" +
+        "/cancel — скасувати поточний діалог\n" +
         "/new — створити заявку для всіх мешканців комплексу: будинок або весь комплекс → поверх → категорія → опис\n" +
         "/my — власні заявки\n/complex — відкриті заявки для мешканців комплексу\n" +
         "/request номер — деталі власної заявки\n/delete номер — видалити власну нову заявку з підтвердженням\n" +
@@ -50,9 +50,8 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         switch (command.Name)
         {
             case "start":
+            case "register": // Compatibility alias for messages typed before the menu change.
                 return await registrations.StartAsync(envelope.UserId, cancellationToken);
-            case "register":
-                return await registrations.StartAsync(envelope.UserId, cancellationToken, restart: true);
             case "cancel":
                 return await profiles.CancelAsync(envelope.UserId, cancellationToken) ?? await lookup.CancelAsync(envelope.UserId, cancellationToken) ?? await requests.CancelAsync(envelope.UserId, cancellationToken) ?? await registrations.CancelAsync(envelope.UserId, cancellationToken);
             case "help":

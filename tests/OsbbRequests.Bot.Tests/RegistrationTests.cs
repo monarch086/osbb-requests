@@ -308,6 +308,35 @@ public sealed class RegistrationTests
         Assert.Equal(new[] { "Будинок 4Б", "Будинок 4В", "Будинок 4Г", "Будинок 4Д" }, buttons);
     }
 
+    [Fact]
+    public async Task StartAloneRestartsRejectedRegistrationAndFinishesTheManualFlow()
+    {
+        var (repository, telegram, processor) = Create();
+        repository.Registrations[99] = new("old", 99, "building", RegistrationStage.Rejected, 7,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, DecisionReason: "Уточніть дані");
+        await processor.ProcessAsync(Message(1, "/start"), default);
+        Assert.Equal(RegistrationStage.AwaitingPhone, repository.Registrations[99].Stage);
+        Assert.Equal(ReplyKeyboard.RequestContact, repository.Replies[1].Keyboard);
+        Assert.DoesNotContain("/register", telegram.Messages[^1].Text);
+        await processor.ProcessAsync(Message(2, contact: new("+380671234567", 99)), default);
+        await processor.ProcessAsync(Message(3, "Олена"), default);
+        await processor.ProcessAsync(Message(4, "Ковальчук"), default);
+        await processor.ProcessAsync(Message(5, "4Д"), default);
+        await processor.ProcessAsync(Message(6, "125"), default);
+        Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
+        Assert.DoesNotContain(99, repository.Residents);
+    }
+
+    [Fact]
+    public async Task HelpShowsStartWithoutObsoleteCommandDescriptions()
+    {
+        var (_, telegram, processor) = Create();
+        await processor.ProcessAsync(Message(1, "/help"), default);
+        Assert.Contains("/start", telegram.Messages[^1].Text);
+        Assert.DoesNotContain("/register", telegram.Messages[^1].Text);
+        Assert.DoesNotContain("/categories", telegram.Messages[^1].Text);
+    }
+
     private sealed class CaptureHttp : HttpMessageHandler
     {
         public string? Sent { get; private set; }

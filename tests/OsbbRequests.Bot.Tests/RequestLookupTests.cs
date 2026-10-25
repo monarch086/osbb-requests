@@ -103,7 +103,7 @@ public sealed class RequestLookupTests
         Assert.Null(outcome.Lookup);
         var denied = await Handler(repository).HandleAsync(Message(3, "/request", 99), default);
         Assert.Null(denied.Lookup);
-        Assert.Contains("/register", denied.Reply);
+        Assert.Contains("/start", denied.Reply);
     }
 
     [Fact]

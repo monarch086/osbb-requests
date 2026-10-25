@@ -9,13 +9,11 @@ namespace OsbbRequests.Bot.Commands;
 
 public sealed partial class RegistrationService(ICommandRepository repository, string buildingId, TimeProvider clock, ResidentApprovalMode approvalMode = ResidentApprovalMode.Automatic)
 {
-    public async Task<CommandOutcome> StartAsync(long userId, CancellationToken cancellationToken, bool restart = false)
+    public async Task<CommandOutcome> StartAsync(long userId, CancellationToken cancellationToken)
     {
         if (await repository.IsResidentAsync(userId, buildingId, cancellationToken))
             return new CommandOutcome("Доступ до ЖК «Зелений острів 2» надано.\n\n" + CommandHandler.Help, Keyboard: ReplyKeyboard.Remove);
         var current = await repository.GetRegistrationAsync(userId, cancellationToken);
-        if (!restart && current is { Stage: RegistrationStage.Rejected or RegistrationStage.Approved })
-            return Status(current);
         if (current is { Stage: RegistrationStage.Pending })
             return Status(current);
         if (current is not null && IsDraft(current.Stage))
@@ -24,7 +22,10 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         var registration = new ResidentRegistration(Guid.NewGuid().ToString("N"), userId, buildingId,
             RegistrationStage.AwaitingPhone, (current?.Version ?? 0) + 1, now, now,
             PersonalDataDeletedAt: current?.PersonalDataDeleted == true ? now : current?.PersonalDataDeletedAt);
-        return Prompt(registration.Stage, approvalMode) with { Registration = new RegistrationChange(registration, current?.Version) };
+        var prompt = Prompt(registration.Stage, approvalMode);
+        if (current is { Stage: RegistrationStage.Rejected, DecisionReason: { Length: > 0 } reason })
+            prompt = prompt with { Reply = "Попередню реєстрацію відхилено. Причина: " + reason + "\n\n" + prompt.Reply };
+        return prompt with { Registration = new RegistrationChange(registration, current?.Version) };
     }
 
     public async Task<CommandOutcome> CancelAsync(long userId, CancellationToken cancellationToken)
@@ -43,21 +44,21 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             Version = current.Version + 1,
             UpdatedAt = clock.GetUtcNow()
         };
-        return new CommandOutcome("Реєстрацію скасовано. Почати знову: /register.",
+        return new CommandOutcome("Реєстрацію скасовано. Почати знову: /start.",
             Registration: new RegistrationChange(cancelled, current.Version), Keyboard: ReplyKeyboard.Remove);
     }
 
     public async Task<CommandOutcome> StatusAsync(long userId, CancellationToken cancellationToken)
     {
         var current = await repository.GetRegistrationAsync(userId, cancellationToken);
-        return current is null ? new CommandOutcome("Для доступу до заявок зареєструйтеся: /register.") : Status(current);
+        return current is null ? new CommandOutcome("Для доступу до заявок зареєструйтеся: /start.") : Status(current);
     }
 
     public async Task<CommandOutcome> ContinueAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
         var current = await repository.GetRegistrationAsync(envelope.UserId, cancellationToken);
         if (current is null)
-            return new CommandOutcome("Спочатку почніть реєстрацію: /register.");
+            return new CommandOutcome("Спочатку почніть реєстрацію: /start.");
         if (!IsDraft(current.Stage))
             return Status(current);
         if (current.BuildingId != buildingId)
@@ -143,10 +144,10 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         RegistrationStage.Pending => new CommandOutcome("Ваш запит на доступ очікує перевірки адміністратором. Перевірити стан: /start.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.Rejected => new CommandOutcome("Адміністратор відхилив запит на доступ. " +
             (registration.DecisionReason is { Length: > 0 } reason ? "Причина: " + reason + "\n" : "") +
-            "Уточніть дані та почніть реєстрацію знову: /register.", Keyboard: ReplyKeyboard.Remove),
+            "Уточніть дані та почніть реєстрацію знову: /start.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.Approved => new CommandOutcome("Доступ до заявок зараз неактивний. Зверніться до адміністратора ОСББ.", Keyboard: ReplyKeyboard.Remove),
-        RegistrationStage.Deleted => new CommandOutcome("Ви видалили свої дані. Для доступу до заявок пройдіть реєстрацію заново: /start або /register.", Keyboard: ReplyKeyboard.Remove),
-        RegistrationStage.Cancelled => new CommandOutcome("Реєстрацію скасовано. Почати знову: /register.", Keyboard: ReplyKeyboard.Remove),
+        RegistrationStage.Deleted => new CommandOutcome("Ви видалили свої дані. Для доступу до заявок пройдіть реєстрацію заново: /start.", Keyboard: ReplyKeyboard.Remove),
+        RegistrationStage.Cancelled => new CommandOutcome("Реєстрацію скасовано. Почати знову: /start.", Keyboard: ReplyKeyboard.Remove),
         _ => Prompt(registration.Stage)
     };
 

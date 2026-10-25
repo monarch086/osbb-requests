@@ -34,10 +34,6 @@
     "registered_only": true
   },
   {
-    "command": "register",
-    "description": "Зареєструватися для доступу до комплексу"
-  },
-  {
     "command": "cancel",
     "description": "Скасувати поточний діалог"
   },

@@ -134,7 +134,7 @@ public sealed class ComplexRequestCommandTests
         var repository = new MemoryRepository();
         repository.Residents.Clear();
         var result = await Apply(repository, 1, text);
-        Assert.Contains("/register", result.Reply);
+        Assert.Contains("/start", result.Reply);
         Assert.Null(result.Deletion);
         Assert.Null(result.Lookup);
         Assert.Equal(0, repository.Queries);

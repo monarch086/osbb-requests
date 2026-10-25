@@ -70,7 +70,7 @@ public sealed class CommandTests
         var repository = new MemoryRepository();
         var outcome = await Handler(repository).HandleAsync(Command(text, userId: 99), CancellationToken.None);
         Assert.Null(outcome.NewRequest);
-        Assert.Contains("/register", outcome.Reply);
+        Assert.Contains("/start", outcome.Reply);
         Assert.Equal(0, repository.Queries);
     }
 

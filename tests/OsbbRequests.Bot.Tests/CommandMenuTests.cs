@@ -30,6 +30,7 @@ public sealed class CommandMenuTests
             languages.Add(root.GetProperty("language_code").GetString()!);
             var commands = root.GetProperty("commands").EnumerateArray().Select(c => c.GetProperty("command").GetString()).ToArray();
             Assert.DoesNotContain("categories", commands);
+            Assert.DoesNotContain("register", commands);
             Assert.Equal(!registered, commands.Contains("start"));
             Assert.Contains("new", commands);
             Assert.Contains("request", commands);
