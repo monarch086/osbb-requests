@@ -215,6 +215,7 @@ public sealed class NotificationTests
         await new NotificationProcessor(repository, telegram, timeProvider: new FixedClock()).RunAsync(default);
         Assert.Empty(telegram.Sent);
         Assert.Equal("Skipped", Assert.Single(repository.Results).Disposition);
+        Assert.Empty(telegram.Menus);
     }
 
     [Fact]
@@ -407,7 +408,7 @@ public sealed class NotificationTests
     private sealed class NotificationTelegram : ITelegramClient
     {
         public List<(long ChatId, bool Registered)> Menus { get; } = [];
-        public Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken)
+        public Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken, bool force = false)
         { Menus.Add((chatId, registered)); return Task.CompletedTask; }
         public List<(long ChatId, string Text)> Sent { get; } = [];
         public Exception? Error;

@@ -6,4 +6,4 @@ public sealed record CommandOutcome(string Reply, MaintenanceRequest? NewRequest
     RegistrationChange? Registration = null, ReplyKeyboard? Keyboard = null, RequestDraftChange? Draft = null,
     RequestLookupChange? Lookup = null, RequestDeletion? Deletion = null, ProfileDialogChange? ProfileDialog = null, ProfileUpdate? Profile = null);
 public sealed record StoredReply(long UpdateId, long UserId, long ChatId, string Text, bool Delivered,
-    ReplyKeyboard? Keyboard = null);
+    ReplyKeyboard? Keyboard = null, bool RefreshMenu = false);

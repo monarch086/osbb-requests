@@ -92,7 +92,8 @@ public sealed class ResidentProfileTests
         Assert.Equal(Now, profile.PersonalDataDeletedAt);
         Assert.Equal(Original.UpdatedAt, profile.ApprovedAt);
         Assert.Equal(request, Assert.Single(repo.Requests));
-        Assert.Contains(42, repo.Residents);
+        Assert.DoesNotContain(42, repo.Residents);
+        Assert.Equal(RegistrationStage.Deleted, profile.Stage);
         await processor.ProcessAsync(confirm, default);
         Assert.Equal(profile, repo.Registrations[42]);
     }
@@ -144,6 +145,7 @@ public sealed class ResidentProfileTests
             BuildingNumber = null,
             ApartmentNumber = null,
             PersonalDataDeleted = true,
+            Stage = RegistrationStage.Deleted,
             PersonalDataDeletedAt = Now,
             Version = 7
         };
@@ -151,9 +153,10 @@ public sealed class ResidentProfileTests
             new("Видалено", ProfileDialog: new(dialog, 1), Profile: new(deleted, 6)), default);
         var writes = db.Transaction!.TransactItems;
         Assert.Equal(6, writes.Count);
-        var guard = Assert.Single(writes, w => w.ConditionCheck is not null).ConditionCheck;
+        var guard = Assert.Single(writes, w => w.Update is not null).Update;
         Assert.Equal("MEMBERSHIP", guard.Key["sk"].S);
         Assert.Contains("#active", guard.ConditionExpression);
+        Assert.False(guard.ExpressionAttributeValues[":no"].BOOL);
         var profiles = writes.Where(w => w.Put?.Item.GetValueOrDefault("sk")?.S is "REGISTRATION" or "META" ||
             w.Put?.Item.GetValueOrDefault("sk")?.S?.StartsWith("RESIDENT#", StringComparison.Ordinal) == true).ToList();
         Assert.Equal(3, profiles.Count);
@@ -180,9 +183,11 @@ public sealed class ResidentProfileTests
             BuildingNumber = null,
             ApartmentNumber = null,
             PersonalDataDeleted = true,
+            Stage = RegistrationStage.Deleted,
             PersonalDataDeletedAt = Now.AddDays(-1)
         };
-        await processor.ProcessAsync(Message(1, "/edit_profile"), default);
+        repo.Residents.Remove(42);
+        await processor.ProcessAsync(Message(1, "/start"), default);
         await processor.ProcessAsync(Message(2, "", new("+380671234567", 42)), default);
         await processor.ProcessAsync(Message(3, "Іван"), default);
         await processor.ProcessAsync(Message(4, "Новий"), default);
@@ -214,6 +219,38 @@ public sealed class ResidentProfileTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => new DynamoCommandRepository(db, "data").CommitAsync(Message(1, "confirm"),
             new("Видалено", ProfileDialog: new(state, 1), Profile: new(Original with { UserId = 99 }, 6)), default));
         Assert.Null(db.Transaction);
+    }
+
+    [Fact]
+    public async Task DeletionReturnsGuestMenuAndBlocksRequestsUntilFullRegistrationCompletes()
+    {
+        var (repo, _) = Setup();
+        var telegram = new FakeTelegram();
+        var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building", new Clock()), telegram, "building");
+        repo.Requests.Add(new(7, 42, "building", "інше", "", "Текст заявки", Now.AddHours(-1)));
+        await processor.ProcessAsync(Message(1, "/delete_profile"), default);
+        await processor.ProcessAsync(Message(2, ResidentProfileService.Confirmation), default);
+        Assert.Equal((42L, false), telegram.Menus[^1]);
+        Assert.True(repo.Replies[2].RefreshMenu);
+        Assert.DoesNotContain(42, repo.Residents);
+        await processor.ProcessAsync(Message(3, "/my"), default);
+        Assert.Contains("реєстрацію заново", telegram.Messages[^1].Text);
+        await processor.ProcessAsync(Message(4, "/edit_profile"), default);
+        Assert.Contains("реєстрацію заново", telegram.Messages[^1].Text);
+        await processor.ProcessAsync(Message(5, "/start"), default);
+        Assert.Equal(RegistrationStage.AwaitingPhone, repo.Registrations[42].Stage);
+        Assert.Null(repo.Registrations[42].Phone);
+        Assert.Null(repo.Registrations[42].FirstName);
+        await processor.ProcessAsync(Message(6, "", new("+380671234567", 42)), default);
+        await processor.ProcessAsync(Message(7, "Іван"), default);
+        await processor.ProcessAsync(Message(8, "Новий"), default);
+        await processor.ProcessAsync(Message(9, "4Д"), default);
+        Assert.DoesNotContain(42, repo.Residents);
+        await processor.ProcessAsync(Message(10, "125"), default);
+        Assert.Contains(42, repo.Residents);
+        Assert.Equal((42L, true), telegram.Menus[^1]);
+        Assert.Single(repo.Requests);
+        Assert.True(repo.Registrations[42].IsAnonymousFor(repo.Requests[0].CreatedAt));
     }
 
     private sealed class CaptureDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)

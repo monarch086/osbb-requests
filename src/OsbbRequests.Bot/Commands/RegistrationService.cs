@@ -145,6 +145,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             (registration.DecisionReason is { Length: > 0 } reason ? "Причина: " + reason + "\n" : "") +
             "Уточніть дані та почніть реєстрацію знову: /register.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.Approved => new CommandOutcome("Доступ до заявок зараз неактивний. Зверніться до адміністратора ОСББ.", Keyboard: ReplyKeyboard.Remove),
+        RegistrationStage.Deleted => new CommandOutcome("Ви видалили свої дані. Для доступу до заявок пройдіть реєстрацію заново: /start або /register.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.Cancelled => new CommandOutcome("Реєстрацію скасовано. Почати знову: /register.", Keyboard: ReplyKeyboard.Remove),
         _ => Prompt(registration.Stage)
     };

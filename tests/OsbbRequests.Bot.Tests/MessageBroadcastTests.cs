@@ -167,6 +167,7 @@ public sealed class MessageBroadcastTests
         var recipient = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.Item.ContainsKey("payload") == true).Put.Item;
         var job = JsonSerializer.Deserialize<ResidentNotification>(recipient["payload"].S)!;
         Assert.Equal(26, job.OwnerId);
+        db.Existing = Row(new ResidentRegistration("26", 26, "complex", RegistrationStage.Approved, 1, Now, Now));
         Assert.True(await repository.CanDeliverAsync(next with { Notification = job }, default));
         Assert.False(await repository.CanDeliverAsync(Broadcast(), default));
         Assert.Single(db.Transaction.TransactItems, w => w.Delete is not null);
@@ -211,6 +212,25 @@ public sealed class MessageBroadcastTests
         await new DynamoNotificationRepository(db, "data", "complex").ExpandAsync(Broadcast(), "lease", Now.AddHours(2), default);
         var recipient = Assert.Single(db.Transaction!.TransactItems, item => item.Put?.Item.ContainsKey("payload") == true).Put.Item;
         Assert.Equal(42, JsonSerializer.Deserialize<ResidentNotification>(recipient["payload"].S)!.OwnerId);
+    }
+
+    [Theory]
+    [InlineData(RegistrationStage.Deleted, true, false)]
+    [InlineData(RegistrationStage.Approved, true, false)]
+    [InlineData(RegistrationStage.Pending, false, false)]
+    [InlineData(RegistrationStage.Approved, false, true)]
+    public async Task OldResidentNotificationsCannotReactivateDeletedResidentsMenu(RegistrationStage stage, bool deleted, bool allowed)
+    {
+        using var db = new FakeDynamo
+        {
+            Existing = Row(new ResidentRegistration("reference", 42, "complex", stage, 7, Now, Now,
+            PersonalDataDeleted: deleted))
+        };
+        var repository = new DynamoNotificationRepository(db, "data", "complex");
+        var item = Broadcast() with { Notification = new("registration-reference-v6", "complex", 42, null, null, "Доступ надано", Now) };
+        Assert.Equal(allowed, await repository.CanDeliverAsync(item, default));
+        Assert.Equal("BUILDING#complex", db.LastGet!.Key["pk"].S);
+        Assert.True(db.LastGet.ConsistentRead);
     }
 
     private sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)

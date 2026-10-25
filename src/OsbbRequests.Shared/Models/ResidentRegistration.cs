@@ -13,7 +13,8 @@ public enum RegistrationStage
     Rejected,
     Cancelled,
     AwaitingBuilding,
-    AwaitingApartment
+    AwaitingApartment,
+    Deleted
 }
 
 public sealed record ResidentRegistration(

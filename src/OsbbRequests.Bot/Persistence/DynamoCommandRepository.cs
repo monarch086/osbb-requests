@@ -150,7 +150,7 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
     public async Task<StoredReply> CommitAsync(CommandEnvelope command, CommandOutcome outcome,
         CancellationToken cancellationToken)
     {
-        var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false, outcome.Keyboard);
+        var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false, outcome.Keyboard, outcome.Profile?.Value.PersonalDataDeleted == true || outcome.Registration?.AutomaticallyApproved == true);
         var replyItem = Key("UPDATE#" + Number(command.UpdateId), "REPLY");
         replyItem["payload"] = new AttributeValue(JsonSerializer.Serialize(reply));
         replyItem["delivered"] = new AttributeValue { BOOL = false };

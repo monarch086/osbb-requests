@@ -39,6 +39,8 @@ public sealed class CommandMenuTests
         Assert.Equal(new[] { "", "uk" }, languages);
         await client.SetCommandMenuAsync(99, !registered, default);
         Assert.Equal(4, capture.Bodies.Count);
+        await client.SetCommandMenuAsync(99, !registered, default, force: true);
+        Assert.Equal(6, capture.Bodies.Count);
         Assert.All(capture.Paths, path => Assert.EndsWith("/setMyCommands", path));
     }
 

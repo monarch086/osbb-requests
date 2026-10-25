@@ -24,7 +24,24 @@ public sealed partial class DynamoNotificationRepository
     {
         var notification = item.Notification;
         if (notification.ComplexId != complexId || notification.IsBroadcast) return false;
-        if (notification.AdministratorId is null) return notification.OwnerId > 0 && notification.AdministratorEvent is null;
+        if (notification.AdministratorId is null)
+        {
+            if (notification.OwnerId <= 0 || notification.AdministratorEvent is not null) return false;
+            var response = await db.GetItemAsync(new GetItemRequest
+            {
+                TableName = table,
+                ConsistentRead = true,
+                Key = new()
+                {
+                    ["pk"] = S("BUILDING#" + complexId),
+                    ["sk"] = S("RESIDENT#" + notification.OwnerId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture))
+                }
+            }, ct);
+            if (response.Item?.GetValueOrDefault("payload")?.S is not { } payload) return false;
+            var resident = JsonSerializer.Deserialize<ResidentRegistration>(payload);
+            return resident is not null && resident.UserId == notification.OwnerId && resident.BuildingId == complexId &&
+                resident.Stage == RegistrationStage.Approved && !resident.PersonalDataDeleted;
+        }
         var (active, settings) = await AdministratorAsync(notification.AdministratorId, ct);
         return active && notification.AdministratorEvent is { } kind && settings.Includes(kind) && settings.ChatId == notification.OwnerId;
     }

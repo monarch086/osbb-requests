@@ -70,6 +70,26 @@ class TelegramMenuTests(unittest.TestCase):
         self.assertIn('--no-paginate', run.call_args_list[0].args[0])
         self.assertNotIn('scan', run.call_args_list[0].args[0])
 
+    def test_deleted_residents_get_guest_chat_menu(self):
+        calls = []
+        def call(token, method, payload):
+            calls.append((method, payload))
+            if method == 'getMe':
+                return {'username': 'ExpectedBot'}
+            if method == 'getMyCommands':
+                return menu.COMMANDS
+            if method == 'getChatMenuButton':
+                return {'type': 'commands'}
+            return True
+        menu.configure('secret', 'ExpectedBot', call, unregistered_chat_ids=[99])
+        writes = [payload for method, payload in calls if method == 'setMyCommands' and payload['scope']['type'] == 'chat']
+        self.assertEqual(2, len(writes))
+        for payload in writes:
+            commands = {item['command'] for item in payload['commands']}
+            self.assertIn('start', commands)
+            self.assertNotIn('edit_profile', commands)
+            self.assertNotIn('delete_profile', commands)
+
     def test_does_not_change_a_different_bot(self):
         calls = []
 

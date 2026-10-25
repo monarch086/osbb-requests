@@ -30,7 +30,7 @@ public sealed partial class DynamoNotificationRepository
         {
             var resident = JsonSerializer.Deserialize<ResidentRegistration>(candidate["payload"].S)
                 ?? throw new InvalidOperationException("Invalid resident directory entry.");
-            if (resident.BuildingId != complexId || resident.Stage != RegistrationStage.Approved || resident.UserId <= 0 ||
+            if (resident.BuildingId != complexId || resident.Stage != RegistrationStage.Approved || resident.PersonalDataDeleted || resident.UserId <= 0 ||
                 (resident.ApprovedAt ?? resident.UpdatedAt) > notification.CreatedAt) continue;
             var recipient = notification with
             {

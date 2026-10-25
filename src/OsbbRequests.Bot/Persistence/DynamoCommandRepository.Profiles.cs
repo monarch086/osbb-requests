@@ -25,15 +25,36 @@ public sealed partial class DynamoCommandRepository
         var profile = update.Value;
         if (profile.UserId != command.UserId || outcome.ProfileDialog?.Value is not { Active: false } state || state.ComplexId != profile.BuildingId)
             throw new InvalidOperationException("Profile update identity mismatch.");
-        writes.Add(new()
+        var memberKey = Key("USER#" + Number(command.UserId), "MEMBERSHIP");
+        var values = new Dictionary<string, AttributeValue> { [":complex"] = new(profile.BuildingId), [":yes"] = new() { BOOL = true } };
+        var names = new Dictionary<string, string> { ["#active"] = "active" };
+        if (profile.PersonalDataDeleted)
+        {
+            if (profile.Stage != OsbbRequests.Shared.Models.RegistrationStage.Deleted)
+                throw new InvalidOperationException("Deleted profile must revoke resident access.");
+            values[":no"] = new() { BOOL = false };
+            writes.Add(new()
+            {
+                Update = new()
+                {
+                    TableName = tableName,
+                    Key = memberKey,
+                    UpdateExpression = "SET #active = :no",
+                    ConditionExpression = "buildingId = :complex AND #active = :yes",
+                    ExpressionAttributeNames = names,
+                    ExpressionAttributeValues = values
+                }
+            });
+        }
+        else writes.Add(new()
         {
             ConditionCheck = new()
             {
                 TableName = tableName,
-                Key = Key("USER#" + Number(command.UserId), "MEMBERSHIP"),
+                Key = memberKey,
                 ConditionExpression = "buildingId = :complex AND #active = :yes",
-                ExpressionAttributeNames = new() { ["#active"] = "active" },
-                ExpressionAttributeValues = new() { [":complex"] = new(profile.BuildingId), [":yes"] = new() { BOOL = true } }
+                ExpressionAttributeNames = names,
+                ExpressionAttributeValues = values
             }
         });
         writes.Add(VersionedProfilePut(RegistrationItem("USER#" + Number(command.UserId), "REGISTRATION", profile), update.ExpectedVersion));

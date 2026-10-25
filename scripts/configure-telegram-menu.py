@@ -29,15 +29,19 @@ def call_telegram(token, method, payload):
         raise RuntimeError('Telegram menu operation failed: ' + method) from None
 
 
-def configure(token, expected_username, call=call_telegram, registered_chat_ids=()):
+def configure(token, expected_username, call=call_telegram, registered_chat_ids=(), unregistered_chat_ids=()):
     chat_ids = sorted(set(registered_chat_ids))
-    if any(not isinstance(chat, int) or isinstance(chat, bool) or chat <= 0 for chat in chat_ids):
+    guest_ids = sorted(set(unregistered_chat_ids))
+    if set(chat_ids) & set(guest_ids):
+        raise RuntimeError('Conflicting resident menu scopes.')
+    if any(not isinstance(chat, int) or isinstance(chat, bool) or chat <= 0 for chat in chat_ids + guest_ids):
         raise RuntimeError('Invalid registered resident chat ID.')
     identity = call(token, 'getMe', {})
     if identity.get('username', '').casefold() != expected_username.lstrip('@').casefold():
         raise RuntimeError('Bot username mismatch; menu was not changed.')
     selections = [({'type': 'all_private_chats'}, COMMANDS)]
     selections.extend(({'type': 'chat', 'chat_id': chat}, RESIDENT_COMMANDS) for chat in chat_ids)
+    selections.extend(({'type': 'chat', 'chat_id': chat}, COMMANDS) for chat in guest_ids)
     for scope, commands in selections:
         for language in ('', 'uk'):
             selection = {'scope': scope, 'language_code': language}
@@ -54,10 +58,11 @@ def configure(token, expected_username, call=call_telegram, registered_chat_ids=
         raise RuntimeError('Telegram menu button verification failed.')
 
 
-def load_registered_chats(stage, region, complex_id=None):
+def load_resident_chats(stage, region, complex_id=None):
     partition = 'BUILDING#' + (complex_id or 'osbb-requests-' + stage)
     cursor = None
     chats = set()
+    deleted_chats = set()
     while True:
         command = ['aws', 'dynamodb', 'query', '--table-name', 'osbb-requests-' + stage + '-command-data',
                    '--key-condition-expression', 'pk = :pk AND begins_with(sk, :prefix)',
@@ -74,14 +79,21 @@ def load_registered_chats(stage, region, complex_id=None):
             for item in page.get('Items', []):
                 resident = json.loads(item['payload']['S'])
                 chat = resident.get('UserId')
-                if (resident.get('BuildingId') == partition[len('BUILDING#'):] and resident.get('Stage') == 'Approved'
-                        and isinstance(chat, int) and not isinstance(chat, bool) and chat > 0):
-                    chats.add(chat)
+                if (resident.get('BuildingId') == partition[len('BUILDING#'):] and
+                        isinstance(chat, int) and not isinstance(chat, bool) and chat > 0):
+                    if resident.get('PersonalDataDeleted') or resident.get('Stage') == 'Deleted':
+                        deleted_chats.add(chat)
+                    elif resident.get('Stage') == 'Approved':
+                        chats.add(chat)
             cursor = page.get('LastEvaluatedKey')
         except (ValueError, KeyError, TypeError):
             raise RuntimeError('Invalid resident directory response.') from None
         if not cursor:
-            return sorted(chats)
+            return sorted(chats), sorted(deleted_chats)
+
+
+def load_registered_chats(stage, region, complex_id=None):
+    return load_resident_chats(stage, region, complex_id)[0]
 
 
 def load_token(stage, region):
@@ -118,8 +130,8 @@ def main():
         if args.include_residents:
             print('Would also configure existing approved residents: a resident menu without /start and with profile actions.')
         return
-    chats = load_registered_chats(args.stage, args.region, args.complex_id) if args.include_residents else []
-    configure(load_token(args.stage, args.region), args.bot_username, registered_chat_ids=chats)
+    chats, guests = load_resident_chats(args.stage, args.region, args.complex_id) if args.include_residents else ([], [])
+    configure(load_token(args.stage, args.region), args.bot_username, registered_chat_ids=chats, unregistered_chat_ids=guests)
     print('Command menu and menu button configured and verified for @' + args.bot_username.lstrip('@') + '.')
     print('No messages were sent. Bot token was not displayed.')
 

@@ -27,7 +27,7 @@ public sealed class CommandProcessor(ICommandRepository repository, CommandHandl
 
         if (complexId is not null)
             await telegram.SetCommandMenuAsync(reply.ChatId,
-                await repository.IsResidentAsync(reply.UserId, complexId, cancellationToken), cancellationToken);
+                await repository.IsResidentAsync(reply.UserId, complexId, cancellationToken), cancellationToken, force: reply.RefreshMenu);
         await telegram.SendMessageAsync(reply.ChatId, reply.Text, cancellationToken, reply.Keyboard);
         await repository.MarkDeliveredAsync(reply.UpdateId, cancellationToken);
     }

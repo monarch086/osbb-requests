@@ -288,7 +288,9 @@ resources:
                   dynamodb:LeadingKeys:
                   - NOTIFICATIONS#${self:custom.buildingId}
             - Effect: Allow
-              Action: dynamodb:Query
+              Action:
+              - dynamodb:Query
+              - dynamodb:GetItem
               Resource:
                 Fn::GetAtt:
                 - CommandDataTable

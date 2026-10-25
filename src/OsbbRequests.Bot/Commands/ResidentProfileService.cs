@@ -49,9 +49,9 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         {
             if (command.Contact is not null || command.Text.Trim() != Confirmation) return DeletePrompt();
             var deleted = new ResidentRegistration(current?.Id ?? Guid.NewGuid().ToString("N"), command.UserId, complexId,
-                RegistrationStage.Approved, (current?.Version ?? 0) + 1, current?.CreatedAt ?? now, now,
+                RegistrationStage.Deleted, (current?.Version ?? 0) + 1, current?.CreatedAt ?? now, now,
                 PersonalDataDeleted: true, PersonalDataDeletedAt: now, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now);
-            return Close(dialog, "Ваші ім’я, прізвище, телефон, будинок і номер квартири видалено з профілю. Заявки та доступ до них збережено.") with
+            return Close(dialog, "Ваші ім’я, прізвище, телефон, будинок і номер квартири видалено з профілю. Заявки збережено. Доступ скасовано. Для подальшої роботи пройдіть реєстрацію заново: /start.") with
             { Profile = new(deleted, dialog.ExpectedProfileVersion) };
         }
         var outcome = RegistrationService.Advance(dialog.Draft ?? throw new InvalidOperationException("Missing profile draft."), command, now);
@@ -82,6 +82,6 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
     private static CommandOutcome Close(ResidentProfileDialog dialog, string text) => new(text, Keyboard: ReplyKeyboard.Remove,
         ProfileDialog: new(dialog with { Draft = null, Active = false, Version = dialog.Version + 1 }, dialog.Version));
     private static CommandOutcome DeletePrompt() => new("Видалити ім’я, прізвище, телефон, будинок і квартиру з профілю? Заявки залишаться, " +
-        "а їхній автор буде позначений як «Мешканець видалив свої дані».\n\nДля підтвердження натисніть «Видалити мої дані». Скасувати: /cancel.",
+        "Доступ буде скасовано — для подальшої роботи потрібно зареєструватися заново. Автор заявок буде позначений як «Мешканець видалив свої дані».\n\nДля підтвердження натисніть «Видалити мої дані». Скасувати: /cancel.",
         Keyboard: ReplyKeyboard.ProfileDeleteConfirmation);
 }

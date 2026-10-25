@@ -45,11 +45,11 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
     }
 
     private readonly Dictionary<long, bool> configuredMenus = [];
-    public async Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken)
+    public async Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken, bool force = false)
     {
         if (chatId <= 0) throw new InvalidOperationException("Private command menu requires a resident chat.");
         lock (configuredMenus)
-            if (configuredMenus.TryGetValue(chatId, out var current) && current == registered) return;
+            if (!force && configuredMenus.TryGetValue(chatId, out var current) && current == registered) return;
         foreach (var language in new[] { "", "uk" })
             await CallAsync("setMyCommands", new
             {

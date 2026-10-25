@@ -80,7 +80,11 @@ internal sealed class MemoryRepository : ICommandRepository
         if (outcome.Profile is { } profile && (!Residents.Contains(command.UserId) || Registrations.GetValueOrDefault(command.UserId)?.Version != profile.ExpectedVersion))
             throw new InvalidOperationException("Profile update conflict.");
         if (outcome.ProfileDialog is { } state) ProfileDialogs[command.UserId] = state.Value;
-        if (outcome.Profile is { } changed) Registrations[command.UserId] = changed.Value;
+        if (outcome.Profile is { } changed)
+        {
+            Registrations[command.UserId] = changed.Value;
+            if (changed.Value.PersonalDataDeleted) Residents.Remove(command.UserId);
+        }
         if (outcome.Registration is { } change)
         {
             if (Registrations.GetValueOrDefault(command.UserId)?.Version != change.ExpectedVersion)
@@ -105,7 +109,7 @@ internal sealed class MemoryRepository : ICommandRepository
         CommitCount++;
         if (outcome.NewRequest is { } request)
             Requests.Add(request);
-        var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false, outcome.Keyboard);
+        var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false, outcome.Keyboard, outcome.Profile?.Value.PersonalDataDeleted == true || outcome.Registration?.AutomaticallyApproved == true);
         Replies.Add(command.UpdateId, reply);
         return Task.FromResult(reply);
     }
@@ -120,7 +124,7 @@ internal sealed class MemoryRepository : ICommandRepository
 internal sealed class FakeTelegram : ITelegramClient
 {
     public List<(long ChatId, bool Registered)> Menus { get; } = [];
-    public Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken)
+    public Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken, bool force = false)
     { Menus.Add((chatId, registered)); return Task.CompletedTask; }
     public List<(long ChatId, string Text)> Messages { get; } = [];
     public bool Fail { get; set; }
