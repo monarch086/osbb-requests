@@ -5,7 +5,8 @@ namespace OsbbRequests.Bot.Telegram;
 
 public sealed record MenuCommand(
     [property: JsonPropertyName("command")] string Command,
-    [property: JsonPropertyName("description")] string Description);
+    [property: JsonPropertyName("description")] string Description,
+    [property: JsonPropertyName("registered_only")] bool RegisteredOnly = false);
 
 public static class CommandMenu
 {
@@ -17,5 +18,5 @@ public static class CommandMenu
         return JsonSerializer.Deserialize<MenuCommand[]>(stream) ?? throw new InvalidOperationException("Invalid command menu.");
     }
     public static IReadOnlyList<MenuCommand> ForResident(bool registered) =>
-        Commands.Where(command => !registered || command.Command != "start").ToArray();
+        Commands.Where(command => registered ? command.Command != "start" : !command.RegisteredOnly).ToArray();
 }

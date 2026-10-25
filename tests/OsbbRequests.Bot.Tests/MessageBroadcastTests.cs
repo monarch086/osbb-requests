@@ -199,6 +199,20 @@ public sealed class MessageBroadcastTests
         Assert.Null(db.Query);
     }
 
+    [Fact]
+    public async Task ProfileEditsDoNotExcludePreviouslyApprovedResidentsFromBroadcastAudience()
+    {
+        using var db = new FakeDynamo();
+        db.Page = new()
+        {
+            Items = [Row(new ResidentRegistration("reference", 42, "complex", RegistrationStage.Approved, 7,
+            Now.AddDays(-10), Now.AddHours(1), ApprovedAt: Now.AddDays(-9)))]
+        };
+        await new DynamoNotificationRepository(db, "data", "complex").ExpandAsync(Broadcast(), "lease", Now.AddHours(2), default);
+        var recipient = Assert.Single(db.Transaction!.TransactItems, item => item.Put?.Item.ContainsKey("payload") == true).Put.Item;
+        Assert.Equal(42, JsonSerializer.Deserialize<ResidentNotification>(recipient["payload"].S)!.OwnerId);
+    }
+
     private sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public Dictionary<string, AttributeValue>? Existing;

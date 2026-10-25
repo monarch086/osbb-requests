@@ -35,6 +35,8 @@ internal sealed class MemoryRepository : ICommandRepository
     public Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Lookups.GetValueOrDefault(userId));
     public Dictionary<long, RequestDraft> Drafts { get; } = [];
     public Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Drafts.GetValueOrDefault(userId));
+    public Dictionary<long, ResidentProfileDialog> ProfileDialogs { get; } = [];
+    public Task<ResidentProfileDialog?> GetProfileDialogAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(ProfileDialogs.GetValueOrDefault(userId));
     public Dictionary<long, ResidentRegistration> Registrations { get; } = [];
     public Task<ResidentRegistration?> GetRegistrationAsync(long userId, CancellationToken cancellationToken) =>
         Task.FromResult(Registrations.GetValueOrDefault(userId));
@@ -73,6 +75,12 @@ internal sealed class MemoryRepository : ICommandRepository
                 RequestVersions.GetValueOrDefault(target.Id, 1) != deletion.ExpectedVersion)
                 throw new InvalidOperationException("Deletion conflict.");
         }
+        if (outcome.ProfileDialog is { } profileDialog && ProfileDialogs.GetValueOrDefault(command.UserId)?.Version != profileDialog.ExpectedVersion)
+            throw new InvalidOperationException("Profile dialog conflict.");
+        if (outcome.Profile is { } profile && (!Residents.Contains(command.UserId) || Registrations.GetValueOrDefault(command.UserId)?.Version != profile.ExpectedVersion))
+            throw new InvalidOperationException("Profile update conflict.");
+        if (outcome.ProfileDialog is { } state) ProfileDialogs[command.UserId] = state.Value;
+        if (outcome.Profile is { } changed) Registrations[command.UserId] = changed.Value;
         if (outcome.Registration is { } change)
         {
             if (Registrations.GetValueOrDefault(command.UserId)?.Version != change.ExpectedVersion)

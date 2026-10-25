@@ -8,7 +8,7 @@ using OsbbRequests.Bot.Models;
 
 namespace OsbbRequests.Bot.Persistence;
 
-public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string tableName,
+public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, string tableName,
     TimeProvider? timeProvider = null) : ICommandRepository
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
@@ -278,6 +278,7 @@ public sealed class DynamoCommandRepository(IAmazonDynamoDB client, string table
             }
         }
 
+        AddProfileWrites(writes, command, outcome);
         try
         {
             await client.TransactWriteItemsAsync(new TransactWriteItemsRequest { TransactItems = writes }, cancellationToken);

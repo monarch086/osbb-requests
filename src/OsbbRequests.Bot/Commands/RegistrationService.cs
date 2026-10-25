@@ -62,6 +62,11 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         if (current.BuildingId != buildingId)
             throw new InvalidOperationException("Registration building mismatch.");
 
+        return Advance(current, envelope, clock.GetUtcNow());
+    }
+
+    public static CommandOutcome Advance(ResidentRegistration current, CommandEnvelope envelope, DateTimeOffset now)
+    {
         ResidentRegistration next;
         switch (current.Stage)
         {
@@ -98,7 +103,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             default:
                 throw new InvalidOperationException("Unknown registration step.");
         }
-        next = next with { Version = current.Version + 1, UpdatedAt = clock.GetUtcNow() };
+        next = next with { Version = current.Version + 1, UpdatedAt = now };
         var outcome = next.Stage == RegistrationStage.Pending
             ? new CommandOutcome($"Дякуємо, {next.FirstName} {next.LastName}!\n" +
                 $"Телефон: {next.Phone}\nБудинок: {next.BuildingNumber}, квартира: {next.ApartmentNumber}\n\nЗапит на доступ передано адміністратору. " +
@@ -110,7 +115,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
     public static bool IsDraft(RegistrationStage stage) => stage is RegistrationStage.AwaitingPhone or
         RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName or RegistrationStage.AwaitingBuilding or RegistrationStage.AwaitingApartment;
 
-    private static CommandOutcome Prompt(RegistrationStage stage) => stage switch
+    public static CommandOutcome Prompt(RegistrationStage stage) => stage switch
     {
         RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації в системі потрібні ваш мобільний номер, ім’я, прізвище, будинок і номер квартири. " +
             "Їх побачить адміністратор ОСББ для перевірки та надання доступу.\n\n" +

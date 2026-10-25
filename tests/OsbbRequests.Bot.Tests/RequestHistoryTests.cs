@@ -161,6 +161,38 @@ public sealed class RequestHistoryTests
         Assert.Null(author.ApartmentNumber);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeletedDataLabelPersistsForOldRequestsEvenAfterProfileIsRestored(bool deleted)
+    {
+        using var db = new HistoryDynamo
+        {
+            Resident = Resident with
+            {
+                PersonalDataDeleted = deleted,
+                PersonalDataDeletedAt = Request.CreatedAt.AddDays(1)
+            },
+            Items = [Created()]
+        };
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var author = await store.GetRequestAuthorAsync(Request, default);
+        Assert.True(author!.PersonalDataDeleted);
+        Assert.Null(author.FirstName);
+        Assert.Null(author.BuildingNumber);
+        var entry = Assert.Single(await store.HistoryAsync(Request, default));
+        Assert.Equal("Мешканець видалив свої дані", entry["actor"]);
+    }
+
+    [Fact]
+    public async Task RequestsCreatedAfterProfileRestorationUseCurrentProfile()
+    {
+        using var db = new HistoryDynamo { Resident = Resident with { PersonalDataDeletedAt = Request.CreatedAt.AddDays(-1) } };
+        var author = await new DynamoAdminStore(db, "admins", "data", "complex").GetRequestAuthorAsync(Request, default);
+        Assert.False(author!.PersonalDataDeleted);
+        Assert.Equal("Олена", author.FirstName);
+    }
+
     private sealed class HistoryDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public ResidentRegistration? Resident;

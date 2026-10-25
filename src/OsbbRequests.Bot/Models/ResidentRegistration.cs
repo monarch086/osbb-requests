@@ -10,7 +10,8 @@ public enum ReplyKeyboard
     RequestFloor,
     RequestCategory,
     RequestEntrance,
-    RegistrationBuilding
+    RegistrationBuilding,
+    ProfileDeleteConfirmation
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion);

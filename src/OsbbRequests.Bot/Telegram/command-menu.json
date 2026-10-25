@@ -24,6 +24,16 @@
     "description": "Деталі заявки: /request номер"
   },
   {
+    "command": "edit_profile",
+    "description": "Змінити інформацію про себе",
+    "registered_only": true
+  },
+  {
+    "command": "delete_profile",
+    "description": "Видалити інформацію про себе",
+    "registered_only": true
+  },
+  {
     "command": "register",
     "description": "Зареєструватися для доступу до комплексу"
   },

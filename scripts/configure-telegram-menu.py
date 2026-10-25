@@ -8,9 +8,10 @@ from pathlib import Path
 import urllib.error
 import urllib.request
 
-COMMANDS = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'OsbbRequests.Bot' /
+DEFINITIONS = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'OsbbRequests.Bot' /
                        'Telegram' / 'command-menu.json').read_text(encoding='utf-8'))
-RESIDENT_COMMANDS = [item for item in COMMANDS if item['command'] != 'start']
+COMMANDS = [{key: item[key] for key in ('command', 'description')} for item in DEFINITIONS if not item.get('registered_only')]
+RESIDENT_COMMANDS = [{key: item[key] for key in ('command', 'description')} for item in DEFINITIONS if item['command'] != 'start']
 
 
 def call_telegram(token, method, payload):
@@ -115,7 +116,7 @@ def main():
         for command in COMMANDS:
             print('/' + command['command'] + ' — ' + command['description'])
         if args.include_residents:
-            print('Would also configure existing approved residents: the same menu without /start.')
+            print('Would also configure existing approved residents: a resident menu without /start and with profile actions.')
         return
     chats = load_registered_chats(args.stage, args.region, args.complex_id) if args.include_residents else []
     configure(load_token(args.stage, args.region), args.bot_username, registered_chat_ids=chats)

@@ -28,6 +28,7 @@ export class TicketDialogComponent {
   @Input() author: RequestAuthor | null = null;
   @Input() authorLoading = false;
   get authorName(): string {
+    if (this.author?.personalDataDeleted) return 'Мешканець видалив свої дані';
     return (
       [this.author?.firstName, this.author?.lastName].filter(Boolean).join(' ').trim() ||
       'Мешканець'

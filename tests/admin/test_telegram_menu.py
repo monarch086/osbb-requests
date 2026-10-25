@@ -51,6 +51,8 @@ class TelegramMenuTests(unittest.TestCase):
             commands = {item['command'] for item in payload['commands']}
             self.assertNotIn('categories', commands)
             self.assertEqual(payload['scope']['type'] == 'all_private_chats', 'start' in commands)
+            self.assertEqual(payload['scope']['type'] == 'chat', 'edit_profile' in commands)
+            self.assertEqual(payload['scope']['type'] == 'chat', 'delete_profile' in commands)
         self.assertNotIn('sendMessage', [method for method, _ in calls])
 
     def test_registered_directory_reads_all_pages_and_only_current_complex_approved_profiles(self):

@@ -25,11 +25,12 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
-        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding)
+        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation)
         {
             var rows = keyboard switch
             {
                 ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { "Весь комплекс" }).ToArray(),
+                ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation], ["Скасувати"]],
                 ReplyKeyboard.RegistrationBuilding => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).ToArray(),
                 ReplyKeyboard.RequestEntrance => [["1", "2", "Не зазначено"]],
                 ReplyKeyboard.RequestFloor => [["Парадне", "Без поверху"]],
@@ -54,7 +55,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             {
                 scope = new { type = "chat", chat_id = chatId },
                 language_code = language,
-                commands = CommandMenu.ForResident(registered)
+                commands = CommandMenu.ForResident(registered).Select(item => new { command = item.Command, description = item.Description }).ToArray()
             }, cancellationToken, requireTrueResult: true);
         lock (configuredMenus)
         {

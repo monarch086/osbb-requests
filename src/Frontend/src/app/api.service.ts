@@ -44,6 +44,7 @@ export interface RegisteredResident {
   phone: string | null;
   buildingNumber?: string | null;
   apartmentNumber?: string | null;
+  personalDataDeleted?: boolean;
   registeredAt: string;
 }
 export interface Ticket {
@@ -65,6 +66,7 @@ export interface Ticket {
   plannedDate: string | null;
 }
 export interface RequestAuthor {
+  personalDataDeleted?: boolean;
   firstName: string | null;
   lastName: string | null;
   buildingNumber: string | null;

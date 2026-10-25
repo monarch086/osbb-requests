@@ -5,6 +5,7 @@ namespace OsbbRequests.Bot.Persistence;
 
 public interface ICommandRepository
 {
+    Task<ResidentProfileDialog?> GetProfileDialogAsync(long userId, CancellationToken cancellationToken);
     Task<PublicRequestPage> ListPublicRequestsAsync(string complexId, string? before, CancellationToken cancellationToken);
     Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken cancellationToken);
     Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken);
