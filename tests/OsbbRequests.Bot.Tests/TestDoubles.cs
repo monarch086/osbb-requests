@@ -110,6 +110,9 @@ internal sealed class MemoryRepository : ICommandRepository
 
 internal sealed class FakeTelegram : ITelegramClient
 {
+    public List<(long ChatId, bool Registered)> Menus { get; } = [];
+    public Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken)
+    { Menus.Add((chatId, registered)); return Task.CompletedTask; }
     public List<(long ChatId, string Text)> Messages { get; } = [];
     public bool Fail { get; set; }
     public Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken, ReplyKeyboard? keyboard = null)

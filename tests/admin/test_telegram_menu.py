@@ -29,9 +29,44 @@ class TelegramMenuTests(unittest.TestCase):
         writes = [payload for method, payload in calls if method == 'setMyCommands']
         self.assertEqual(['', 'uk'], [p['language_code'] for p in writes])
         self.assertTrue(all(p['scope'] == {'type': 'all_private_chats'} for p in writes))
-        self.assertEqual({'start', 'new', 'my', 'complex', 'delete', 'request', 'categories', 'register', 'cancel', 'help'},
+        self.assertEqual({'start', 'new', 'my', 'complex', 'delete', 'request', 'register', 'cancel', 'help'},
                          {item['command'] for item in menu.COMMANDS})
         self.assertNotIn('sendMessage', [method for method, _ in calls])
+
+    def test_registered_residents_get_chat_scope_without_start_or_categories(self):
+        calls = []
+        def call(token, method, payload):
+            calls.append((method, payload))
+            if method == 'getMe':
+                return {'username': 'ExpectedBot'}
+            if method == 'getMyCommands':
+                return menu.RESIDENT_COMMANDS if payload['scope']['type'] == 'chat' else menu.COMMANDS
+            if method == 'getChatMenuButton':
+                return {'type': 'commands'}
+            return True
+        menu.configure('secret', 'ExpectedBot', call, registered_chat_ids=[99, 100, 99])
+        writes = [payload for method, payload in calls if method == 'setMyCommands']
+        self.assertEqual(6, len(writes))
+        for payload in writes:
+            commands = {item['command'] for item in payload['commands']}
+            self.assertNotIn('categories', commands)
+            self.assertEqual(payload['scope']['type'] == 'all_private_chats', 'start' in commands)
+        self.assertNotIn('sendMessage', [method for method, _ in calls])
+
+    def test_registered_directory_reads_all_pages_and_only_current_complex_approved_profiles(self):
+        def item(user, complex_id='osbb-requests-dev', stage='Approved'):
+            return {'payload': {'S': json.dumps({'UserId': user, 'BuildingId': complex_id, 'Stage': stage})}}
+        pages = [{'Items': [item(99), item(98, stage='Pending'), item(97, 'other')],
+                  'LastEvaluatedKey': {'pk': {'S': 'BUILDING#osbb-requests-dev'}, 'sk': {'S': 'RESIDENT#99'}}},
+                 {'Items': [item(100), item(99), item(-1)]}]
+        from types import SimpleNamespace
+        with patch.object(menu.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0, stdout=json.dumps(page)) for page in pages]) as run:
+            self.assertEqual([99, 100], menu.load_registered_chats('dev', 'eu-central-1'))
+        self.assertEqual(2, run.call_count)
+        self.assertIn('--exclusive-start-key', run.call_args_list[1].args[0])
+        self.assertIn('query', run.call_args_list[0].args[0])
+        self.assertIn('--no-paginate', run.call_args_list[0].args[0])
+        self.assertNotIn('scan', run.call_args_list[0].args[0])
 
     def test_does_not_change_a_different_bot(self):
         calls = []

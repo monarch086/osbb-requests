@@ -12,7 +12,6 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
     {
         if (text.Length is < 1 or > 4096)
             throw new InvalidOperationException("Telegram message length is outside the supported range.");
-        var token = await tokenProvider.GetAsync(cancellationToken);
         var payload = new Dictionary<string, object>
         {
             ["chat_id"] = chatId,
@@ -41,10 +40,37 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         else if (keyboard == ReplyKeyboard.Remove)
             payload["reply_markup"] = new { remove_keyboard = true };
         // No parse_mode: all resident content is plain text, never Telegram HTML.
+        await CallAsync("sendMessage", payload, cancellationToken);
+    }
+
+    private readonly Dictionary<long, bool> configuredMenus = [];
+    public async Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken)
+    {
+        if (chatId <= 0) throw new InvalidOperationException("Private command menu requires a resident chat.");
+        lock (configuredMenus)
+            if (configuredMenus.TryGetValue(chatId, out var current) && current == registered) return;
+        foreach (var language in new[] { "", "uk" })
+            await CallAsync("setMyCommands", new
+            {
+                scope = new { type = "chat", chat_id = chatId },
+                language_code = language,
+                commands = CommandMenu.ForResident(registered)
+            }, cancellationToken, requireTrueResult: true);
+        lock (configuredMenus)
+        {
+            // Bound the warm Lambda cache; a cache miss only repeats an idempotent menu update.
+            if (configuredMenus.Count >= 1000) configuredMenus.Clear();
+            configuredMenus[chatId] = registered;
+        }
+    }
+
+    private async Task CallAsync(string method, object payload, CancellationToken cancellationToken, bool requireTrueResult = false)
+    {
+        var token = await tokenProvider.GetAsync(cancellationToken);
         try
         {
             using var response = await httpClient.PostAsJsonAsync(
-                $"https://api.telegram.org/bot{token}/sendMessage", payload, cancellationToken);
+                $"https://api.telegram.org/bot{token}/{method}", payload, cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
                 using var error = await JsonDocument.ParseAsync(
@@ -61,7 +87,9 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
                 cancellationToken: cancellationToken);
             if (!body.RootElement.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
-                throw new InvalidOperationException("Telegram rejected the message.");
+                throw new InvalidOperationException("Telegram rejected the operation.");
+            if (requireTrueResult && (!body.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.True))
+                throw new InvalidOperationException("Telegram did not confirm the menu update.");
         }
         catch (HttpRequestException)
         {

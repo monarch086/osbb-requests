@@ -4,7 +4,7 @@ using OsbbRequests.Bot.Telegram;
 
 namespace OsbbRequests.Bot.Commands;
 
-public sealed class CommandProcessor(ICommandRepository repository, CommandHandler handler, ITelegramClient telegram)
+public sealed class CommandProcessor(ICommandRepository repository, CommandHandler handler, ITelegramClient telegram, string? complexId = null)
 {
     public async Task ProcessAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -25,6 +25,9 @@ public sealed class CommandProcessor(ICommandRepository repository, CommandHandl
         if (reply.Delivered)
             return;
 
+        if (complexId is not null)
+            await telegram.SetCommandMenuAsync(reply.ChatId,
+                await repository.IsResidentAsync(reply.UserId, complexId, cancellationToken), cancellationToken);
         await telegram.SendMessageAsync(reply.ChatId, reply.Text, cancellationToken, reply.Keyboard);
         await repository.MarkDeliveredAsync(reply.UpdateId, cancellationToken);
     }

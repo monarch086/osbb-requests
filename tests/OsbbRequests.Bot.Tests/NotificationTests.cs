@@ -170,6 +170,31 @@ public sealed class NotificationTests
     }
 
     [Fact]
+    public async Task ResidentApprovalUpdatesChatMenuBeforeSendingConfirmation()
+    {
+        var registration = new OsbbRequests.Shared.Models.ResidentRegistration("reference", 42, "complex", RegistrationStage.Approved,
+            5, Now, Now);
+        var work = Work() with { Notification = ResidentNotification.RegistrationApproved(registration) };
+        var repository = new MemoryNotifications(work);
+        var telegram = new NotificationTelegram();
+        telegram.BeforeSend = () => Assert.Equal((42L, true), Assert.Single(telegram.Menus));
+        await new NotificationProcessor(repository, telegram, timeProvider: new FixedClock()).RunAsync(default);
+        Assert.Single(telegram.Sent);
+        Assert.Equal("Delivered", Assert.Single(repository.Results).Disposition);
+    }
+
+    [Fact]
+    public async Task AdministratorAlertsDoNotOverwritePrivateResidentMenus()
+    {
+        var work = Work() with { Notification = Work().Notification with { AdministratorId = "admin", AdministratorEvent = AdministratorEvent.NewRequest } };
+        var repository = new MemoryNotifications(work);
+        var telegram = new NotificationTelegram();
+        await new NotificationProcessor(repository, telegram, timeProvider: new FixedClock()).RunAsync(default);
+        Assert.Empty(telegram.Menus);
+        Assert.Single(telegram.Sent);
+    }
+
+    [Fact]
     public async Task BroadcastIsExpandedWithoutSendingToPlaceholderChat()
     {
         var broadcast = Work() with { Notification = Work().Notification with { OwnerId = 0, AdministratorEvent = AdministratorEvent.NewRequest } };
@@ -381,6 +406,9 @@ public sealed class NotificationTests
     private sealed class FixedClock : TimeProvider { public override DateTimeOffset GetUtcNow() => Now; }
     private sealed class NotificationTelegram : ITelegramClient
     {
+        public List<(long ChatId, bool Registered)> Menus { get; } = [];
+        public Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken)
+        { Menus.Add((chatId, registered)); return Task.CompletedTask; }
         public List<(long ChatId, string Text)> Sent { get; } = [];
         public Exception? Error;
         public bool FailFirst;

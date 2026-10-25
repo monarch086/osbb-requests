@@ -73,18 +73,18 @@ POST /telegram/webhook
 
 ## Меню команд Telegram
 
-У приватному чаті кнопка меню відкриває `/start`, `/new`, `/my`, `/complex`, `/delete`, `/request`, `/categories`, `/register`, `/cancel` та `/help` з українськими описами. Номер можна передати одразу (`/request 123`) або надіслати наступним повідомленням після `/request` або `/delete`: бот попросить «Введіть номер заявки». Некоректний номер можна виправити наступним повідомленням; `/cancel` або інша команда припиняє очікування. `/my` без номера показує першу сторінку власних заявок із повним описом. У `/my` та `/complex` довгі описи автоматично зменшують кількість заявок на сторінці, щоб повідомлення разом із командою продовження не перевищувало 4096 символів. Наступна сторінка продовжує після останньої показаної заявки без пропусків. Меню не змінює перевірку доступу до заявок.
+У приватному чаті кнопка меню відкриває `/start`, `/new`, `/my`, `/complex`, `/delete`, `/request`, `/register`, `/cancel` та `/help` з українськими описами. Номер можна передати одразу (`/request 123`) або надіслати наступним повідомленням після `/request` або `/delete`: бот попросить «Введіть номер заявки». Некоректний номер можна виправити наступним повідомленням; `/cancel` або інша команда припиняє очікування. `/my` без номера показує першу сторінку власних заявок із повним описом. У `/my` та `/complex` довгі описи автоматично зменшують кількість заявок на сторінці, щоб повідомлення разом із командою продовження не перевищувало 4096 символів. Наступна сторінка продовжує після останньої показаної заявки без пропусків. Для схвалених мешканців персональне меню не містить `/start`; у загальному меню для початку реєстрації ця команда залишається. `/categories` відсутня в обох меню. Введення цих команд вручну продовжує працювати. Меню не змінює перевірку доступу до заявок.
 
 Після першого деплою або зміни переліку команд налаштуйте меню окремим скриптом із кореня репозиторію:
 
 ```bash
 # Попередній перегляд без читання токена й без змін у Telegram.
-python3 scripts/configure-telegram-menu.py --stage dev --region eu-central-1 --bot-username zeleniy_ostriv2_bot
+python3 scripts/configure-telegram-menu.py --stage dev --region eu-central-1 --bot-username zeleniy_ostriv2_bot --include-residents
 # Застосування та перевірка налаштувань.
-python3 scripts/configure-telegram-menu.py --stage dev --region eu-central-1 --bot-username zeleniy_ostriv2_bot --apply
+python3 scripts/configure-telegram-menu.py --stage dev --region eu-central-1 --bot-username zeleniy_ostriv2_bot --include-residents --apply
 ```
 
-Токен читається з `/osbb-requests/<stage>/telegram-bot-token` у SSM лише в пам'ять; оператору потрібні відповідні AWS credentials і дозвіл читання SecureString. Перед змінами скрипт звіряє `getMe` з `--bot-username`, налаштовує `setMyCommands` для `all_private_chats` (fallback та `uk`) і кнопку `setChatMenuButton`, потім перевіряє результат через read API. Команди не запускаються, повідомлення мешканцям не надсилаються. Для іншого stage вкажіть його бот. Довідка API: [меню команд](https://core.telegram.org/bots/api#setmycommands), [кнопка меню](https://core.telegram.org/bots/api#setchatmenubutton).
+Токен читається з `/osbb-requests/<stage>/telegram-bot-token` у SSM лише в пам'ять; оператору потрібні відповідні AWS credentials і дозвіл читання SecureString. Перед змінами скрипт звіряє `getMe` з `--bot-username`, налаштовує `setMyCommands` для `all_private_chats` (fallback та `uk`) і кнопку `setChatMenuButton`, потім перевіряє результат через read API. Команди не запускаються, повідомлення мешканцям не надсилаються. Для іншого stage вкажіть його бот. Перелік команд спільний для воркера й скрипта: `src/OsbbRequests.Bot/Telegram/command-menu.json`. Після backend-деплою воркер команд синхронізує меню чату за поточним membership, а воркер сповіщень встановлює меню мешканця перед підтвердженням схвалення та іншими приватними сповіщеннями. Успішні оновлення кешуються в межах теплого запуску Lambda. Для оновлення меню всіх уже схвалених мешканців без очікування їхньої наступної взаємодії запустіть скрипт із `--include-residents --apply` (спочатку dry run без `--apply`). Він читає каталог через Query, змінює chat scope для fallback та `uk` і перевіряє результат. Якщо BUILDING_ID налаштовано вручну, передайте `--complex-id`. При 429 або іншій помилці скрипт завершується; пізніше його можна безпечно повторити. Довідка API: [меню команд](https://core.telegram.org/bots/api#setmycommands), [кнопка меню](https://core.telegram.org/bots/api#setchatmenubutton).
 
 ## Прив’язка заявки
 

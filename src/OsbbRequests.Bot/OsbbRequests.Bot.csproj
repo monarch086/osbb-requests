@@ -4,6 +4,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Telegram/command-menu.json" />
     <ProjectReference Include="../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="3.0.1" />
     <PackageReference Include="Amazon.Lambda.SQSEvents" Version="2.2.0" />
