@@ -172,7 +172,7 @@ public sealed class ResidentProfileTests
         Assert.DoesNotContain(writes, w => w.Put?.Item.ContainsKey("requestBuildingId") == true);
     }
     [Fact]
-    public async Task RestoringDeletedProfileKeepsAllEarlierRequestsAnonymous()
+    public async Task RepeatRegistrationMakesCurrentProfileAvailableForExistingRequests()
     {
         var (repo, processor) = Setup();
         repo.Registrations[42] = Original with
@@ -197,8 +197,7 @@ public sealed class ResidentProfileTests
         Assert.False(profile.PersonalDataDeleted);
         Assert.Equal("Іван", profile.FirstName);
         Assert.Equal(Now, profile.PersonalDataDeletedAt);
-        Assert.True(profile.IsAnonymousFor(Now.AddHours(-1)));
-        Assert.False(profile.IsAnonymousFor(Now.AddHours(1)));
+        Assert.False(profile.HasDeletedPersonalData);
     }
 
     [Fact]
@@ -250,7 +249,7 @@ public sealed class ResidentProfileTests
         Assert.Contains(42, repo.Residents);
         Assert.Equal((42L, true), telegram.Menus[^1]);
         Assert.Single(repo.Requests);
-        Assert.True(repo.Registrations[42].IsAnonymousFor(repo.Requests[0].CreatedAt));
+        Assert.False(repo.Registrations[42].HasDeletedPersonalData);
     }
 
     private sealed class CaptureDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)

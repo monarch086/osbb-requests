@@ -162,17 +162,17 @@ public sealed class RequestHistoryTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task DeletedDataLabelPersistsForOldRequestsEvenAfterProfileIsRestored(bool deleted)
+    [InlineData(RegistrationStage.Deleted, true)]
+    [InlineData(RegistrationStage.Approved, true)]
+    [InlineData(RegistrationStage.AwaitingFirstName, false)]
+    [InlineData(RegistrationStage.Pending, false)]
+    [InlineData(RegistrationStage.Rejected, false)]
+    [InlineData(RegistrationStage.Cancelled, false)]
+    public async Task DeletedDataLabelRemainsUntilRepeatRegistrationIsApproved(RegistrationStage stage, bool deleted)
     {
         using var db = new HistoryDynamo
         {
-            Resident = Resident with
-            {
-                PersonalDataDeleted = deleted,
-                PersonalDataDeletedAt = Request.CreatedAt.AddDays(1)
-            },
+            Resident = Resident with { Stage = stage, PersonalDataDeleted = deleted, PersonalDataDeletedAt = Request.CreatedAt.AddDays(1) },
             Items = [Created()]
         };
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
@@ -182,6 +182,30 @@ public sealed class RequestHistoryTests
         Assert.Null(author.BuildingNumber);
         var entry = Assert.Single(await store.HistoryAsync(Request, default));
         Assert.Equal("Мешканець видалив свої дані", entry["actor"]);
+    }
+
+    [Fact]
+    public async Task RepeatRegistrationShowsCurrentNameAndAddressOnOldRequestsAndCreationHistory()
+    {
+        using var db = new HistoryDynamo
+        {
+            Resident = Resident with
+            {
+                Id = "new-registration",
+                FirstName = "Іван",
+                LastName = "Новий",
+                BuildingNumber = "4Д",
+                ApartmentNumber = "125",
+                PersonalDataDeletedAt = Request.CreatedAt.AddDays(1)
+            },
+            Items = [Created()]
+        };
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var author = await store.GetRequestAuthorAsync(Request, default);
+        Assert.Equal(new RequestAuthor("Іван", "Новий", "4Д", "125"), author);
+        var entry = Assert.Single(await store.HistoryAsync(Request, default));
+        Assert.Equal("Іван Новий", entry["actor"]);
+        Assert.DoesNotContain("HasDeletedPersonalData", JsonSerializer.Serialize(db.Resident));
     }
 
     [Fact]

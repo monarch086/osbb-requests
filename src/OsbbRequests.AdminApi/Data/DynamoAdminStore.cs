@@ -332,7 +332,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         if (profile is null) return null;
         var resident = Payload<ResidentRegistration>(profile);
         if (resident.BuildingId != building || resident.UserId != request.OwnerId) return null;
-        return resident.IsAnonymousFor(request.CreatedAt) ? new(null, null, null, null, true)
+        return resident.HasDeletedPersonalData ? new(null, null, null, null, true)
             : new(resident.FirstName?.Trim(), resident.LastName?.Trim(), resident.BuildingNumber, resident.ApartmentNumber);
     }
     public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
@@ -394,7 +394,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
                 {
                     var name = string.Join(" ", new[] { resident.FirstName, resident.LastName }
                         .Where(part => !string.IsNullOrWhiteSpace(part)).Select(part => part!.Trim()));
-                    if (resident.IsAnonymousFor(request.CreatedAt)) creatorName = "Мешканець видалив свої дані";
+                    if (resident.HasDeletedPersonalData) creatorName = "Мешканець видалив свої дані";
                     else if (name.Length > 0) creatorName = name;
                 }
             }

@@ -23,5 +23,7 @@ public sealed record ResidentRegistration(
     string? Phone = null, string? FirstName = null, string? LastName = null, string? DecisionReason = null,
     string? BuildingNumber = null, string? ApartmentNumber = null, bool PersonalDataDeleted = false, DateTimeOffset? PersonalDataDeletedAt = null, DateTimeOffset? ApprovedAt = null)
 {
-    public bool IsAnonymousFor(DateTimeOffset createdAt) => PersonalDataDeleted || PersonalDataDeletedAt >= createdAt;
+    [JsonIgnore]
+    public bool HasDeletedPersonalData => PersonalDataDeleted || Stage == RegistrationStage.Deleted ||
+        PersonalDataDeletedAt is not null && Stage != RegistrationStage.Approved;
 }

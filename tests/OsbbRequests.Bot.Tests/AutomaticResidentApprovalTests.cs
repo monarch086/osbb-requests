@@ -129,7 +129,7 @@ public sealed class AutomaticResidentApprovalTests
         var outcome = await new CommandHandler(repo, "OsbbBot", "building", new FixedClock()).HandleAsync(Message(1, "/register"), default);
         Assert.NotNull(outcome.Registration);
         Assert.False(outcome.Registration.Value.PersonalDataDeleted);
-        Assert.True(outcome.Registration.Value.IsAnonymousFor(Now));
+        Assert.True(outcome.Registration.Value.HasDeletedPersonalData);
         Assert.Equal(RegistrationStage.AwaitingPhone, outcome.Registration.Value.Stage);
     }
 
