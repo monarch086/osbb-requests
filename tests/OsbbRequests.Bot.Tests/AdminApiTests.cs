@@ -400,6 +400,25 @@ public sealed class AdminApiTests
         Assert.Equal(200, result.StatusCode);
     }
 
+    [Fact]
+    public async Task RequestDetailsExposeAuthorOnlyToActiveAdministrators()
+    {
+        var store = new FakeStore();
+        foreach (var user in new string?[] { null, "target" })
+        {
+            var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/7", user: user), default));
+            Assert.Equal(user is null ? 401 : 403, error.Status);
+        }
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/99/7"), default);
+        using var json = JsonDocument.Parse(response.Body);
+        var author = json.RootElement.GetProperty("author");
+        Assert.Equal("Олена", author.GetProperty("firstName").GetString());
+        Assert.Equal("4Д", author.GetProperty("buildingNumber").GetString());
+        Assert.Equal("125", author.GetProperty("apartmentNumber").GetString());
+        Assert.False(author.TryGetProperty("phone", out _));
+        Assert.False(author.TryGetProperty("telegramChatId", out _));
+    }
+
     private sealed class FakeIdentity : IIdentityProvider
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
     private sealed class FakeStore : IAdminStore
@@ -426,6 +445,7 @@ public sealed class AdminApiTests
         public Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct) => Task.CompletedTask;
         public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) { LastFilters = filters; return Task.FromResult(new Page<ManagedRequest>([], null)); }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
+        public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<RequestAuthor?>(new("Олена", "Ковальчук", "4Д", "125"));
         public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
         public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct) { LastHistoryRequest = request; return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]); }
     }

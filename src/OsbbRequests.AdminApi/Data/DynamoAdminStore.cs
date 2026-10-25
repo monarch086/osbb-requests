@@ -210,7 +210,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }, ct);
         var residents = (result.Items ?? []).Select(Payload<ResidentRegistration>)
             .Where(r => r.BuildingId == building && r.Stage == RegistrationStage.Approved)
-            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture))).ToList();
+            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture), r.BuildingNumber, r.ApartmentNumber)).ToList();
         return new Page<RegisteredResident>(residents, Encode(result.LastEvaluatedKey));
     }
 
@@ -318,7 +318,17 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var item = await Get(dataTable, Key("USER#" + ownerId.ToString(CultureInfo.InvariantCulture), RequestKey(requestId)), ct);
         if (item is null) return null;
         var result = Managed(item);
-        return result.Request.BuildingId == building ? result : null;
+        return result.Request.BuildingId == building && result.Request.OwnerId == ownerId && result.Request.Id == requestId ? result : null;
+    }
+    public async Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct)
+    {
+        if (request.BuildingId != building) throw new ApiError(404, "Заявку не знайдено.");
+        var profile = await Get(dataTable, Key("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION"), ct);
+        if (profile is null) return null;
+        var resident = Payload<ResidentRegistration>(profile);
+        return resident.BuildingId == building && resident.UserId == request.OwnerId
+            ? new(resident.FirstName?.Trim(), resident.LastName?.Trim(), resident.BuildingNumber, resident.ApartmentNumber)
+            : null;
     }
     public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
     {

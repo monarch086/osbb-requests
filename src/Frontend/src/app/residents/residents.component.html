@@ -35,6 +35,16 @@
         >
           <div>
             <h3 class="h6">{{ r.firstName }} {{ r.lastName }}</h3>
+            @if (r.buildingNumber || r.apartmentNumber) {
+              <p class="small text-body-secondary">
+                @if (r.buildingNumber) {
+                  Будинок {{ r.buildingNumber }}
+                }
+                @if (r.apartmentNumber) {
+                  · Квартира {{ r.apartmentNumber }}
+                }
+              </p>
+            }
             <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
             <p class="text-body-secondary small mt-2 mb-1">
               Telegram Chat Id: {{ r.telegramChatId || '—' }}
@@ -80,6 +90,16 @@
         >
           <div>
             <h3 class="h6">{{ resident.firstName }} {{ resident.lastName }}</h3>
+            @if (resident.buildingNumber || resident.apartmentNumber) {
+              <p class="small text-body-secondary">
+                @if (resident.buildingNumber) {
+                  Будинок {{ resident.buildingNumber }}
+                }
+                @if (resident.apartmentNumber) {
+                  · Квартира {{ resident.apartmentNumber }}
+                }
+              </p>
+            }
             @if (resident.phone) {
               <a [href]="'tel:' + resident.phone">{{ resident.phone }}</a>
             }

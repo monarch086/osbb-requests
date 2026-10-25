@@ -17,6 +17,7 @@ public interface IAdminStore
     Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct);
     Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct);
     Task<ManagedRequest?> GetRequestAsync(long ownerId, long requestId, CancellationToken ct);
+    Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct);
     Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct);
     Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct);
 }

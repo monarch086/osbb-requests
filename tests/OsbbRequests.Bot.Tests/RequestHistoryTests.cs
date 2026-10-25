@@ -109,6 +109,58 @@ public sealed class RequestHistoryTests
         Assert.Null(db.Get);
     }
 
+    [Fact]
+    public async Task RequestAuthorUsesPrivateProfileWithAddressAndDoesNotExposePhoneOrTelegramId()
+    {
+        using var db = new HistoryDynamo { Resident = Resident with { BuildingNumber = "4Д", ApartmentNumber = "125" } };
+        var author = await new DynamoAdminStore(db, "admins", "data", "complex").GetRequestAuthorAsync(Request, default);
+        Assert.Equal(new RequestAuthor("Олена", "Ковальчук", "4Д", "125"), author);
+        Assert.Equal("USER#99", db.Get!.Key["pk"].S);
+        Assert.True(db.Get.ConsistentRead);
+        var json = JsonSerializer.Serialize(author);
+        Assert.DoesNotContain(Resident.Phone!, json);
+        Assert.DoesNotContain("UserId", json);
+        Assert.DoesNotContain("Phone", json);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("other-complex")]
+    [InlineData("other-owner")]
+    public async Task RequestAuthorDoesNotExposeForeignOrMissingProfile(string kind)
+    {
+        using var db = new HistoryDynamo
+        {
+            Resident = kind switch
+            {
+                "missing" => null,
+                "other-complex" => Resident with { BuildingId = "other" },
+                _ => Resident with { UserId = 100 }
+            }
+        };
+        Assert.Null(await new DynamoAdminStore(db, "admins", "data", "complex").GetRequestAuthorAsync(Request, default));
+    }
+
+    [Fact]
+    public async Task RequestAuthorRejectsForeignRequestBeforeReadingProfile()
+    {
+        using var db = new HistoryDynamo { Resident = Resident };
+        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+            .GetRequestAuthorAsync(Request with { BuildingId = "other" }, default));
+        Assert.Equal(404, error.Status);
+        Assert.Null(db.Get);
+    }
+
+    [Fact]
+    public async Task OldResidentStillHasNameButNoInventedBuildingOrApartment()
+    {
+        using var db = new HistoryDynamo { Resident = Resident };
+        var author = await new DynamoAdminStore(db, "admins", "data", "complex").GetRequestAuthorAsync(Request, default);
+        Assert.Equal("Олена", author!.FirstName);
+        Assert.Null(author.BuildingNumber);
+        Assert.Null(author.ApartmentNumber);
+    }
+
     private sealed class HistoryDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public ResidentRegistration? Resident;

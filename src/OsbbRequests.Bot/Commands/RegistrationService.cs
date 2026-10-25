@@ -1,4 +1,5 @@
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Domain;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using OsbbRequests.Bot.Models;
@@ -36,6 +37,8 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             Phone = null,
             FirstName = null,
             LastName = null,
+            BuildingNumber = null,
+            ApartmentNumber = null,
             Version = current.Version + 1,
             UpdatedAt = clock.GetUtcNow()
         };
@@ -74,32 +77,50 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
                     return new CommandOutcome("Введіть своє ім’я текстом: від 1 до 80 символів, без цифр.", Keyboard: ReplyKeyboard.Remove);
                 next = current with { FirstName = envelope.Text.Trim(), Stage = RegistrationStage.AwaitingLastName };
                 break;
-            default:
+            case RegistrationStage.AwaitingLastName:
                 if (envelope.Contact is not null || !ValidName(envelope.Text))
                     return new CommandOutcome("Введіть своє прізвище текстом: від 1 до 80 символів, без цифр.", Keyboard: ReplyKeyboard.Remove);
-                next = current with { LastName = envelope.Text.Trim(), Stage = RegistrationStage.Pending };
+                next = current with { LastName = envelope.Text.Trim(), Stage = RegistrationStage.AwaitingBuilding };
                 break;
+            case RegistrationStage.AwaitingBuilding:
+                var building = envelope.Text.Trim();
+                if (building.StartsWith("Будинок ", StringComparison.OrdinalIgnoreCase)) building = building[8..].Trim();
+                building = building.ToUpperInvariant();
+                if (envelope.Contact is not null || !ComplexLayout.BuildingNumbers.Contains(building, StringComparer.Ordinal))
+                    return Prompt(RegistrationStage.AwaitingBuilding);
+                next = current with { BuildingNumber = building, Stage = RegistrationStage.AwaitingApartment };
+                break;
+            case RegistrationStage.AwaitingApartment:
+                if (envelope.Contact is not null || !int.TryParse(envelope.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var apartment) || apartment <= 0)
+                    return new CommandOutcome("Введіть номер квартири цілим додатним числом, наприклад 125.", Keyboard: ReplyKeyboard.Remove);
+                next = current with { ApartmentNumber = apartment.ToString(CultureInfo.InvariantCulture), Stage = RegistrationStage.Pending };
+                break;
+            default:
+                throw new InvalidOperationException("Unknown registration step.");
         }
         next = next with { Version = current.Version + 1, UpdatedAt = clock.GetUtcNow() };
         var outcome = next.Stage == RegistrationStage.Pending
             ? new CommandOutcome($"Дякуємо, {next.FirstName} {next.LastName}!\n" +
-                $"Телефон: {next.Phone}\n\nЗапит на доступ передано адміністратору. " +
+                $"Телефон: {next.Phone}\nБудинок: {next.BuildingNumber}, квартира: {next.ApartmentNumber}\n\nЗапит на доступ передано адміністратору. " +
                 "Після перевірки даних адміністратор надасть доступ. Перевірити стан: /start.", Keyboard: ReplyKeyboard.Remove)
             : Prompt(next.Stage);
         return outcome with { Registration = new RegistrationChange(next, current.Version) };
     }
 
     public static bool IsDraft(RegistrationStage stage) => stage is RegistrationStage.AwaitingPhone or
-        RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName;
+        RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName or RegistrationStage.AwaitingBuilding or RegistrationStage.AwaitingApartment;
 
     private static CommandOutcome Prompt(RegistrationStage stage) => stage switch
     {
-        RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації в системі потрібні ваш мобільний номер, ім’я та прізвище. " +
+        RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації в системі потрібні ваш мобільний номер, ім’я, прізвище, будинок і номер квартири. " +
             "Їх побачить адміністратор ОСББ для перевірки та надання доступу.\n\n" +
-            "Натисніть «Поділитися номером телефону», потім введіть ім’я та прізвище. Скасувати: /cancel.",
+            "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, оберіть будинок і введіть номер квартири. Скасувати: /cancel.",
             Keyboard: ReplyKeyboard.RequestContact),
         RegistrationStage.AwaitingFirstName => new CommandOutcome("Дякуємо! Тепер введіть своє ім’я.", Keyboard: ReplyKeyboard.Remove),
-        _ => new CommandOutcome("Введіть своє прізвище.", Keyboard: ReplyKeyboard.Remove)
+        RegistrationStage.AwaitingLastName => new CommandOutcome("Введіть своє прізвище.", Keyboard: ReplyKeyboard.Remove),
+        RegistrationStage.AwaitingBuilding => new CommandOutcome("У якому будинку ви проживаєте? Оберіть 4Б, 4В, 4Г або 4Д.", Keyboard: ReplyKeyboard.RegistrationBuilding),
+        RegistrationStage.AwaitingApartment => new CommandOutcome("Введіть номер своєї квартири, наприклад 125.", Keyboard: ReplyKeyboard.Remove),
+        _ => throw new InvalidOperationException("Unknown registration step.")
     };
 
     private static CommandOutcome Status(ResidentRegistration registration) => registration.Stage switch

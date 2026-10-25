@@ -41,13 +41,19 @@ public sealed class RegistrationTests
         Assert.Equal(ReplyKeyboard.Remove, repository.Replies[2].Keyboard);
         await processor.ProcessAsync(Message(3, "Олена"), CancellationToken.None);
         await processor.ProcessAsync(Message(4, "Ковальчук"), CancellationToken.None);
+        Assert.Equal(RegistrationStage.AwaitingBuilding, repository.Registrations[99].Stage);
+        await processor.ProcessAsync(Message(5, "Будинок 4В"), CancellationToken.None);
+        Assert.Equal(RegistrationStage.AwaitingApartment, repository.Registrations[99].Stage);
+        await processor.ProcessAsync(Message(6, "125"), CancellationToken.None);
         var registration = repository.Registrations[99];
+        Assert.Equal("4В", registration.BuildingNumber);
+        Assert.Equal("125", registration.ApartmentNumber);
         Assert.Equal("+380671234567", registration.Phone);
         Assert.Equal("Олена", registration.FirstName);
         Assert.Equal("Ковальчук", registration.LastName);
         Assert.Equal(RegistrationStage.Pending, registration.Stage);
         Assert.DoesNotContain(99, repository.Residents);
-        await processor.ProcessAsync(Message(5, "/new 4В | 12 | сантехніка | двір | Протікає труба"), CancellationToken.None);
+        await processor.ProcessAsync(Message(7, "/new 4В | 12 | сантехніка | двір | Протікає труба"), CancellationToken.None);
         Assert.Empty(repository.Requests);
         Assert.Contains("очікує", telegram.Messages[^1].Text);
         Assert.DoesNotContain("Telegram ID", telegram.Messages[^1].Text);
@@ -117,8 +123,10 @@ public sealed class RegistrationTests
         Assert.Equal(RegistrationStage.AwaitingFirstName, repository.Registrations[99].Stage);
         await processor.ProcessAsync(Message(4, "Анна-Марія"), CancellationToken.None);
         await processor.ProcessAsync(Message(5, "О’Коннор"), CancellationToken.None);
+        await processor.ProcessAsync(Message(6, "4Г"), CancellationToken.None);
+        await processor.ProcessAsync(Message(7, "1"), CancellationToken.None);
         var before = repository.Registrations[99];
-        await processor.ProcessAsync(Message(6, "/register"), CancellationToken.None);
+        await processor.ProcessAsync(Message(8, "/register"), CancellationToken.None);
         Assert.Equal(before, repository.Registrations[99]);
         Assert.Contains("очікує", telegram.Messages[^1].Text);
     }
@@ -206,6 +214,98 @@ public sealed class RegistrationTests
             ReplyKeyboard.Remove);
         using var removed = JsonDocument.Parse(handler.Sent!);
         Assert.True(removed.RootElement.GetProperty("reply_markup").GetProperty("remove_keyboard").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("4Б")]
+    [InlineData("4В")]
+    [InlineData("4Г")]
+    [InlineData("4Д")]
+    public async Task BuildingSelectionResumesAndDoesNotAdvanceTwiceOnDuplicateUpdate(string building)
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingBuilding, 4,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "+380671234567", "Олена", "Ковальчук");
+        await processor.ProcessAsync(Message(1, "/start"), default);
+        Assert.Equal(ReplyKeyboard.RegistrationBuilding, repository.Replies[1].Keyboard);
+        var selection = Message(2, "Будинок " + building);
+        await processor.ProcessAsync(selection, default);
+        await processor.ProcessAsync(selection, default);
+        Assert.Equal(building, repository.Registrations[99].BuildingNumber);
+        Assert.Equal(5, repository.Registrations[99].Version);
+        Assert.Equal(RegistrationStage.AwaitingApartment, repository.Registrations[99].Stage);
+        await processor.ProcessAsync(Message(3, "/start"), default);
+        Assert.Contains("квартири", repository.Replies[3].Text);
+        await processor.ProcessAsync(Message(4, "00125"), default);
+        Assert.Equal("125", repository.Registrations[99].ApartmentNumber);
+        Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
+        Assert.Equal(6, repository.Registrations[99].Version);
+    }
+
+    [Theory]
+    [InlineData("4А")]
+    [InlineData("4B")]
+    [InlineData("1")]
+    [InlineData("Весь комплекс")]
+    public async Task InvalidResidentialBuildingCannotAdvanceRegistration(string text)
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingBuilding, 4, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        await processor.ProcessAsync(Message(1, text), default);
+        Assert.Equal(RegistrationStage.AwaitingBuilding, repository.Registrations[99].Stage);
+        Assert.Null(repository.Registrations[99].BuildingNumber);
+        Assert.Equal(4, repository.Registrations[99].Version);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("1.5")]
+    [InlineData("квартира")]
+    [InlineData("2147483648")]
+    public async Task InvalidApartmentCannotSubmitRegistration(string text)
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingApartment, 5,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, BuildingNumber: "4Д");
+        await processor.ProcessAsync(Message(1, text), default);
+        Assert.Equal(RegistrationStage.AwaitingApartment, repository.Registrations[99].Stage);
+        Assert.Null(repository.Registrations[99].ApartmentNumber);
+    }
+
+    [Fact]
+    public async Task CancelClearsResidentialAddressAndRemovesBuildingKeyboard()
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingApartment, 5,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, BuildingNumber: "4Д", ApartmentNumber: "125");
+        await processor.ProcessAsync(Message(1, "/cancel"), default);
+        Assert.Null(repository.Registrations[99].BuildingNumber);
+        Assert.Null(repository.Registrations[99].ApartmentNumber);
+        Assert.Equal(RegistrationStage.Cancelled, repository.Registrations[99].Stage);
+        Assert.Equal(ReplyKeyboard.Remove, repository.Replies[1].Keyboard);
+    }
+
+    [Fact]
+    public void OldProfileHasNoResidentialAddressAndOldEnumValuesRemainCompatible()
+    {
+        var old = JsonSerializer.Deserialize<ResidentRegistration>("{\"Id\":\"old\",\"UserId\":99,\"BuildingId\":\"building\",\"Stage\":\"Approved\",\"Version\":4}")!;
+        Assert.Null(old.BuildingNumber);
+        Assert.Null(old.ApartmentNumber);
+        Assert.Equal(3, (int)RegistrationStage.Pending);
+        Assert.Equal(4, (int)RegistrationStage.Approved);
+    }
+
+    [Fact]
+    public async Task ResidentialBuildingKeyboardContainsOnlyActualBuildings()
+    {
+        using var handler = new CaptureHttp();
+        using var http = new HttpClient(handler);
+        await new TelegramClient(http, new FakeSecret("token")).SendMessageAsync(99, "Будинок", default, ReplyKeyboard.RegistrationBuilding);
+        using var json = JsonDocument.Parse(handler.Sent!);
+        var buttons = json.RootElement.GetProperty("reply_markup").GetProperty("keyboard").EnumerateArray()
+            .SelectMany(row => row.EnumerateArray()).Select(button => button.GetProperty("text").GetString()).ToArray();
+        Assert.Equal(new[] { "Будинок 4Б", "Будинок 4В", "Будинок 4Г", "Будинок 4Д" }, buttons);
     }
 
     private sealed class CaptureHttp : HttpMessageHandler

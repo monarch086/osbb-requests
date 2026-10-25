@@ -28,6 +28,19 @@
           }
         </p>
         <p class="description">{{ draft.description }}</p>
+        @if (authorLoading) {
+          <p class="small text-body-secondary" role="status">Завантажуємо дані автора…</p>
+        } @else {
+          <p class="small text-body-secondary text-break">
+            <strong>Автор:</strong> {{ authorName }}
+            @if (author?.buildingNumber) {
+              <span> · Будинок {{ author?.buildingNumber }}</span>
+            }
+            @if (author?.apartmentNumber) {
+              <span> · Квартира {{ author?.apartmentNumber }}</span>
+            }
+          </p>
+        }
         @if (error) {
           <div class="alert alert-danger" role="alert">{{ error }}</div>
         }

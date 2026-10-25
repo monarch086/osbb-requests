@@ -31,6 +31,8 @@ export interface Registration {
   firstName: string;
   lastName: string;
   phone: string;
+  buildingNumber?: string | null;
+  apartmentNumber?: string | null;
   updatedAt: string;
   version: number;
 }
@@ -40,6 +42,8 @@ export interface RegisteredResident {
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
+  buildingNumber?: string | null;
+  apartmentNumber?: string | null;
   registeredAt: string;
 }
 export interface Ticket {
@@ -60,8 +64,15 @@ export interface Ticket {
   priority: string;
   plannedDate: string | null;
 }
+export interface RequestAuthor {
+  firstName: string | null;
+  lastName: string | null;
+  buildingNumber: string | null;
+  apartmentNumber: string | null;
+}
 export interface ManagedTicket {
   request: Ticket;
+  author?: RequestAuthor | null;
   version: number;
 }
 export interface Page<T> {

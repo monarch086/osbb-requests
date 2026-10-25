@@ -15,7 +15,7 @@ public sealed class ResidentDirectoryTests
 {
     private static readonly ResidentRegistration Registration = new(new string('a', 32), 99, "building",
         RegistrationStage.Pending, 4, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
-        "+380500000000", "Олена", "Тестова");
+        "+380500000000", "Олена", "Тестова", BuildingNumber: "4В", ApartmentNumber: "125");
     private static readonly AdminUser Actor = new("admin", "admin@example.org", "Admin", true, false, 1);
     private static Dictionary<string, AttributeValue> Item(ResidentRegistration registration) => new()
     {
@@ -62,6 +62,8 @@ public sealed class ResidentDirectoryTests
         var resident = JsonSerializer.Deserialize<ResidentRegistration>(directory.Put.Item["payload"].S)!;
         Assert.Equal(RegistrationStage.Approved, resident.Stage);
         Assert.Equal(Registration.FirstName, resident.FirstName);
+        Assert.Equal(Registration.BuildingNumber, resident.BuildingNumber);
+        Assert.Equal(Registration.ApartmentNumber, resident.ApartmentNumber);
         Assert.Equal(5, resident.Version);
         Assert.False(directory.Put.Item.ContainsKey("expiresAt"));
     }
@@ -110,6 +112,8 @@ public sealed class ResidentDirectoryTests
         Assert.Single(result.Items);
         Assert.Equal(Registration.Phone, result.Items[0].Phone);
         Assert.Equal("99", result.Items[0].TelegramChatId);
+        Assert.Equal("4В", result.Items[0].BuildingNumber);
+        Assert.Equal("125", result.Items[0].ApartmentNumber);
         Assert.NotNull(result.Cursor);
         await store.ListResidentsAsync(result.Cursor, default);
         Assert.Equal("RESIDENT#00000000000000000099", db.Query.ExclusiveStartKey["sk"].S);

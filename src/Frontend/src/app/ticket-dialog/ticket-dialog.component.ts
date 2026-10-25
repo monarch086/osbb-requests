@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
-import { Ticket } from '../api.service';
+import { Ticket, RequestAuthor } from '../api.service';
 import {
   ticketStatuses,
   statusLabels,
@@ -25,6 +25,14 @@ export class TicketDialogComponent {
     userId: string;
     email: string;
   }[] = [];
+  @Input() author: RequestAuthor | null = null;
+  @Input() authorLoading = false;
+  get authorName(): string {
+    return (
+      [this.author?.firstName, this.author?.lastName].filter(Boolean).join(' ').trim() ||
+      'Мешканець'
+    );
+  }
   @Input() history: Record<string, string>[] = [];
   @Input() saving = false;
   @Input() error = '';

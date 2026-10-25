@@ -9,7 +9,8 @@ public enum ReplyKeyboard
     RequestScope,
     RequestFloor,
     RequestCategory,
-    RequestEntrance
+    RequestEntrance,
+    RegistrationBuilding
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion);

@@ -156,7 +156,7 @@ public sealed class InfrastructureTests
         using var client = new CapturingDynamo();
         var repository = new DynamoCommandRepository(client, "data");
         var registration = new ResidentRegistration(new string('a', 32), 99, "building", RegistrationStage.Pending,
-            4, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "+380671234567", "Олена", "Ковальчук");
+            4, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "+380671234567", "Олена", "Ковальчук", BuildingNumber: "4Г", ApartmentNumber: "125");
         var result = await repository.CommitAsync(new CommandEnvelope(100, 99, 99, "Ковальчук"),
             new CommandOutcome("Очікуйте перевірки", Registration: new RegistrationChange(registration, 3),
                 Keyboard: ReplyKeyboard.Remove), CancellationToken.None);
@@ -166,6 +166,12 @@ public sealed class InfrastructureTests
         var profile = Assert.Single(writes, item => item.Put.Item["sk"].S == "REGISTRATION").Put;
         Assert.Equal("#version = :expected", profile.ConditionExpression);
         Assert.Equal("3", profile.ExpressionAttributeValues[":expected"].N);
+        foreach (var write in writes.Where(item => item.Put.Item.GetValueOrDefault("sk")?.S is "REGISTRATION" or "META" || item.Put.Item.GetValueOrDefault("pk")?.S == "BUILDING#building"))
+        {
+            var saved = JsonSerializer.Deserialize<ResidentRegistration>(write.Put.Item["payload"].S)!;
+            Assert.Equal("4Г", saved.BuildingNumber);
+            Assert.Equal("125", saved.ApartmentNumber);
+        }
         Assert.Contains(writes, item => item.Put.Item["pk"].S == "BUILDING#building");
         Assert.Contains(writes, item => item.Put.Item["sk"].S == "META");
         Assert.DoesNotContain(writes, item => item.Put.Item["sk"].S == "MEMBERSHIP");

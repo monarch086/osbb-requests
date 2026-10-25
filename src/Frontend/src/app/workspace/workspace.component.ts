@@ -11,6 +11,7 @@ import {
   Registration,
   RegisteredResident,
   ManagedTicket,
+  RequestAuthor,
   Ticket,
   Page,
 } from '../api.service';
@@ -67,6 +68,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   selected: ManagedTicket | null = null;
   draft: Ticket | null = null;
   history: Record<string, string>[] = [];
+  author: RequestAuthor | null = null;
+  authorLoading = false;
   rejecting: Registration | null = null;
   filters: TicketFilters = {
     status: ['New', 'InProgress'],
@@ -79,6 +82,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   };
   private appliedFilters: TicketFilters = { ...this.filters, status: [...this.filters.status] };
   private loadSequence = 0;
+  private detailSequence = 0;
   get availablePages(): number {
     return this.pageCursors.length;
   }
@@ -134,6 +138,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.draft = null;
     this.rejecting = null;
     this.history = [];
+    this.author = null;
+    this.authorLoading = false;
     this.notice = '';
     this.sentMessageId = null;
   }
@@ -343,15 +349,21 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.draft = { ...ticket.request, entrance: ticket.request.entrance ?? null };
     this.history = [];
     this.error = '';
+    this.author = null;
+    this.authorLoading = true;
+    const sequence = ++this.detailSequence;
     const epoch = this.epoch;
-    try {
-      const data = await this.api.request<{
-        items: Record<string, string>[];
-      }>(this.ticketPath(ticket) + '/history');
-      if (epoch === this.epoch && this.selected === ticket) this.history = data.items;
-    } catch (e) {
-      if (epoch === this.epoch) this.error = errorMessage(e);
-    }
+    const [detail, history] = await Promise.allSettled([
+      this.api.request<ManagedTicket>(this.ticketPath(ticket)),
+      this.api.request<{ items: Record<string, string>[] }>(this.ticketPath(ticket) + '/history'),
+    ]);
+    if (epoch !== this.epoch || sequence !== this.detailSequence || this.selected !== ticket)
+      return;
+    this.authorLoading = false;
+    if (detail.status === 'fulfilled') this.author = detail.value.author ?? null;
+    else this.error = errorMessage(detail.reason);
+    if (history.status === 'fulfilled') this.history = history.value.items;
+    else this.error = errorMessage(history.reason);
   }
   async saveTicket(draft: Ticket): Promise<void> {
     const selected = this.selected;
