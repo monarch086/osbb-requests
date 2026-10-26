@@ -33,9 +33,9 @@ public sealed class ComplexRequestCommandTests
         repository.Requests.Add(Request(10, status: RequestStatus.Completed));
         repository.Requests.Add(Request(11, complex: "other"));
         var result = await Apply(repository, 1, "/COMPLEX@OsbbBot");
-        Assert.Contains("№7 — Нова", result.Reply);
-        Assert.Contains("№8 — В роботі", result.Reply);
-        Assert.Contains("Подано: 20.10.2026 13:07 (Київ)", result.Reply);
+        Assert.Contains("№7 - Нова", result.Reply);
+        Assert.Contains("№8 - В роботі", result.Reply);
+        Assert.Contains("Подано: 20.10.2026 13:07\n", result.Reply);
         Assert.Contains("Будинок 4Б", result.Reply);
         Assert.Contains("Весь комплекс", result.Reply);
         Assert.Contains("електрика: Біля ліфта", result.Reply);

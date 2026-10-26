@@ -126,7 +126,7 @@ def main():
     if not args.apply:
         print('Would configure private-chat command menu for @' + args.bot_username.lstrip('@') + ':')
         for command in COMMANDS:
-            print('/' + command['command'] + ' — ' + command['description'])
+            print('/' + command['command'] + ' - ' + command['description'])
         if args.include_residents:
             print('Would also configure existing approved residents: a resident menu without /start and with profile actions.')
         return

@@ -82,6 +82,6 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
     private static CommandOutcome Close(ResidentProfileDialog dialog, string text) => new(text, Keyboard: ReplyKeyboard.Remove,
         ProfileDialog: new(dialog with { Draft = null, Active = false, Version = dialog.Version + 1 }, dialog.Version));
     private static CommandOutcome DeletePrompt() => new("Видалити ім’я, прізвище, телефон, будинок і квартиру з профілю? Заявки залишаться, " +
-        "Доступ буде скасовано — для подальшої роботи потрібно зареєструватися заново. Автор заявок буде позначений як «Мешканець видалив свої дані».\n\nДля підтвердження натисніть «Видалити мої дані». Скасувати: /cancel.",
+        "Доступ буде скасовано - для подальшої роботи потрібно зареєструватися заново. Автор заявок буде позначений як «Мешканець видалив свої дані».\n\nДля підтвердження натисніть «Видалити мої дані». Скасувати: /cancel.",
         Keyboard: ReplyKeyboard.ProfileDeleteConfirmation);
 }

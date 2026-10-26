@@ -108,7 +108,7 @@ public sealed class RequestLookupService(ICommandRepository repository, string c
         var text = $"Заявка №{request.Id}\nСтатус: {CommandHandler.StatusLabel(request.Status)}\n" +
             $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance)}\nКатегорія: {request.Category}\n" +
             (string.IsNullOrEmpty(request.Location) ? "" : $"Місце: {request.Location}\n") +
-            $"Подано: {localDate:dd.MM.yyyy HH:mm} (Київ)\n\n{request.Description}";
+            $"Подано: {localDate:dd.MM.yyyy HH:mm}\n\n{request.Description}";
         if (!string.IsNullOrWhiteSpace(request.Resolution))
             text += "\n\nПояснення адміністратора: " + request.Resolution;
         return new CommandOutcome(text);

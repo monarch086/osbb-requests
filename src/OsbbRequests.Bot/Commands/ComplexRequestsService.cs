@@ -33,15 +33,15 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
         }
         var text = RequestListText.Build(page.Items.Count == 0
             ? "На цій сторінці немає відкритих заявок для мешканців комплексу."
-            : "Заявки комплексу — нові та в роботі:", page.Items.Select(Format).ToList(), NextCommand);
+            : "Заявки комплексу - нові та в роботі:", page.Items.Select(Format).ToList(), NextCommand);
         return new(text, Pagination: nextBefore is null ? null : new(userId, complexId, token, nextBefore));
     }
 
     private static string Format(PublicRequestSummary request)
     {
         var date = TimeZoneInfo.ConvertTime(request.CreatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
-        return $"№{request.Id} — {CommandHandler.StatusLabel(request.Status)}\n" +
-            $"Подано: {date:dd.MM.yyyy HH:mm} (Київ)\n" +
+        return $"№{request.Id} - {CommandHandler.StatusLabel(request.Status)}\n" +
+            $"Подано: {date:dd.MM.yyyy HH:mm}\n" +
             $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance)}\n" +
             $"{RequestListText.Limit(request.Category, 80)}" +
             (string.IsNullOrEmpty(request.Location) ? "" : ": " + RequestListText.Limit(request.Location, 200)) + "\n" + RequestListText.Limit(request.Description, 2000);

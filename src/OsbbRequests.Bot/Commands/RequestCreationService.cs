@@ -14,7 +14,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         "Або однією командою:\n/new 4В | 2 | 12 | сантехніка | Протікає труба\n" +
         "/new комплекс | - | електрика | Не працює освітлення\n\n" +
         "Під’їзди: 1, 2 або «Не зазначено»; для 4Б автоматично 1.\n" +
-        "Будинки: 4Б, 4В, 4Г, 4Д. Поверхи: 1–25 або «Парадне»; «-» — без поверху. Категорії: " + Categories +
+        "Будинки: 4Б, 4В, 4Г, 4Д. Поверхи: 1–25 або «Парадне»; «-» - без поверху. Категорії: " + Categories +
         ". Опис: 10–2000 символів. Заявка буде видимою для всіх мешканців комплексу.";
     public static bool IsActive(RequestDraft draft) => draft.Stage is not (RequestDraftStage.Completed or RequestDraftStage.Cancelled);
 

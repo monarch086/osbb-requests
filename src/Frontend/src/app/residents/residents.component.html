@@ -47,7 +47,7 @@
             }
             <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
             <p class="text-body-secondary small mt-2 mb-1">
-              Telegram Chat Id: {{ r.telegramChatId || '—' }}
+              Telegram Chat Id: {{ r.telegramChatId || '-' }}
             </p>
             <p class="text-body-secondary">Подано {{ date(r.updatedAt) }}</p>
           </div>
@@ -202,7 +202,7 @@
               <a [href]="'tel:' + resident.phone">{{ resident.phone }}</a>
             }
             <p class="text-body-secondary small mt-2 mb-1">
-              Telegram Chat Id: {{ resident.telegramChatId || '—' }}
+              Telegram Chat Id: {{ resident.telegramChatId || '-' }}
             </p>
             <p class="text-body-secondary small mt-2 mb-0">
               Реєстрацію підтверджено {{ date(resident.registeredAt) }}

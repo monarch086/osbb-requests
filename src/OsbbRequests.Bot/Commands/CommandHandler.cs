@@ -17,12 +17,12 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
     public const string Categories = RequestCreationService.Categories;
     public const string NewUsage = RequestCreationService.Usage;
     public const string Help = "Бот ЖК «Зелений острів 2».\n" +
-        "/start — початок роботи та реєстрація\n/help — довідка\n" +
-        "/edit_profile — змінити інформацію про себе\n/delete_profile — видалити інформацію про себе\n" +
-        "/cancel — скасувати поточний діалог\n" +
-        "/new — створити заявку для всіх мешканців комплексу: будинок або весь комплекс → поверх → категорія → опис\n" +
-        "/my — власні заявки\n/complex — відкриті заявки для мешканців комплексу\n" +
-        "/request номер — деталі власної заявки\n/delete номер — видалити власну нову заявку з підтвердженням\n" +
+        "/start - початок роботи та реєстрація\n/help - довідка\n" +
+        "/edit_profile - змінити інформацію про себе\n/delete_profile - видалити інформацію про себе\n" +
+        "/cancel - скасувати поточний діалог\n" +
+        "/new - створити заявку для всіх мешканців комплексу: будинок або весь комплекс → поверх → категорія → опис\n" +
+        "/my - власні заявки\n/complex - відкриті заявки для мешканців комплексу\n" +
+        "/request номер - деталі власної заявки\n/delete номер - видалити власну нову заявку з підтвердженням\n" +
         "Номер можна ввести одразу або наступним повідомленням після /request або /delete.\n\n" +
         "Для роботи із заявками завершіть реєстрацію. Фото та коментарі ще не підтримуються.";
 
@@ -92,7 +92,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             return new CommandOutcome("Заявок на цій сторінці немає. Створити заявку: /new.");
 
         var requests = page.Items.Where(r => r.BuildingId == buildingId && r.OwnerId == userId).ToList();
-        var lines = requests.Select(r => $"№{r.Id} — {StatusLabel(r.Status)}\n{ComplexLayout.Label(r.Scope, r.BuildingNumber, r.Floor, r.Entrance)}\n" +
+        var lines = requests.Select(r => $"№{r.Id} - {StatusLabel(r.Status)}\n{ComplexLayout.Label(r.Scope, r.BuildingNumber, r.Floor, r.Entrance)}\n" +
             RequestListText.Limit(r.Category, 80) + (string.IsNullOrEmpty(r.Location) ? "" : ": " + RequestListText.Limit(r.Location, 200)) +
             "\n" + RequestListText.Limit(r.Description, 2000) + $"\n/request {r.Id}").ToList();
         string? NextCommand(int count)
