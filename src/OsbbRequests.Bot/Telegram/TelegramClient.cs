@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Telegram;
 using System.Net.Http.Json;
 using System.Text.Json;
 using OsbbRequests.Bot.Models;

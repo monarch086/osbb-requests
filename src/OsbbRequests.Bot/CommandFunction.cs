@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Telegram;
 using System.Text.Json;
 using Amazon.DynamoDBv2;
 using Amazon.Lambda.Core;
@@ -29,8 +30,7 @@ public sealed class CommandFunction
                 RuntimeConfiguration.Required("BUILDING_ID"), residentApprovalMode: ResidentApprovalConfiguration.Parse(Environment.GetEnvironmentVariable("RESIDENT_APPROVAL_MODE"))), telegram, RuntimeConfiguration.Required("BUILDING_ID"));
         retryScheduler = new QueueRetryScheduler(new Amazon.SQS.AmazonSQSClient(),
             RuntimeConfiguration.Required("COMMAND_QUEUE_URL"));
-        if (long.TryParse(Environment.GetEnvironmentVariable("ADMIN_TELEGRAM_CHAT_ID"), out var chatId) && chatId != 0)
-            notifier = new ServiceNotifier(telegram, chatId);
+        notifier = TelegramServiceNotifier.FromEnvironment(Http);
     }
 
     public CommandFunction(CommandProcessor processor, IQueueRetryScheduler? retryScheduler = null,
@@ -72,11 +72,12 @@ public sealed class CommandFunction
                     catch (Exception schedulingError)
                     {
                         context.Logger.LogLine($"operation=defer_command errorType={schedulingError.GetType().Name}");
+                        await notifier.ReportSafelyAsync("defer_command", schedulingError, context.AwsRequestId, context.Logger.LogLine);
                     }
                 }
-                else if (notifier is not null)
+                else
                 {
-                    await notifier.NotifyFailureAsync(record.MessageId);
+                    await notifier.ReportSafelyAsync("process_command", ex, context.AwsRequestId, context.Logger.LogLine);
                 }
             }
         }

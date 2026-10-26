@@ -11,6 +11,30 @@ namespace OsbbRequests.Bot.Tests;
 
 public sealed class AdminApiTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnexpectedFailuresNotifyServiceChatAndKeepGeneric503Response(bool serviceFails)
+    {
+        var store = new FakeStore { ReadError = new InvalidOperationException("SECRET private resident text") };
+        var notifier = new RecordingServiceNotifier(serviceFails);
+        var response = await new OsbbRequests.AdminApi.Function(Handler(store), notifier)
+            .FunctionHandler(Request("/admin/residents"), ContextProxy.Create());
+        Assert.Equal(503, response.StatusCode);
+        Assert.DoesNotContain("SECRET", response.Body);
+        Assert.DoesNotContain("private resident text", response.Body);
+        Assert.Equal("admin_api", Assert.Single(notifier.Errors).Operation);
+    }
+
+    [Fact]
+    public async Task ExpectedAccessErrorsDoNotNotifyServiceChat()
+    {
+        var notifier = new RecordingServiceNotifier();
+        var response = await new OsbbRequests.AdminApi.Function(Handler(new FakeStore()), notifier)
+            .FunctionHandler(Request("/admin/residents", user: "target"), ContextProxy.Create());
+        Assert.Equal(403, response.StatusCode);
+        Assert.Empty(notifier.Errors);
+    }
     [Fact]
     public async Task CorsPreflightDoesNotRequireAuthenticationOrReadPrivateData()
     {
@@ -423,6 +447,7 @@ public sealed class AdminApiTests
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
     private sealed class FakeStore : IAdminStore
     {
+        public Exception? ReadError;
         public Task<Page<BroadcastMessage>> ListMessagesAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<BroadcastMessage>([], null));
         public Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct) => Task.FromResult(new BroadcastMessage(change.Id, change.Text, actor.Email, actor.UserId, DateTimeOffset.UtcNow));
         public Dictionary<string, AdminUser> Users { get; } = new() { ["super"] = Super, ["regular"] = Regular, ["target"] = new("target", "new@example.org", "New", false, false, 1) };
@@ -431,7 +456,8 @@ public sealed class AdminApiTests
         public MaintenanceRequest? LastHistoryRequest;
         public int SettingsWrites;
         public int PrivateReads; public int AccessWrites; public int RequestWrites;
-        public Task<AdminUser?> GetAdminAsync(string user, CancellationToken ct) => Task.FromResult(Users.GetValueOrDefault(user));
+        public Task<AdminUser?> GetAdminAsync(string user, CancellationToken ct) => ReadError is not null
+            ? throw ReadError : Task.FromResult(Users.GetValueOrDefault(user));
         public Task<AdminUser> RegisterAccountAsync(Identity identity, CancellationToken ct)
         { var user = new AdminUser(identity.UserId, identity.Email, identity.DisplayName, false, false, 1); Users.Add(user.UserId, user); return Task.FromResult(user); }
         public Task<Page<AdminUser>> ListAdminsAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<AdminUser>(Users.Values.ToList(), null));

@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Telegram;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Domain;
 using System.Net;
@@ -480,8 +481,10 @@ public sealed class InfrastructureTests
         Assert.DoesNotContain("SECRET", error.ToString());
     }
 
-    [Fact]
-    public async Task FifoBatchStopsAtFirstFailureAndReturnsRemainingRecords()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FifoBatchStopsAtFirstFailureAndReturnsRemainingRecords(bool serviceFails)
     {
         var repository = new MemoryRepository { FailCommit = true };
         var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
@@ -489,25 +492,33 @@ public sealed class InfrastructureTests
         {
             Records = [Record("first", 100), Record("second", 101)]
         };
-        var response = await new CommandFunction(processor).FunctionHandler(input, ContextProxy.Create());
+        var notifier = new RecordingServiceNotifier(serviceFails);
+        var response = await new CommandFunction(processor, notifier: notifier).FunctionHandler(input, ContextProxy.Create());
         Assert.Equal(new[] { "first", "second" }, response.BatchItemFailures.Select(item => item.ItemIdentifier));
         Assert.Empty(repository.Replies);
+        Assert.Equal("process_command", Assert.Single(notifier.Errors).Operation);
     }
 
-    [Fact]
-    public async Task WebhookEntryReturns503WhenQueueFails()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WebhookEntryReturns503WhenQueueFails(bool serviceFails)
     {
         var handler = new WebhookHandler(new FakeSecret("secret"), new FakeQueue { Fail = true }, "OsbbBot");
-        var response = await new Function(handler).FunctionHandler(new()
+        var notifier = new RecordingServiceNotifier(serviceFails);
+        var response = await new Function(handler, notifier).FunctionHandler(new()
         {
             Headers = new Dictionary<string, string> { ["x-telegram-bot-api-secret-token"] = "secret" },
             Body = WebhookTests.Update()
         }, ContextProxy.Create());
         Assert.Equal(503, response.StatusCode);
+        Assert.Equal("telegram_ingress", Assert.Single(notifier.Errors).Operation);
     }
 
-    [Fact]
-    public async Task RateLimitDefersSqsMessageWithoutMarkingReplyDelivered()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RateLimitDefersSqsMessageWithoutMarkingReplyDelivered(bool deferFails)
     {
         var repository = new MemoryRepository();
         using var http = new HttpClient(new HttpStub(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
@@ -516,12 +527,15 @@ public sealed class InfrastructureTests
         })));
         var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
             new TelegramClient(http, new FakeSecret("token")));
-        var retry = new FakeRetryScheduler();
-        var response = await new CommandFunction(processor, retry).FunctionHandler(
+        var retry = new FakeRetryScheduler { Fail = deferFails };
+        var notifier = new RecordingServiceNotifier(fail: true);
+        var response = await new CommandFunction(processor, retry, notifier).FunctionHandler(
             new SQSEvent { Records = [Record("limited", 100)] }, ContextProxy.Create());
         Assert.Single(response.BatchItemFailures);
         Assert.Equal(("receipt", 400), Assert.Single(retry.Delays));
         Assert.False(repository.Replies[100].Delivered);
+        if (deferFails) Assert.Equal("defer_command", Assert.Single(notifier.Errors).Operation);
+        else Assert.Empty(notifier.Errors);
     }
 
     [Fact]
@@ -540,9 +554,12 @@ public sealed class InfrastructureTests
     [Fact]
     public async Task OperationalNotificationFailureDoesNotEscape()
     {
-        var telegram = new FakeTelegram { Fail = true };
-        await new ServiceNotifier(telegram, 123).NotifyFailureAsync("failed-message");
-        Assert.Empty(telegram.Messages);
+        using var http = new HttpClient(new HttpStub(_ => throw new HttpRequestException("URL contains SECRET")));
+        var logs = new List<string>();
+        await new TelegramServiceNotifier(http, new FakeSecret("SECRET"), "worker", "dev")
+            .NotifyFailureAsync("process_command", new InvalidOperationException("private payload"), "failed-message", logs.Add);
+        Assert.Contains("HttpRequestException", Assert.Single(logs));
+        Assert.DoesNotContain("SECRET", string.Join("\n", logs));
     }
 
     private static SQSEvent.SQSMessage Record(string id, long updateId) => new()
@@ -559,10 +576,12 @@ public sealed class InfrastructureTests
 
     private sealed class FakeRetryScheduler : IQueueRetryScheduler
     {
+        public bool Fail;
         public List<(string ReceiptHandle, int Seconds)> Delays { get; } = [];
         public Task DeferAsync(string receiptHandle, int retryAfterSeconds, CancellationToken cancellationToken)
         {
             Delays.Add((receiptHandle, retryAfterSeconds));
+            if (Fail) throw new InvalidOperationException("SQS unavailable");
             return Task.CompletedTask;
         }
     }

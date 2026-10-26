@@ -65,7 +65,7 @@ POST /telegram/webhook
 
 `notificationSender` перевіряє outbox раз на хвилину, до 25 завдань за виклик. Невідправлені завдання зберігаються без TTL; збій Telegram не скасовує збережену зміну. Тимчасові помилки повторюються з паузою від хвилини до години, `429` відкладає наступну спробу за `retry_after` і призупиняє весь воркер доставки. HTTP 400/403 фіксуються як `Undeliverable` (наприклад, бот заблокований), інші повідомлення продовжують оброблятися. Результати доставки без тексту зберігаються 30 днів. Доставка має семантику at-least-once: збій між відправленням і записом результату може спричинити повтор; кожне повідомлення містить час, а для оновлень заявки - також її номер.
 
-Після наступного звичайного деплою backend додаткові токени чи налаштування меню не потрібні. Нова Lambda читає наявний SSM-параметр токена; Admin API не має доступу до Telegram-секретів. Перевірте CloudWatch `/aws/lambda/osbb-requests-<stage>-notificationSender`, увімкнений Scheduler `osbb-requests-<stage>-notifications` і SQS `osbb-requests-<stage>-notification-failures` для невдалих запусків Scheduler/Lambda. За наявності `ADMIN_TELEGRAM_CHAT_ID` операційні помилки також повідомляються адміністратору без тексту заявки. До появи цієї функції адміністративні зміни не відтворюються заднім числом.
+Воркер сповіщень читає токен бота мешканців із наявного SSM-параметра; Admin API не має доступу до цього токена й надсилає мешканцям повідомлення тільки через outbox. Для операційних помилок усі чотири Lambda використовують окремого сервісного бота, описаного нижче. Перевірте CloudWatch `/aws/lambda/osbb-requests-<stage>-notificationSender`, увімкнений Scheduler `osbb-requests-<stage>-notifications` і SQS `osbb-requests-<stage>-notification-failures` для невдалих запусків Scheduler/Lambda. Адміністративні зміни не відтворюються заднім числом.
 
 Налаштування запусків і повторів відповідають документації [Lambda destinations](https://www.serverless.com/framework/docs/providers/aws/guide/functions#asynchronous-invocation) та [Scheduler retry/DLQ](https://docs.aws.amazon.com/scheduler/latest/UserGuide/configuring-schedule-dlq.html).
 
@@ -240,9 +240,9 @@ python3 scripts/backfill-request-index.py --stage dev --apply
 ```bash
 export TELEGRAM_BOT_USERNAME=YourOsbbBot  # без @
 export BUILDING_ID=osbb-example # історична назва змінної: ідентифікатор комплексу, не номер будинку
-# Необов'язково: приватний чат або група для операційних помилок.
-# У приватному чаті адміністратор спочатку має запустити бота.
-export ADMIN_TELEGRAM_CHAT_ID=123456789
+# Операційні сповіщення використовують сервісний чат 38627946
+# і SSM-параметр /shared/telegram/service-bot-token.
+# Їх можна перевизначити Serverless params serviceNotificationChatId/serviceBotTokenParameter.
 ```
 
 Для `dev` у `serverless.yml` задано username `zeleniy_ostriv2_bot`; для інших stage за замовчуванням - `OsbbRequestsBot`. `TELEGRAM_BOT_USERNAME` перевизначає значення відповідного stage. Building ID за замовчуванням - `osbb-requests-<stage>`. Команди з адресацією `@username` потребують правильного username. Для імен без `@` значення username не впливає на маршрутизацію.
@@ -310,7 +310,11 @@ python3 scripts/manage-residents.py --stage dev reject <reference> --reason 'У�
 
 Записи відповідей та дедуплікації мають TTL 30 днів і можуть містити приватний текст заявки. TTL видаляється DynamoDB асинхронно. Заявки, історія, членство й реєстраційні профілі TTL не мають. Реєстраційні профілі та приватний список адміністратора містять ПІБ і телефон; вони не додаються до загальнодоступних заявок. Політику довгострокового зберігання цих даних потрібно визначити окремо. Черга й DLQ також містять текст команди - доступ до них лише для операторів і відповідних Lambda.
 
-Помилки журналюються за типом та SQS Message ID без тексту команд, контактів і секретів. Якщо заданий `ADMIN_TELEGRAM_CHAT_ID`, воркер намагається сповістити адміністратора; збій цього повідомлення не перешкоджає retry. Стежте за DLQ та CloudWatch; окремі зовнішні alarm destinations ще не налаштовані.
+Помилки журналюються за типом та SQS Message ID без тексту команд, контактів і секретів. TelegramServiceNotifier зі спільного проєкту повідомляє про неочікувані помилки webhook, команд, доставки outbox та Admin API у сервісний чат `38627946`, як у `olx-watcher`. Використовується окремий сервісний бот: його токен читається з SSM SecureString `/shared/telegram/service-bot-token` лише під час помилки, кешується в пам’яті до п’яти хвилин і не потрапляє до environment, артефактів або логів. IAM кожної Lambda дозволяє GetParameter тільки цього додаткового параметра; Admin API не отримує токен бота мешканців.
+
+Налаштування Serverless: `serviceNotificationChatId` і `serviceBotTokenParameter` (типові значення вище) передаються в Lambda як `SERVICE_NOTIFICATION_CHAT_ID` та `SERVICE_BOT_TOKEN_PARAMETER`. За потреби перевизначте параметри відповідного stage. Попередня змінна `ADMIN_TELEGRAM_CHAT_ID` більше не використовується. Для активації виконайте звичайний backend-деплой із явним stage; міграції, frontend-деплой і зміни меню не потрібні. SSM-параметр має існувати у регіоні розгортання; для власного KMS key потрібен окремий дозвіл decrypt.
+
+Сповіщення містить Lambda, stage, контрольовану назву етапу, тип винятку, ID запиту/події та до п’яти назв методів зі стеку. Текст винятку, вкладені payload, HTTP URL, контакти, паролі та токени не передаються. Очікувані 4xx API та коректно відкладений Telegram 429 не створюють сервісних повідомлень; збій відкладання, недоступний одержувач і повтор доставки повідомляються. Надсилання має окремий таймаут дві секунди, без повторів: його збій лише журналюється і не змінює 503, FIFO partial failure, backoff або повтор Lambda/Scheduler. Webhook та API залишають дві секунди на цей виклик у межах 10-секундного timeout. Сповіщення є best effort; hard timeout/OOM/помилки запуску Lambda та недоступність самого сервісного бота потребують контролю через CloudWatch і DLQ. Окремі alarm destinations ще не налаштовані.
 
 Видалення середовища:
 

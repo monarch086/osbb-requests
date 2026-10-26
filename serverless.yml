@@ -9,6 +9,8 @@ stages:
       botUsername: OsbbRequestsBot
       residentApprovalMode: Automatic
       requestSortMode: Priority
+      serviceNotificationChatId: '38627946'
+      serviceBotTokenParameter: /shared/telegram/service-bot-token
   dev:
     params:
       botUsername: zeleniy_ostriv2_bot
@@ -27,6 +29,8 @@ provider:
   logRetentionInDays: 14
   environment:
     STAGE: ${sls:stage}
+    SERVICE_NOTIFICATION_CHAT_ID: ${param:serviceNotificationChatId}
+    SERVICE_BOT_TOKEN_PARAMETER: ${param:serviceBotTokenParameter}
   httpApi:
     payload: '2.0'
     authorizers:
@@ -87,7 +91,6 @@ functions:
         Ref: CommandDataTable
       COMMAND_QUEUE_URL:
         Ref: CommandQueue
-      ADMIN_TELEGRAM_CHAT_ID: ${env:ADMIN_TELEGRAM_CHAT_ID, ''}
       TELEGRAM_BOT_USERNAME: ${self:custom.botUsername}
       BUILDING_ID: ${self:custom.buildingId}
       RESIDENT_APPROVAL_MODE: ${param:residentApprovalMode}
@@ -125,7 +128,6 @@ functions:
       ADMINISTRATORS_TABLE:
         Ref: AdministratorsTable
       BUILDING_ID: ${self:custom.buildingId}
-      ADMIN_TELEGRAM_CHAT_ID: ${env:ADMIN_TELEGRAM_CHAT_ID, ''}
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
   adminApi:
@@ -285,6 +287,10 @@ resources:
             Version: '2012-10-17'
             Statement:
             - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${param:serviceBotTokenParameter}
+            - Effect: Allow
               Action:
               - dynamodb:GetItem
               - dynamodb:Query
@@ -374,6 +380,10 @@ resources:
             Version: '2012-10-17'
             Statement:
             - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${param:serviceBotTokenParameter}
+            - Effect: Allow
               Action: sqs:SendMessage
               Resource:
                 Fn::GetAtt:
@@ -404,6 +414,10 @@ resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${param:serviceBotTokenParameter}
             - Effect: Allow
               Action:
               - sqs:ReceiveMessage
@@ -534,6 +548,10 @@ resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${param:serviceBotTokenParameter}
             - Effect: Allow
               Action:
               - logs:CreateLogStream

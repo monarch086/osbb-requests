@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Telegram;
 using OsbbRequests.Bot.Telegram;
 
 namespace OsbbRequests.Bot.Notifications;
@@ -34,11 +35,11 @@ public sealed class NotificationProcessor(INotificationRepository repository, IT
                 log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=delivered");
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-            catch (TelegramRecipientUnavailableException)
+            catch (TelegramRecipientUnavailableException error)
             {
                 await repository.CompleteAsync(item, lease, "Undeliverable", clock.GetUtcNow(), ct);
                 log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=undeliverable");
-                if (notifier is not null) await notifier.NotifyFailureAsync(item.Notification.Id);
+                await notifier.ReportSafelyAsync("notification_undeliverable", error, item.Notification.Id, log);
             }
             catch (Exception error)
             {
@@ -49,7 +50,7 @@ public sealed class NotificationProcessor(INotificationRepository repository, IT
                 if (error is TelegramRateLimitException) await repository.PauseAsync(dueAt, ct);
                 await repository.RetryAsync(item, lease, dueAt, ct);
                 if (error is TelegramRateLimitException) break; // Respect a bot-wide retry_after too.
-                if (notifier is not null) await notifier.NotifyFailureAsync(item.Notification.Id);
+                await notifier.ReportSafelyAsync("deliver_notification", error, item.Notification.Id, log);
             }
         }
     }

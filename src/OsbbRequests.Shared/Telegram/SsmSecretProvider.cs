@@ -1,7 +1,7 @@
 using Amazon.SimpleSystemsManagement;
 using Amazon.SimpleSystemsManagement.Model;
 
-namespace OsbbRequests.Bot.Telegram;
+namespace OsbbRequests.Shared.Telegram;
 
 public interface ISecretProvider
 {

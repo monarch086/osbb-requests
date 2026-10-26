@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Telegram;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Domain;
 using System.Globalization;
@@ -7,6 +8,17 @@ using OsbbRequests.Bot.Telegram;
 using OsbbRequests.Bot.Webhook;
 
 namespace OsbbRequests.Bot.Tests;
+
+internal sealed class RecordingServiceNotifier(bool fail = false) : IServiceNotifier
+{
+    public List<(string Operation, string ErrorType, string? RequestId)> Errors { get; } = [];
+    public Task NotifyFailureAsync(string operation, Exception error, string? requestId = null, Action<string>? log = null)
+    {
+        Errors.Add((operation, error.GetType().Name, requestId));
+        if (fail) throw new InvalidOperationException("Notifier unavailable");
+        return Task.CompletedTask;
+    }
+}
 
 internal sealed class MemoryRepository : ICommandRepository
 {

@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Telegram;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
@@ -12,7 +13,9 @@ namespace OsbbRequests.Bot;
 
 public sealed class Function
 {
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
     private readonly WebhookHandler handler;
+    private readonly IServiceNotifier? notifier;
 
     public Function() : this(new WebhookHandler(
         new SsmSecretProvider(new AmazonSimpleSystemsManagementClient(),
@@ -20,14 +23,16 @@ public sealed class Function
         new CommandQueue(new AmazonSQSClient(), RuntimeConfiguration.Required("COMMAND_QUEUE_URL")),
         RuntimeConfiguration.Required("TELEGRAM_BOT_USERNAME")))
     {
+        notifier = TelegramServiceNotifier.FromEnvironment(Http);
     }
 
-    public Function(WebhookHandler handler) => this.handler = handler;
+    public Function(WebhookHandler handler, IServiceNotifier? notifier = null)
+    { this.handler = handler; this.notifier = notifier; }
 
     public async Task<APIGatewayHttpApiV2ProxyResponse> FunctionHandler(
         APIGatewayHttpApiV2ProxyRequest request, ILambdaContext context)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(7));
         try
         {
             return await handler.HandleAsync(request, timeout.Token);
@@ -35,6 +40,7 @@ public sealed class Function
         catch (Exception ex)
         {
             context.Logger.LogLine($"operation=telegram_ingress errorType={ex.GetType().Name}");
+            await notifier.ReportSafelyAsync("telegram_ingress", ex, context.AwsRequestId, context.Logger.LogLine);
             // Telegram retries: no success acknowledgement before SQS durably accepts the update.
             return WebhookHandler.Response(503);
         }

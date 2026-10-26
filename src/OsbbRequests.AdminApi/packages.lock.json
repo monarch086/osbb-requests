@@ -46,8 +46,19 @@
         "resolved": "4.0.102.12",
         "contentHash": "/wJwMdRT5e9AbqRFfeazbyAbAZijYMDGlLDGAc07Ob2tPdeEUE0dC0zISIdtdWtCu0lV+oWf3qcsevpd7ejn9g=="
       },
+      "AWSSDK.SimpleSystemsManagement": {
+        "type": "Transitive",
+        "resolved": "4.0.104.5",
+        "contentHash": "aATtsXjOlLc582voXpVnzuKsBdxXLix5x3PEIq1/54wlo2NdzIC1br3JHs2GwYW7iuLOmKrWAg5N2bh+JQEjWg==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.102.12, 5.0.0)"
+        }
+      },
       "osbbrequests.shared": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )"
+        }
       }
     },
     "net10.0/linux-arm64": {}

@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Telegram;
 using System.Text.Json;
 using Amazon.DynamoDBv2;
 using Amazon.Lambda.Core;
@@ -16,8 +17,7 @@ public sealed class NotificationFunction
     {
         var telegram = new TelegramClient(Http, new SsmSecretProvider(new AmazonSimpleSystemsManagementClient(),
             RuntimeConfiguration.Required("BOT_TOKEN_PARAMETER")));
-        if (long.TryParse(Environment.GetEnvironmentVariable("ADMIN_TELEGRAM_CHAT_ID"), out var chatId) && chatId != 0)
-            notifier = new ServiceNotifier(telegram, chatId);
+        notifier = TelegramServiceNotifier.FromEnvironment(Http);
         processor = new(new DynamoNotificationRepository(new AmazonDynamoDBClient(),
             RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), RuntimeConfiguration.Required("BUILDING_ID"), RuntimeConfiguration.Required("ADMINISTRATORS_TABLE")), telegram, notifier);
     }
@@ -30,7 +30,7 @@ public sealed class NotificationFunction
         catch (Exception error)
         {
             context.Logger.LogLine($"operation=send_notifications errorType={error.GetType().Name}");
-            if (notifier is not null) await notifier.NotifyFailureAsync("notification-worker");
+            await notifier.ReportSafelyAsync("send_notifications", error, context.AwsRequestId, context.Logger.LogLine);
             throw;
         }
     }

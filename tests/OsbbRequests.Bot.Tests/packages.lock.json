@@ -178,7 +178,10 @@
         }
       },
       "osbbrequests.shared": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )"
+        }
       }
     },
     "net10.0/linux-arm64": {}

@@ -262,10 +262,12 @@ public sealed class NotificationTests
     {
         var repository = new MemoryNotifications(Work(attempts: attempts));
         var telegram = new NotificationTelegram { Error = new InvalidOperationException("HTTP 503") };
-        await new NotificationProcessor(repository, telegram, timeProvider: new FixedClock()).RunAsync(default);
+        var notifier = new RecordingServiceNotifier(fail: true);
+        await new NotificationProcessor(repository, telegram, notifier, timeProvider: new FixedClock()).RunAsync(default);
         Assert.Empty(repository.Results);
         Assert.Equal(Now.AddSeconds(delay), Assert.Single(repository.Retries).Due);
         Assert.Single(repository.Items);
+        Assert.Equal("deliver_notification", Assert.Single(notifier.Errors).Operation);
     }
 
     [Theory]
@@ -275,10 +277,12 @@ public sealed class NotificationTests
     {
         var repository = new MemoryNotifications(Work(), Work("8-v2"));
         var telegram = new NotificationTelegram { FailFirst = true, Error = new TelegramRecipientUnavailableException(status) };
-        await new NotificationProcessor(repository, telegram, timeProvider: new FixedClock()).RunAsync(default);
+        var notifier = new RecordingServiceNotifier(fail: true);
+        await new NotificationProcessor(repository, telegram, notifier, timeProvider: new FixedClock()).RunAsync(default);
         Assert.Equal(new[] { "Undeliverable", "Delivered" }, repository.Results.Select(r => r.Disposition));
         Assert.Single(telegram.Sent);
         Assert.Empty(repository.Retries);
+        Assert.Equal("notification_undeliverable", Assert.Single(notifier.Errors).Operation);
     }
 
     [Fact]
@@ -306,12 +310,17 @@ public sealed class NotificationTests
         Assert.Single(repository.Items);
     }
 
-    [Fact]
-    public async Task FatalRepositoryFailureEscapesLambdaForAsyncRetry()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FatalRepositoryFailureEscapesLambdaForAsyncRetry(bool serviceFails)
     {
         var repository = new MemoryNotifications(Work()) { FailQuery = true };
-        var function = new NotificationFunction(new NotificationProcessor(repository, new NotificationTelegram()));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => function.FunctionHandler(default, ContextProxy.Create()));
+        var notifier = new RecordingServiceNotifier(serviceFails);
+        var function = new NotificationFunction(new NotificationProcessor(repository, new NotificationTelegram()), notifier);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => function.FunctionHandler(default, ContextProxy.Create()));
+        Assert.Equal("DynamoDB unavailable", error.Message);
+        Assert.Equal("send_notifications", Assert.Single(notifier.Errors).Operation);
     }
 
     [Fact]
