@@ -25,6 +25,7 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix src/Frontend
       - run: npm run check --prefix src/Frontend
+      - run: npm run test --prefix src/Frontend
       - run: npm run build --prefix src/Frontend
       - run: dotnet restore OsbbRequests.sln --locked-mode
       - run: npm run build -- --no-restore

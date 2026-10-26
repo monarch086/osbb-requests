@@ -21,6 +21,7 @@ import { TicketFilters } from '../shared/ticket-presentation';
 import { errorMessage } from '../error-message';
 import { RequestsComponent } from '../requests/requests.component';
 import { ResidentsComponent, ResidentView } from '../residents/residents.component';
+import { ResidentDirectory, ResidentFilters } from '../residents/resident-directory';
 import { AdministratorsComponent } from '../administrators/administrators.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
@@ -57,6 +58,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   residents: Registration[] = [];
   registeredResidents: RegisteredResident[] = [];
   residentView: ResidentView = 'pending';
+  residentDirectory = new ResidentDirectory();
   admins: Admin[] = [];
   assignees: {
     userId: string;
@@ -84,7 +86,14 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private loadSequence = 0;
   private detailSequence = 0;
   get availablePages(): number {
+    if (this.isRegisteredResidentView) return this.residentDirectory.pageCount;
     return this.pageCursors.length;
+  }
+  private get isRegisteredResidentView(): boolean {
+    return this.tab === 'residents' && this.residentView === 'registered';
+  }
+  get hasNextPage(): boolean {
+    return this.isRegisteredResidentView ? this.pageIndex + 1 < this.availablePages : !!this.cursor;
   }
   get pageItemCount(): number {
     if (this.tab === 'requests') return this.tickets.length;
@@ -102,6 +111,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.tickets = [];
     this.residents = [];
     this.registeredResidents = [];
+    this.residentDirectory.setItems([]);
     this.admins = [];
   }
   private subscription?: Subscription;
@@ -133,6 +143,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.resetPagination();
     this.me = null;
     this.residentView = 'pending';
+    this.residentDirectory = new ResidentDirectory();
     this.assignees = [];
     this.selected = null;
     this.draft = null;
@@ -197,6 +208,15 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.resetPagination();
     await this.load();
   }
+  applyResidentFilters(filters: ResidentFilters): void {
+    if (this.loading || this.saving || !this.isRegisteredResidentView) return;
+    this.residentDirectory.applyFilters(filters);
+    this.showResidentPage(0);
+  }
+  private showResidentPage(index: number): void {
+    this.pageIndex = Math.min(index, this.residentDirectory.pageCount - 1);
+    this.registeredResidents = this.residentDirectory.page(this.pageIndex);
+  }
   async load(): Promise<void> {
     if (this.loading || this.saving) return;
     await this.loadPage(this.pageIndex, this.pageCursors[this.pageIndex] ?? null);
@@ -205,7 +225,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     await this.goToPage(this.pageIndex);
   }
   async nextPage(): Promise<void> {
-    if (!this.cursor) return;
+    if (!this.hasNextPage) return;
     await this.goToPage(this.pageIndex + 2);
   }
   async goToPage(number: number): Promise<void> {
@@ -219,6 +239,10 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     )
       return;
     const index = number - 1;
+    if (this.isRegisteredResidentView) {
+      this.showResidentPage(index);
+      return;
+    }
     const start = this.pageCursors[index];
     if (start === undefined || (index > 0 && start === null)) return;
     await this.loadPage(index, start);
@@ -251,6 +275,24 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
             ? '/messages'
             : '/administrators';
     try {
+      if (tab === 'residents' && residentView === 'registered') {
+        const residents: RegisteredResident[] = [];
+        const visited = new Set<string>();
+        let cursor: string | null = null;
+        do {
+          const page: Page<RegisteredResident> = await this.api.request(
+            '/residents' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''),
+          );
+          if (epoch !== this.epoch || sequence !== this.loadSequence) return;
+          residents.push(...page.items);
+          cursor = page.cursor;
+          if (cursor && visited.has(cursor)) throw new Error('Repeated resident directory cursor');
+          if (cursor) visited.add(cursor);
+        } while (cursor);
+        this.residentDirectory.setItems(residents);
+        this.showResidentPage(index);
+        return;
+      }
       const page = await this.api.request<
         Page<ManagedTicket | Registration | RegisteredResident | Admin | BroadcastMessage>
       >(path + '?' + params.toString());

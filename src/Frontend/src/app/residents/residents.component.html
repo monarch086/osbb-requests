@@ -78,6 +78,98 @@
     }
   </section>
 } @else {
+  <div class="card card-body mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-sm-6 col-lg-5">
+        <label class="form-label" for="resident-sort">Сортувати за</label>
+        <ng-select
+          labelForId="resident-sort"
+          [ngModel]="filters.sort"
+          (ngModelChange)="changeFilters({ sort: $event })"
+          [clearable]="false"
+          [searchable]="false"
+          [disabled]="loading || saving"
+        >
+          <ng-option value="registeredAt">Дата реєстрації</ng-option>
+          <ng-option value="lastName">Прізвище</ng-option>
+        </ng-select>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-5">
+        <label class="form-label" for="resident-building">Будинок</label>
+        <ng-select
+          labelForId="resident-building"
+          [ngModel]="filters.building"
+          (ngModelChange)="changeFilters({ building: $event })"
+          [clearable]="false"
+          [searchable]="false"
+          [disabled]="loading || saving"
+        >
+          <ng-option value="">Усі будинки</ng-option>
+          @for (building of buildings; track building) {
+            <ng-option [value]="building">{{ building }}</ng-option>
+          }
+          <ng-option value="Unspecified">Не зазначено</ng-option>
+        </ng-select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <span class="form-label d-block" id="resident-direction">Напрямок</span>
+        <div class="btn-group" role="group" aria-labelledby="resident-direction">
+          <button
+            type="button"
+            class="btn"
+            [class.btn-primary]="filters.direction === 'desc'"
+            [class.btn-outline-secondary]="filters.direction !== 'desc'"
+            [attr.aria-pressed]="filters.direction === 'desc'"
+            [disabled]="loading || saving"
+            aria-label="За спаданням"
+            title="За спаданням"
+            (click)="changeFilters({ direction: 'desc' })"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M5 3v14m-3-3 3 3 3-3M11 4h7m-7 5h5m-5 5h3" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="btn"
+            [class.btn-primary]="filters.direction === 'asc'"
+            [class.btn-outline-secondary]="filters.direction !== 'asc'"
+            [attr.aria-pressed]="filters.direction === 'asc'"
+            [disabled]="loading || saving"
+            aria-label="За зростанням"
+            title="За зростанням"
+            (click)="changeFilters({ direction: 'asc' })"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M5 17V3M2 6l3-3 3 3m3-2h3m-3 5h5m-5 5h7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
   <section class="card">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
       <h2 class="h5 mb-0">Зареєстровані мешканці</h2>
@@ -122,10 +214,8 @@
     </div>
     @if (!registeredResidents.length && !loading) {
       <div class="text-center p-4 p-md-5">
-        <h3 class="h6">На цій сторінці немає підтверджених реєстрацій</h3>
-        <p class="text-body-secondary mb-0">
-          Після схвалення запиту мешканець з’явиться в цьому списку.
-        </p>
+        <h3 class="h6">Мешканців не знайдено</h3>
+        <p class="text-body-secondary mb-0">Перевірте фільтр будинку або оновіть список.</p>
       </div>
     }
   </section>

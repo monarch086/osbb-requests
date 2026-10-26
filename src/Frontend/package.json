@@ -8,6 +8,7 @@
   "scripts": {
     "start": "ng serve --host 127.0.0.1 --port 4201",
     "build": "ng build",
+    "test": "node --test ../../tests/frontend/*.test.mjs",
     "lint": "npm run lint:ts && npm run lint:styles",
     "lint:ts": "eslint \"src/**/*.{ts,html}\" --max-warnings 0",
     "lint:styles": "stylelint \"src/**/*.scss\" --max-warnings 0",

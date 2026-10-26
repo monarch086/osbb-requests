@@ -111,6 +111,8 @@
       <app-residents
         [view]="residentView"
         [registeredResidents]="registeredResidents"
+        [filters]="residentDirectory.filters"
+        (filtersChange)="applyResidentFilters($event)"
         (viewChange)="switchResidentView($event)"
         [residents]="residents"
         [loading]="loading"
@@ -144,7 +146,7 @@
       [availablePages]="availablePages"
       [itemCount]="pageItemCount"
       [hasPrevious]="pageIndex > 0"
-      [hasNext]="!!cursor"
+      [hasNext]="hasNextPage"
       [disabled]="loading || saving"
       (pageSelected)="goToPage($event)"
       (previousPage)="previousPage()"
