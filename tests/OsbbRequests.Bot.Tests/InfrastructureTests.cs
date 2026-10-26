@@ -21,6 +21,95 @@ namespace OsbbRequests.Bot.Tests;
 
 public sealed class InfrastructureTests
 {
+    [Fact]
+    public async Task ShortCursorAndReplyCommitAtomicallyAndReadByOwnerAndComplex()
+    {
+        using var client = new CapturingDynamo();
+        var now = new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero);
+        var repository = new DynamoCommandRepository(client, "data", new CursorClock(now));
+        var cursor = new ComplexRequestCursor(42, "building", "abc2345678", "2026-10-27T12:00:00.1234567+00:00#00000000000000000007");
+        await repository.CommitAsync(new(100, 42, 42, "/complex"), new("Наступна сторінка: /complex abc2345678", Pagination: cursor), default);
+        var writes = client.Transaction!.TransactItems;
+        Assert.Equal(2, writes.Count);
+        var receipt = Assert.Single(writes, w => w.Put.Item["sk"].S == "REPLY").Put;
+        Assert.True(receipt.Item.ContainsKey("expiresAt"));
+        var stored = Assert.Single(writes, w => w.Put.Item["sk"].S.StartsWith("COMPLEX_CURSOR#", StringComparison.Ordinal)).Put;
+        Assert.Equal("USER#42", stored.Item["pk"].S);
+        Assert.Equal("COMPLEX_CURSOR#building#abc2345678", stored.Item["sk"].S);
+        Assert.Equal("attribute_not_exists(pk)", stored.ConditionExpression);
+        Assert.Equal(cursor.Before, stored.Item["before"].S);
+        Assert.Equal(now.AddDays(30).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture), stored.Item["expiresAt"].N);
+        client.Item = stored.Item;
+        Assert.Equal(cursor.Before, await repository.GetComplexCursorAsync(42, "building", cursor.Token, default));
+        Assert.True(client.Get!.ConsistentRead);
+        Assert.Equal("USER#42", client.Get.Key["pk"].S);
+        Assert.Equal("COMPLEX_CURSOR#building#abc2345678", client.Get.Key["sk"].S);
+        Assert.Null(await repository.GetComplexCursorAsync(99, "building", cursor.Token, default));
+        Assert.Equal("USER#99", client.Get.Key["pk"].S);
+        Assert.Null(await repository.GetComplexCursorAsync(42, "other", cursor.Token, default));
+        Assert.Equal("COMPLEX_CURSOR#other#abc2345678", client.Get.Key["sk"].S);
+    }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    public async Task ShortCursorExpiresAtThirtyDaysEvenBeforeDynamoDeletesIt(int secondsAfterExpiry, bool valid)
+    {
+        using var client = new CapturingDynamo();
+        var createdAt = new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero);
+        var cursor = new ComplexRequestCursor(42, "building", "abc2345678", "before");
+        await new DynamoCommandRepository(client, "data", new CursorClock(createdAt)).CommitAsync(new(100, 42, 42, "/complex"),
+            new("next", Pagination: cursor), default);
+        client.Item = client.Transaction!.TransactItems.Single(w => w.Put.Item["sk"].S.StartsWith("COMPLEX_CURSOR#", StringComparison.Ordinal)).Put.Item;
+        var reader = new DynamoCommandRepository(client, "data", new CursorClock(createdAt.AddDays(30).AddSeconds(secondsAfterExpiry)));
+        Assert.Equal(valid ? cursor.Before : null, await reader.GetComplexCursorAsync(42, "building", cursor.Token, default));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    public async Task ShortCursorWithoutValidExpirationIsRejected(string? expiresAt)
+    {
+        using var client = new CapturingDynamo
+        {
+            Item = new() { ["complexId"] = new("building"), ["userId"] = new() { N = "42" }, ["before"] = new("before") }
+        };
+        if (expiresAt is not null) client.Item["expiresAt"] = new() { N = expiresAt };
+        Assert.Null(await new DynamoCommandRepository(client, "data").GetComplexCursorAsync(42, "building", "abc2345678", default));
+    }
+
+    private sealed class CursorClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Theory]
+    [InlineData(99, "building", "abc2345678")]
+    [InlineData(42, "", "abc2345678")]
+    [InlineData(42, "building", "not-valid!")]
+    public async Task InvalidShortCursorCannotBeCommitted(long userId, string complex, string token)
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.CommitAsync(new(100, 42, 42, "/complex"),
+            new("next", Pagination: new(userId, complex, token, "before")), default));
+        Assert.Null(client.Transaction);
+    }
+
+    [Fact]
+    public async Task CursorCollisionWithoutReceiptIsRetriedAndConcurrentWinnerIsReused()
+    {
+        using var client = new CapturingDynamo { Conflict = true };
+        var repository = new DynamoCommandRepository(client, "data");
+        var command = new CommandEnvelope(100, 42, 42, "/complex");
+        var outcome = new CommandOutcome("candidate", Pagination: new(42, "building", "abc2345678", "before"));
+        await Assert.ThrowsAsync<TransactionCanceledException>(() => repository.CommitAsync(command, outcome, default));
+        var winner = new StoredReply(100, 42, 42, "winner", false);
+        client.Item = new() { ["payload"] = new(JsonSerializer.Serialize(winner)) };
+        Assert.Equal(winner, await repository.CommitAsync(command, outcome, default));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(1)]

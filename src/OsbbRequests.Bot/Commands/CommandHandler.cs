@@ -70,7 +70,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             "edit_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Edit, cancellationToken),
             "delete_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Delete, cancellationToken),
             "new" => await requests.StartAsync(envelope, command.Arguments, cancellationToken),
-            "complex" => await complexRequests.ListAsync(command.Arguments, cancellationToken),
+            "complex" => await complexRequests.ListAsync(envelope.UserId, command.Arguments, cancellationToken),
             "delete" => await lookup.StartAsync(envelope.UserId, command.Arguments, cancellationToken, RequestLookupAction.Delete),
             "my" => await ListAsync(envelope.UserId, command.Arguments, cancellationToken),
             _ => await lookup.StartAsync(envelope.UserId, command.Arguments, cancellationToken)

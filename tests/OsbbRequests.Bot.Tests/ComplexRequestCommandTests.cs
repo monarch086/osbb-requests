@@ -68,8 +68,8 @@ public sealed class ComplexRequestCommandTests
         Assert.Contains("На цій сторінці немає", page.Reply);
         var next = page.Reply.Split("Наступна сторінка: ")[1];
         var token = next.Split(' ')[1];
-        var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(token.Replace('-', '+').Replace('_', '/').PadRight((token.Length + 3) / 4 * 4, '=')));
-        Assert.DoesNotContain("987654321", decoded);
+        Assert.Equal(10, token.Length);
+        Assert.True(ComplexRequestCursor.IsShortToken(token));
         var result = await Apply(repository, 2, next);
         Assert.Contains("№1", result.Reply);
         Assert.DoesNotContain("Наступна сторінка", result.Reply);
@@ -79,11 +79,125 @@ public sealed class ComplexRequestCommandTests
     [InlineData("not-a-cursor")]
     [InlineData("////")]
     [InlineData("7")]
+    [InlineData("p_________________________")]
+    [InlineData("p_aaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData("p_////////////////////////")]
+    [InlineData("p_short")]
     public async Task RejectsMalformedComplexCursorWithoutQuerying(string cursor)
     {
         var repository = new MemoryRepository();
         Assert.Contains("Скористайтеся /complex", (await Apply(repository, 1, "/complex " + cursor)).Reply);
         Assert.Equal(0, repository.Queries);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(120)]
+    [InlineData(-330)]
+    [InlineData(840)]
+    [InlineData(-840)]
+    public async Task ShortCursorPreservesDatePrecisionOffsetAndLargeIds(int offsetMinutes)
+    {
+        var repository = new MemoryRepository();
+        var date = new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.FromMinutes(offsetMinutes)).AddTicks(1234567);
+        for (var i = 0; i < 6; i++) repository.Requests.Add(Request() with { Id = long.MaxValue - i, CreatedAt = date });
+        var first = await Apply(repository, 1, "/complex");
+        var command = first.Reply.Split("Наступна сторінка: ")[1];
+        Assert.Equal(10, command.Split(' ')[1].Length);
+        var lastId = long.MaxValue - 4;
+        var next = await Apply(repository, 2, command);
+        Assert.Equal(date.ToString("O", System.Globalization.CultureInfo.InvariantCulture) + "#" + lastId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture), repository.LastPublicBefore);
+        Assert.Contains($"№{long.MaxValue - 5}", next.Reply);
+        Assert.DoesNotContain($"№{lastId}", next.Reply);
+    }
+
+    [Theory]
+    [InlineData("p_CN8w2rV_9KEAAAAAI0mWAQAA", "2026-10-23T07:53:21.5965345+00:00#00000000000592025089")]
+    [InlineData("MjAyNi0xMC0yM1QwNzo1MzoyMS41OTY1MzQ1KzAwOjAwIzU5MjAyNTA4OQ", "2026-10-23T07:53:21.5965345+00:00#592025089")]
+    [InlineData("MjAyNi0xMC0yM1QwNzo1MzoyMS41OTY1MzQ1KzAwOjAwIzAwMDAwMDAwMDAwNTkyMDI1MDg5", "2026-10-23T07:53:21.5965345+00:00#00000000000592025089")]
+    public async Task PreviouslySentLegacyCursorsRemainValid(string token, string expected)
+    {
+        var repository = new MemoryRepository();
+        await Apply(repository, 1, "/complex " + token);
+        Assert.Equal(1, repository.Queries);
+        Assert.Equal(expected, repository.LastPublicBefore);
+    }
+
+    [Fact]
+    public async Task ShortCursorIsPrivateToItsResidentAndComplexAndAcceptsUppercase()
+    {
+        var repository = new MemoryRepository();
+        for (var i = 1; i <= 6; i++) repository.Requests.Add(Request(i));
+        var first = await Apply(repository, 1, "/complex");
+        var cursor = Assert.Single(repository.ComplexCursors);
+        var command = first.Reply.Split("Наступна сторінка: ")[1];
+        var handler = Handler(repository);
+        repository.Residents.Add(99);
+        var foreignUser = await handler.HandleAsync(new(2, 99, 99, command), default);
+        Assert.Contains("не знайдено", foreignUser.Reply);
+        Assert.Equal(1, repository.Queries);
+        var otherComplex = await new ComplexRequestsService(repository, "other").ListAsync(42, cursor.Key.Token, default);
+        Assert.Contains("не знайдено", otherComplex.Reply);
+        Assert.Equal(1, repository.Queries);
+        Assert.Contains("№1", (await Apply(repository, 3, "/complex " + cursor.Key.Token.ToUpperInvariant())).Reply);
+        repository.Residents.Clear();
+        Assert.Contains("/start", (await Apply(repository, 4, command)).Reply);
+        Assert.Equal(2, repository.Queries);
+    }
+
+    [Fact]
+    public async Task FailedDeliveryRetryReusesTheCommittedShortCursor()
+    {
+        var repository = new MemoryRepository();
+        for (var i = 1; i <= 6; i++) repository.Requests.Add(Request(i));
+        var telegram = new FakeTelegram { Fail = true };
+        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Message(1, "/complex"), default));
+        var cursor = Assert.Single(repository.ComplexCursors);
+        var receipt = repository.Replies[1];
+        telegram.Fail = false;
+        await processor.ProcessAsync(Message(1, "/complex"), default);
+        Assert.Equal(cursor, Assert.Single(repository.ComplexCursors));
+        Assert.Equal(receipt.Text, repository.Replies[1].Text);
+        Assert.Contains("№1", (await Apply(repository, 2, receipt.Text.Split("Наступна сторінка: ")[1])).Reply);
+    }
+
+    [Fact]
+    public async Task FailedCommitDoesNotExposeOrPersistAnUnusableShortCursor()
+    {
+        var repository = new MemoryRepository { FailCommit = true };
+        for (var i = 1; i <= 6; i++) repository.Requests.Add(Request(i));
+        var telegram = new FakeTelegram();
+        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Message(1, "/complex"), default));
+        Assert.Empty(repository.ComplexCursors);
+        Assert.Empty(repository.Replies);
+        Assert.Empty(telegram.Messages);
+        repository.FailCommit = false;
+        await processor.ProcessAsync(Message(1, "/complex"), default);
+        Assert.Single(repository.ComplexCursors);
+        Assert.Single(telegram.Messages);
+    }
+
+    [Fact]
+    public async Task EqualDatesAndLongDescriptionsPaginateWithoutSkippingIds()
+    {
+        var repository = new MemoryRepository();
+        foreach (var id in new long[] { 7, 10, 99, 100, 101, 1000 })
+            repository.Requests.Add(Request() with { Id = id, Description = new string('О', 2000) });
+        var seen = new List<long>();
+        var command = "/complex";
+        for (var update = 1; update <= 10; update++)
+        {
+            var page = await Apply(repository, update, command);
+            Assert.True(page.Reply.Length <= 4096);
+            seen.AddRange(System.Text.RegularExpressions.Regex.Matches(page.Reply, @"^№(\d+)", System.Text.RegularExpressions.RegexOptions.Multiline)
+                .Select(match => long.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
+            var parts = page.Reply.Split("Наступна сторінка: ");
+            if (parts.Length == 1) break;
+            command = parts[1];
+        }
+        Assert.Equal(new long[] { 1000, 101, 100, 99, 10, 7 }, seen);
     }
 
     [Fact]

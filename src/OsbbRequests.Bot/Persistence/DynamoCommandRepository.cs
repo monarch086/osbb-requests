@@ -156,6 +156,7 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         replyItem["delivered"] = new AttributeValue { BOOL = false };
         replyItem["expiresAt"] = new AttributeValue { N = Number(clock.GetUtcNow().AddDays(30).ToUnixTimeSeconds()) };
         var writes = new List<TransactWriteItem> { Put(replyItem) };
+        if (outcome.Pagination is { } pagination) writes.Add(CursorWrite(command, pagination));
         if (outcome.NewRequest is { } request)
         {
             if (!ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor, request.Entrance))

@@ -10,6 +10,10 @@ namespace OsbbRequests.Bot.Tests;
 
 internal sealed class MemoryRepository : ICommandRepository
 {
+    public Dictionary<(long UserId, string ComplexId, string Token), string> ComplexCursors { get; } = [];
+    public Task<string?> GetComplexCursorAsync(long userId, string complexId, string token, CancellationToken ct) =>
+        Task.FromResult(ComplexCursors.GetValueOrDefault((userId, complexId, token)));
+    public string? LastPublicBefore { get; private set; }
     public Dictionary<long, int> RequestVersions { get; } = [];
     public Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken ct)
     {
@@ -19,8 +23,9 @@ internal sealed class MemoryRepository : ICommandRepository
     }
     public Task<PublicRequestPage> ListPublicRequestsAsync(string complexId, string? before, CancellationToken ct)
     {
+        LastPublicBefore = before;
         Queries++;
-        static string SortKey(MaintenanceRequest r) => r.CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + r.Id.ToString(CultureInfo.InvariantCulture);
+        static string SortKey(MaintenanceRequest r) => r.CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + r.Id.ToString("D20", CultureInfo.InvariantCulture);
         var candidates = Requests.Where(r => r.BuildingId == complexId && (before is null || string.CompareOrdinal(SortKey(r), before) < 0))
             .OrderByDescending(SortKey, StringComparer.Ordinal).Take(6).ToList();
         var page = candidates.Take(5).ToList();
@@ -67,6 +72,9 @@ internal sealed class MemoryRepository : ICommandRepository
             throw new InvalidOperationException("Storage unavailable.");
         if (Replies.TryGetValue(command.UpdateId, out var existing))
             return Task.FromResult(existing);
+        if (outcome.Pagination is { } cursor && (cursor.UserId != command.UserId ||
+            ComplexCursors.ContainsKey((cursor.UserId, cursor.ComplexId, cursor.Token))))
+            throw new InvalidOperationException("Pagination conflict.");
         if (outcome.Deletion is { } deletion)
         {
             var target = Requests.SingleOrDefault(r => r.OwnerId == command.UserId && r.Id == deletion.Id);
@@ -107,6 +115,8 @@ internal sealed class MemoryRepository : ICommandRepository
         if (outcome.Deletion is { } removed)
             Requests.RemoveAll(r => r.Id == removed.Id && r.OwnerId == removed.OwnerId);
         CommitCount++;
+        if (outcome.Pagination is { } pagination)
+            ComplexCursors.Add((pagination.UserId, pagination.ComplexId, pagination.Token), pagination.Before);
         if (outcome.NewRequest is { } request)
             Requests.Add(request);
         var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false, outcome.Keyboard, outcome.Profile?.Value.PersonalDataDeleted == true || outcome.Registration?.AutomaticallyApproved == true);
