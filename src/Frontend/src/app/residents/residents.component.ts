@@ -1,9 +1,10 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
-import { Registration, RegisteredResident } from '../api.service';
+import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
+
+import type { RegisteredResident, Registration } from '../api.service';
 import { buildingNumbers, formatDate } from '../shared/ticket-presentation';
-import { ResidentFilters } from './resident-directory';
+import type { ResidentFilters } from './resident-directory';
 
 export type ResidentView = 'pending' | 'registered';
 
@@ -16,16 +17,16 @@ export class ResidentsComponent {
   @Input() view: ResidentView = 'pending';
   @Input() registeredResidents: RegisteredResident[] = [];
   @Input() filters: ResidentFilters = { sort: 'registeredAt', direction: 'desc', building: '' };
-  @Output() filtersChange = new EventEmitter<ResidentFilters>();
-  @Output() viewChange = new EventEmitter<ResidentView>();
+  @Output() readonly filtersChange = new EventEmitter<ResidentFilters>();
+  @Output() readonly viewChange = new EventEmitter<ResidentView>();
   @Input() residents: Registration[] = [];
   @Input() loading = false;
   @Input() saving = false;
-  @Output() approve = new EventEmitter<Registration>();
-  @Output() reject = new EventEmitter<Registration>();
-  readonly date = formatDate;
-  readonly buildings = buildingNumbers;
-  changeFilters(change: Partial<ResidentFilters>): void {
+  @Output() readonly approve = new EventEmitter<Registration>();
+  @Output() readonly reject = new EventEmitter<Registration>();
+  protected readonly date = formatDate;
+  protected readonly buildings = buildingNumbers;
+  protected changeFilters(change: Partial<ResidentFilters>): void {
     this.filtersChange.emit({ ...this.filters, ...change });
   }
 }

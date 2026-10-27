@@ -1,4 +1,8 @@
 {
   "extends": ["stylelint-config-standard-scss"],
-  "ignoreFiles": ["dist/**", ".angular/**", "out-tsc/**", "node_modules/**"]
+  "ignoreFiles": ["dist/**", ".angular/**", "out-tsc/**", "node_modules/**"],
+  "rules": {
+    "selector-max-id": 0,
+    "max-nesting-depth": 3
+  }
 }

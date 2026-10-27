@@ -1,6 +1,8 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import type { OnChanges } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BroadcastMessage, MessageChange } from '../api.service';
+
+import type { BroadcastMessage, MessageChange } from '../api.service';
 import { formatDate } from '../shared/ticket-presentation';
 
 @Component({
@@ -14,10 +16,10 @@ export class MessagesComponent implements OnChanges {
   @Input() loading = false;
   @Input() saving = false;
   @Input() sentMessageId: string | null = null;
-  @Output() sendMessage = new EventEmitter<MessageChange>();
-  text = '';
+  @Output() readonly sendMessage = new EventEmitter<MessageChange>();
+  protected text = '';
   private attempt: MessageChange | null = null;
-  readonly date = formatDate;
+  protected readonly date = formatDate;
 
   ngOnChanges(): void {
     if (this.attempt && this.sentMessageId === this.attempt.id) {
@@ -25,10 +27,14 @@ export class MessagesComponent implements OnChanges {
       this.attempt = null;
     }
   }
-  send(): void {
-    if (this.loading || this.saving || !this.text.trim() || this.text.length > 4096) return;
+  protected send(): void {
+    if (this.loading || this.saving || !this.text.trim() || this.text.length > 4096) {
+      return;
+    }
     const text = this.text.trim();
-    if (this.attempt?.text !== text) this.attempt = { id: crypto.randomUUID(), text };
+    if (this.attempt?.text !== text) {
+      this.attempt = { id: crypto.randomUUID(), text };
+    }
     this.sendMessage.emit(this.attempt);
   }
 }

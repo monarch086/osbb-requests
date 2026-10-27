@@ -1,6 +1,7 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+
 import { CognitoAuthClient } from './cognito-auth-client.service';
 import { UserFacingError } from './error-message';
 
@@ -18,39 +19,46 @@ export type SignInResult = 'SIGNED_IN' | 'CONFIRM_SIGN_UP' | 'RESET_PASSWORD';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private platformId = inject(PLATFORM_ID);
-  private cognito = inject(CognitoAuthClient);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly cognito = inject(CognitoAuthClient);
 
   readonly user$ = new BehaviorSubject<SignedInUser | null>(null);
   config?: AppConfig;
 
   async initialize(): Promise<void> {
-    if (!isPlatformBrowser(this.platformId)) return;
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
     const response = await fetch('/assets/app-config.json', {
       cache: 'no-store',
     });
-    if (!response.ok)
+    if (!response.ok) {
       throw new UserFacingError(
         'Не вдалося завантажити конфігурацію застосунку. Спробуйте ще раз.',
       );
+    }
     const config = (await response.json()) as AppConfig;
-    if (!config.apiUrl || !config.clientId || !config.userPoolId)
+    if (!config.apiUrl || !config.clientId || !config.userPoolId) {
       throw new UserFacingError('Доступ до облікового запису поки недоступний. Спробуйте пізніше.');
+    }
     const apiUrl = new URL(config.apiUrl);
     if (
       apiUrl.protocol !== 'https:' &&
       !(apiUrl.protocol === 'http:' && apiUrl.hostname === 'localhost')
-    )
+    ) {
       throw new UserFacingError(
         'Доступ до облікового запису недоступний. Зверніться до служби підтримки.',
       );
+    }
     this.config = config;
     this.cognito.configure(config.userPoolId, config.clientId);
     try {
       await this.cognito.getCurrentUser();
       await this.publishSession();
     } catch (error) {
-      if (!isNoCurrentUser(error)) throw error;
+      if (!isNoCurrentUser(error)) {
+        throw error;
+      }
     }
   }
 
@@ -70,14 +78,29 @@ export class AuthService {
           return 'CONFIRM_SIGN_UP';
         case 'RESET_PASSWORD':
           return 'RESET_PASSWORD';
+        case 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE':
+        case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
+        case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
+        case 'CONFIRM_SIGN_IN_WITH_PASSWORD':
+        case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
+        case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
+        case 'CONTINUE_SIGN_IN_WITH_EMAIL_SETUP':
+        case 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION':
+        case 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION':
+        case 'CONTINUE_SIGN_IN_WITH_MFA_SETUP_SELECTION':
+        case 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP':
         default:
           throw new UserFacingError(
             'Цей спосіб входу не підтримується. Зверніться до служби підтримки.',
           );
       }
     } catch (error) {
-      if (errorName(error) === 'UserNotConfirmedException') return 'CONFIRM_SIGN_UP';
-      if (errorName(error) === 'PasswordResetRequiredException') return 'RESET_PASSWORD';
+      if (errorName(error) === 'UserNotConfirmedException') {
+        return 'CONFIRM_SIGN_UP';
+      }
+      if (errorName(error) === 'PasswordResetRequiredException') {
+        return 'RESET_PASSWORD';
+      }
       throw authError(error);
     }
   }
@@ -150,7 +173,9 @@ export class AuthService {
     try {
       const session = await this.cognito.fetchAuthSession();
       const token = session.tokens?.accessToken;
-      if (!token) throw new Error('No access token');
+      if (!token) {
+        throw new Error('No access token');
+      }
       return token.toString();
     } catch {
       this.user$.next(null);
@@ -167,7 +192,9 @@ export class AuthService {
   }
 
   private ensureConfigured(): void {
-    if (!this.config) throw new UserFacingError('Доступ до облікового запису поки недоступний.');
+    if (!this.config) {
+      throw new UserFacingError('Доступ до облікового запису поки недоступний.');
+    }
   }
 }
 

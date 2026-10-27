@@ -3,6 +3,7 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import angular from 'angular-eslint';
 import prettier from 'eslint-config-prettier/flat';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default defineConfig([
   globalIgnores(['dist/**', '.angular/**', 'out-tsc/**', 'node_modules/**']),
@@ -36,4 +37,22 @@ export default defineConfig([
     extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
   },
   prettier,
+  {
+    files: ['src/**/*.ts'],
+    plugins: { 'simple-import-sort': simpleImportSort },
+    rules: {
+      '@angular-eslint/prefer-output-readonly': 'error',
+      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/prefer-readonly': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
+      '@typescript-eslint/member-ordering': [
+        'error',
+        { default: ['signature', 'field', 'constructor', ['get', 'set'], 'method'] },
+      ],
+      curly: ['error', 'all'],
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+    },
+  },
 ]);

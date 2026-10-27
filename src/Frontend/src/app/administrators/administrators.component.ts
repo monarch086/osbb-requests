@@ -1,6 +1,7 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
+
 import { AdministratorNotificationsComponent } from '../administrator-notifications/administrator-notifications.component';
-import { Admin, NotificationSettings } from '../api.service';
+import type { Admin, NotificationSettings } from '../api.service';
 
 @Component({
   selector: 'app-administrators',
@@ -10,9 +11,9 @@ import { Admin, NotificationSettings } from '../api.service';
 export class AdministratorsComponent {
   @Input() admins: Admin[] = [];
   @Input() saving = false;
-  @Output() saveNotifications = new EventEmitter<{
+  @Output() readonly saveNotifications = new EventEmitter<{
     admin: Admin;
     settings: NotificationSettings;
   }>();
-  @Output() toggleAccess = new EventEmitter<Admin>();
+  @Output() readonly toggleAccess = new EventEmitter<Admin>();
 }

@@ -40,6 +40,7 @@
     "angular-eslint": "^21.4.0",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
     "prettier": "^3.9.10",
     "stylelint": "^17.16.0",
     "stylelint-config-standard-scss": "^17.0.0",

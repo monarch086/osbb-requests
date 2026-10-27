@@ -37,7 +37,9 @@ export class ResidentDirectory {
         if (filters.sort === 'lastName') {
           const aName = a.lastName?.trim() || '';
           const bName = b.lastName?.trim() || '';
-          if (!aName !== !bName) return aName ? -1 : 1;
+          if (!aName !== !bName) {
+            return aName ? -1 : 1;
+          }
           comparison =
             names.compare(aName, bName) || names.compare(a.firstName || '', b.firstName || '');
         } else {

@@ -1,4 +1,5 @@
-import { CanDeactivateFn, Routes } from '@angular/router';
+import type { CanDeactivateFn, Routes } from '@angular/router';
+
 import { WorkspaceComponent } from './workspace/workspace.component';
 
 const canLeaveWorkspace: CanDeactivateFn<WorkspaceComponent> = (workspace) => !workspace.saving;

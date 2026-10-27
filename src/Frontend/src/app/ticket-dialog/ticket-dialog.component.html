@@ -221,7 +221,7 @@
               event['action'] === 'Created'
                 ? 'Створено заявку'
                 : event['status']
-                  ? labels[event['status']]
+                  ? historyLabels[event['status']]
                   : 'Оновлення заявки'
             }}</strong
             ><small class="d-block text-body-secondary mt-1"

@@ -1,11 +1,13 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AsyncPipe } from '@angular/common';
-import { AuthPageComponent } from './auth-page.component';
-import { AuthService } from './auth.service';
-import { errorMessage } from './error-message';
+import type { OnInit } from '@angular/core';
+import { Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterOutlet } from '@angular/router';
-import { Subscription } from 'rxjs';
+import type { Subscription } from 'rxjs';
+
+import { AuthService } from './auth.service';
+import { AuthPageComponent } from './auth-page.component';
+import { errorMessage } from './error-message';
 import { WorkspaceComponent } from './workspace/workspace.component';
 
 @Component({
@@ -14,20 +16,22 @@ import { WorkspaceComponent } from './workspace/workspace.component';
   templateUrl: './app.component.html',
 })
 export class AppComponent implements OnInit {
-  readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private workspaceSaving?: Subscription;
-  ready = false;
-  saving = false;
-  showAuth = false;
-  error = '';
+  protected ready = false;
+  protected saving = false;
+  protected showAuth = false;
+  protected error = '';
   ngOnInit(): void {
     void this.initialize();
   }
 
   private async initialize(): Promise<void> {
     this.auth.user$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((user) => {
-      if (!user) this.saving = false;
+      if (!user) {
+        this.saving = false;
+      }
     });
     try {
       await this.auth.initialize();
@@ -37,7 +41,7 @@ export class AppComponent implements OnInit {
       this.ready = true;
     }
   }
-  activateWorkspace(workspace: unknown): void {
+  protected activateWorkspace(workspace: unknown): void {
     this.deactivateWorkspace();
     if (workspace instanceof WorkspaceComponent) {
       this.workspaceSaving = workspace.savingChange
@@ -45,11 +49,13 @@ export class AppComponent implements OnInit {
         .subscribe((saving) => (this.saving = saving));
     }
   }
-  deactivateWorkspace(): void {
+  protected deactivateWorkspace(): void {
     this.workspaceSaving?.unsubscribe();
     this.saving = false;
   }
-  async logout(): Promise<void> {
-    if (!this.saving) await this.auth.signOut();
+  protected async logout(): Promise<void> {
+    if (!this.saving) {
+      await this.auth.signOut();
+    }
   }
 }

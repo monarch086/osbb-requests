@@ -1,18 +1,19 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NgSelectComponent, NgOptionComponent } from '@ng-select/ng-select';
-import { ManagedTicket } from '../api.service';
+import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
+
+import type { ManagedTicket, TicketStatus } from '../api.service';
+import type { TicketFilters } from '../shared/ticket-presentation';
 import {
-  TicketFilters,
-  ticketPriorities,
-  requestTargets,
   buildingFloors,
   floorLabel,
-  requestLocationLabel,
-  ticketStatuses,
-  ticketCategories,
-  statusLabels,
   formatDate,
+  requestLocationLabel,
+  requestTargets,
+  statusLabels,
+  ticketCategories,
+  ticketPriorities,
+  ticketStatuses,
 } from '../shared/ticket-presentation';
 
 @Component({
@@ -25,8 +26,8 @@ export class RequestsComponent {
   @Input() tickets: ManagedTicket[] = [];
   @Input() loading = false;
   @Input() saving = false;
-  @Output() applyFilters = new EventEmitter<TicketFilters>();
-  @Output() openTicket = new EventEmitter<ManagedTicket>();
+  @Output() readonly applyFilters = new EventEmitter<TicketFilters>();
+  @Output() readonly openTicket = new EventEmitter<ManagedTicket>();
   @Input() filters: TicketFilters = {
     status: ['New', 'InProgress'],
     category: '',
@@ -36,29 +37,29 @@ export class RequestsComponent {
     target: '',
     floor: '',
   };
-  readonly priorities = ticketPriorities;
-  readonly targets = requestTargets;
-  readonly floors = buildingFloors;
-  readonly floorLabel = floorLabel;
-  readonly locationLabel = requestLocationLabel;
-  readonly statuses = ticketStatuses;
-  readonly categories = ticketCategories;
-  readonly labels = statusLabels;
-  readonly badgeClasses: Record<string, string> = {
+  protected readonly priorities = ticketPriorities;
+  protected readonly targets = requestTargets;
+  protected readonly floors = buildingFloors;
+  protected readonly floorLabel = floorLabel;
+  protected readonly locationLabel = requestLocationLabel;
+  protected readonly statuses = ticketStatuses;
+  protected readonly categories = ticketCategories;
+  protected readonly labels = statusLabels;
+  protected readonly badgeClasses: Record<TicketStatus, string> = {
     New: 'text-bg-warning',
     InProgress: 'text-bg-primary status-in-progress',
     AwaitingClarification: 'text-bg-secondary',
     Completed: 'text-bg-success',
     Rejected: 'text-bg-danger',
   };
-  readonly date = formatDate;
-  get newCount(): number {
+  protected readonly date = formatDate;
+  protected get newCount(): number {
     return this.tickets.filter((t) => t.request.status === 'New').length;
   }
-  get progressCount(): number {
+  protected get progressCount(): number {
     return this.tickets.filter((t) => t.request.status === 'InProgress').length;
   }
-  submitFilters(): void {
+  protected submitFilters(): void {
     this.applyFilters.emit({ ...this.filters, status: [...this.filters.status] });
   }
 }

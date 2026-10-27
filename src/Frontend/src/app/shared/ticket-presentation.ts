@@ -1,15 +1,15 @@
-import type { Ticket } from '../api.service';
+import type { Ticket, TicketPriority, TicketStatus } from '../api.service';
 
 export interface TicketFilters {
   target: string;
   floor: string;
-  status: string[];
+  status: TicketStatus[];
   category: string;
   search: string;
   from: string;
   to: string;
 }
-export const ticketStatuses = [
+export const ticketStatuses: TicketStatus[] = [
   'New',
   'InProgress',
   'AwaitingClarification',
@@ -23,7 +23,7 @@ export const ticketCategories = [
   'місця загального користування',
   'інше',
 ];
-export const statusLabels: Record<string, string> = {
+export const statusLabels: Record<TicketStatus, string> = {
   New: 'Нова',
   InProgress: 'В роботі',
   AwaitingClarification: 'Очікує уточнення',
@@ -61,8 +61,10 @@ export function requestTarget(ticket: Ticket): string | null {
       : null;
 }
 export function requestLocationLabel(ticket: Ticket): string {
-  if (ticket.scope === 'Complex') return 'Весь комплекс';
-  if (ticket.scope === 'Building')
+  if (ticket.scope === 'Complex') {
+    return 'Весь комплекс';
+  }
+  if (ticket.scope === 'Building') {
     return (
       `Будинок ${ticket.buildingNumber} · під’їзд ${ticket.entrance ?? 'Не зазначено'}` +
       (ticket.floor === 0
@@ -71,10 +73,11 @@ export function requestLocationLabel(ticket: Ticket): string {
           ? ` · поверх ${ticket.floor}`
           : ' · без поверху')
     );
+  }
   return 'Будинок не уточнено';
 }
 
-export const ticketPriorities = [
+export const ticketPriorities: { value: TicketPriority; label: string; badgeClass: string }[] = [
   { value: 'Low', label: 'Низький', badgeClass: 'text-bg-secondary' },
   { value: 'Normal', label: 'Звичайний', badgeClass: 'text-bg-light' },
   { value: 'High', label: 'Високий', badgeClass: 'text-bg-warning' },

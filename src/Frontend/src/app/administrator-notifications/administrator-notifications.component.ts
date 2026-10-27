@@ -1,6 +1,8 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import type { OnChanges, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Admin, NotificationSettings } from '../api.service';
+
+import type { Admin, NotificationSettings } from '../api.service';
 
 @Component({
   selector: 'app-administrator-notifications',
@@ -10,14 +12,22 @@ import { Admin, NotificationSettings } from '../api.service';
 export class AdministratorNotificationsComponent implements OnChanges {
   @Input({ required: true }) admin!: Admin;
   @Input() saving = false;
-  @Output() saved = new EventEmitter<NotificationSettings>();
-  settings: NotificationSettings = {
+  @Output() readonly saved = new EventEmitter<NotificationSettings>();
+  protected settings: NotificationSettings = {
     telegramChatId: '',
     notifyNewResidents: false,
     notifyNewRequests: false,
     notifyNewAdministrators: false,
   };
-  ngOnChanges(changes: SimpleChanges): void {
+  protected get missingChat(): boolean {
+    return (
+      !this.settings.telegramChatId?.trim() &&
+      (this.settings.notifyNewResidents ||
+        this.settings.notifyNewRequests ||
+        this.settings.notifyNewAdministrators)
+    );
+  }
+  ngOnChanges(changes: Partial<SimpleChanges>): void {
     if (changes['admin']) {
       this.settings = {
         telegramChatId: this.admin.telegramChatId ?? '',
@@ -27,15 +37,9 @@ export class AdministratorNotificationsComponent implements OnChanges {
       };
     }
   }
-  get missingChat(): boolean {
-    return (
-      !this.settings.telegramChatId?.trim() &&
-      (this.settings.notifyNewResidents ||
-        this.settings.notifyNewRequests ||
-        this.settings.notifyNewAdministrators)
-    );
-  }
-  submit(): void {
-    if (!this.saving && !this.missingChat) this.saved.emit({ ...this.settings });
+  protected submit(): void {
+    if (!this.saving && !this.missingChat) {
+      this.saved.emit({ ...this.settings });
+    }
   }
 }

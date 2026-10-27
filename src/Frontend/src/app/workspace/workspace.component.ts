@@ -1,29 +1,33 @@
-import { Component, OnDestroy, OnInit, Output, EventEmitter, inject } from '@angular/core';
+import type { OnDestroy, OnInit } from '@angular/core';
+import { Component, EventEmitter, inject, Output } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
-import { AuthService } from '../auth.service';
-import {
-  ApiService,
+import type { Subscription } from 'rxjs';
+
+import { AdministratorsComponent } from '../administrators/administrators.component';
+import type {
+  Admin,
   BroadcastMessage,
+  ManagedTicket,
   MessageChange,
   NotificationSettings,
-  Admin,
-  Registration,
+  Page,
   RegisteredResident,
-  ManagedTicket,
+  Registration,
   RequestAuthor,
   Ticket,
-  Page,
 } from '../api.service';
+import { ApiService } from '../api.service';
+import { AuthService } from '../auth.service';
+import { errorMessage } from '../error-message';
 import { MessagesComponent } from '../messages/messages.component';
 import { PaginationComponent } from '../pagination/pagination.component';
-import { TicketFilters } from '../shared/ticket-presentation';
-import { errorMessage } from '../error-message';
-import { RequestsComponent } from '../requests/requests.component';
-import { ResidentsComponent, ResidentView } from '../residents/residents.component';
-import { ResidentDirectory, ResidentFilters } from '../residents/resident-directory';
-import { AdministratorsComponent } from '../administrators/administrators.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
+import { RequestsComponent } from '../requests/requests.component';
+import type { ResidentFilters } from '../residents/resident-directory';
+import { ResidentDirectory } from '../residents/resident-directory';
+import type { ResidentView } from '../residents/residents.component';
+import { ResidentsComponent } from '../residents/residents.component';
+import type { TicketFilters } from '../shared/ticket-presentation';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
 
 @Component({
@@ -41,39 +45,39 @@ import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component'
   templateUrl: './workspace.component.html',
 })
 export class WorkspaceComponent implements OnInit, OnDestroy {
-  @Output() savingChange = new EventEmitter<boolean>();
-  private route = inject(ActivatedRoute);
-  private router = inject(Router);
-  private auth = inject(AuthService);
-  private api = inject(ApiService);
-  me: Admin | null = null;
-  loading = false;
+  @Output() readonly savingChange = new EventEmitter<boolean>();
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly api = inject(ApiService);
+  protected me: Admin | null = null;
+  protected loading = false;
   saving = false;
-  error = '';
-  notice = '';
-  tab: 'requests' | 'residents' | 'messages' | 'admins' = 'requests';
-  messages: BroadcastMessage[] = [];
-  sentMessageId: string | null = null;
-  tickets: ManagedTicket[] = [];
-  residents: Registration[] = [];
-  registeredResidents: RegisteredResident[] = [];
-  residentView: ResidentView = 'pending';
-  residentDirectory = new ResidentDirectory();
-  admins: Admin[] = [];
-  assignees: {
+  protected error = '';
+  protected notice = '';
+  protected tab: 'requests' | 'residents' | 'messages' | 'admins' = 'requests';
+  protected messages: BroadcastMessage[] = [];
+  protected sentMessageId: string | null = null;
+  protected tickets: ManagedTicket[] = [];
+  protected residents: Registration[] = [];
+  protected registeredResidents: RegisteredResident[] = [];
+  protected residentView: ResidentView = 'pending';
+  protected residentDirectory = new ResidentDirectory();
+  protected admins: Admin[] = [];
+  protected assignees: {
     userId: string;
     email: string;
   }[] = [];
-  cursor: string | null = null;
-  pageIndex = 0;
+  private cursor: string | null = null;
+  protected pageIndex = 0;
   private pageCursors: (string | null)[] = [null];
-  selected: ManagedTicket | null = null;
-  draft: Ticket | null = null;
-  history: Record<string, string>[] = [];
-  author: RequestAuthor | null = null;
-  authorLoading = false;
-  rejecting: Registration | null = null;
-  filters: TicketFilters = {
+  protected selected: ManagedTicket | null = null;
+  protected draft: Ticket | null = null;
+  protected history: Record<string, string>[] = [];
+  protected author: RequestAuthor | null = null;
+  protected authorLoading = false;
+  protected rejecting: Registration | null = null;
+  protected filters: TicketFilters = {
     status: ['New', 'InProgress'],
     category: '',
     search: '',
@@ -85,20 +89,30 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private appliedFilters: TicketFilters = { ...this.filters, status: [...this.filters.status] };
   private loadSequence = 0;
   private detailSequence = 0;
-  get availablePages(): number {
-    if (this.isRegisteredResidentView) return this.residentDirectory.pageCount;
+  private subscription?: Subscription;
+  private epoch = 0;
+  protected get availablePages(): number {
+    if (this.isRegisteredResidentView) {
+      return this.residentDirectory.pageCount;
+    }
     return this.pageCursors.length;
   }
   private get isRegisteredResidentView(): boolean {
     return this.tab === 'residents' && this.residentView === 'registered';
   }
-  get hasNextPage(): boolean {
+  protected get hasNextPage(): boolean {
     return this.isRegisteredResidentView ? this.pageIndex + 1 < this.availablePages : !!this.cursor;
   }
-  get pageItemCount(): number {
-    if (this.tab === 'requests') return this.tickets.length;
-    if (this.tab === 'messages') return this.messages.length;
-    if (this.tab === 'admins') return this.admins.length;
+  protected get pageItemCount(): number {
+    if (this.tab === 'requests') {
+      return this.tickets.length;
+    }
+    if (this.tab === 'messages') {
+      return this.messages.length;
+    }
+    if (this.tab === 'admins') {
+      return this.admins.length;
+    }
     return this.residentView === 'pending'
       ? this.residents.length
       : this.registeredResidents.length;
@@ -114,13 +128,13 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.residentDirectory.setItems([]);
     this.admins = [];
   }
-  private subscription?: Subscription;
-  private epoch = 0;
   ngOnInit(): void {
     this.subscription = this.auth.user$.subscribe((user) => {
       this.epoch++;
       this.clear();
-      if (user) void this.workspace();
+      if (user) {
+        void this.workspace();
+      }
     });
   }
   ngOnDestroy(): void {
@@ -154,13 +168,15 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.notice = '';
     this.sentMessageId = null;
   }
-  async workspace(): Promise<void> {
+  protected async workspace(): Promise<void> {
     const epoch = this.epoch;
     this.loading = true;
     this.error = '';
     try {
       const user = await this.api.request<Admin>('/me');
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.epoch) {
+        return;
+      }
       this.me = user;
       if (!user.isSuperAdmin && (this.tab === 'admins' || this.tab === 'messages')) {
         await this.router.navigateByUrl('/requests', { replaceUrl: true });
@@ -182,34 +198,45 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
           assignees.push(...page.items);
           cursor = page.cursor;
         } while (cursor && epoch === this.epoch);
-        if (epoch !== this.epoch) return;
+        if (epoch !== this.epoch) {
+          return;
+        }
         this.assignees = assignees;
         await this.loadPage(0, null);
       }
     } catch (e) {
-      if (epoch === this.epoch) this.error = errorMessage(e);
+      if (epoch === this.epoch) {
+        this.error = errorMessage(e);
+      }
     } finally {
-      if (epoch === this.epoch) this.loading = false;
+      if (epoch === this.epoch) {
+        this.loading = false;
+      }
     }
   }
-  async switchResidentView(view: ResidentView): Promise<void> {
-    if (this.saving || this.loading || this.tab !== 'residents' || view === this.residentView)
+  protected async switchResidentView(view: ResidentView): Promise<void> {
+    if (this.saving || this.loading || this.tab !== 'residents' || view === this.residentView) {
       return;
+    }
     this.residentView = view;
     this.resetPagination();
     this.rejecting = null;
     this.notice = '';
     await this.load();
   }
-  async applyRequestFilters(filters: TicketFilters): Promise<void> {
-    if (this.loading || this.saving) return;
+  protected async applyRequestFilters(filters: TicketFilters): Promise<void> {
+    if (this.loading || this.saving) {
+      return;
+    }
     this.filters = { ...filters, status: [...filters.status] };
     this.appliedFilters = { ...filters, status: [...filters.status] };
     this.resetPagination();
     await this.load();
   }
-  applyResidentFilters(filters: ResidentFilters): void {
-    if (this.loading || this.saving || !this.isRegisteredResidentView) return;
+  protected applyResidentFilters(filters: ResidentFilters): void {
+    if (this.loading || this.saving || !this.isRegisteredResidentView) {
+      return;
+    }
     this.residentDirectory.applyFilters(filters);
     this.showResidentPage(0);
   }
@@ -217,18 +244,22 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.pageIndex = Math.min(index, this.residentDirectory.pageCount - 1);
     this.registeredResidents = this.residentDirectory.page(this.pageIndex);
   }
-  async load(): Promise<void> {
-    if (this.loading || this.saving) return;
+  protected async load(): Promise<void> {
+    if (this.loading || this.saving) {
+      return;
+    }
     await this.loadPage(this.pageIndex, this.pageCursors[this.pageIndex] ?? null);
   }
-  async previousPage(): Promise<void> {
+  protected async previousPage(): Promise<void> {
     await this.goToPage(this.pageIndex);
   }
-  async nextPage(): Promise<void> {
-    if (!this.hasNextPage) return;
+  protected async nextPage(): Promise<void> {
+    if (!this.hasNextPage) {
+      return;
+    }
     await this.goToPage(this.pageIndex + 2);
   }
-  async goToPage(number: number): Promise<void> {
+  protected async goToPage(number: number): Promise<void> {
     if (
       this.loading ||
       this.saving ||
@@ -236,19 +267,24 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       number < 1 ||
       number > this.availablePages ||
       number === this.pageIndex + 1
-    )
+    ) {
       return;
+    }
     const index = number - 1;
     if (this.isRegisteredResidentView) {
       this.showResidentPage(index);
       return;
     }
-    const start = this.pageCursors[index];
-    if (start === undefined || (index > 0 && start === null)) return;
+    const start = this.pageCursors.at(index);
+    if (start === undefined || (index > 0 && start === null)) {
+      return;
+    }
     await this.loadPage(index, start);
   }
   private async loadPage(index: number, startCursor: string | null): Promise<void> {
-    if (!this.me?.isActive || this.saving) return;
+    if (!this.me?.isActive || this.saving) {
+      return;
+    }
     const sequence = ++this.loadSequence;
     const epoch = this.epoch;
     const tab = this.tab;
@@ -256,12 +292,18 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = '';
     const params = new URLSearchParams();
-    if (startCursor) params.set('cursor', startCursor);
+    if (startCursor) {
+      params.set('cursor', startCursor);
+    }
     if (tab === 'requests') {
       const { status, ...filters } = this.appliedFilters;
-      if (status.length) params.set('status', status.join(','));
+      if (status.length) {
+        params.set('status', status.join(','));
+      }
       for (const [key, value] of Object.entries(filters)) {
-        if (value) params.set(key, value);
+        if (value) {
+          params.set(key, value);
+        }
       }
     }
     const path =
@@ -283,11 +325,17 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
           const page: Page<RegisteredResident> = await this.api.request(
             '/residents' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''),
           );
-          if (epoch !== this.epoch || sequence !== this.loadSequence) return;
+          if (epoch !== this.epoch || sequence !== this.loadSequence) {
+            return;
+          }
           residents.push(...page.items);
           cursor = page.cursor;
-          if (cursor && visited.has(cursor)) throw new Error('Repeated resident directory cursor');
-          if (cursor) visited.add(cursor);
+          if (cursor && visited.has(cursor)) {
+            throw new Error('Repeated resident directory cursor');
+          }
+          if (cursor) {
+            visited.add(cursor);
+          }
         } while (cursor);
         this.residentDirectory.setItems(residents);
         this.showResidentPage(index);
@@ -301,47 +349,72 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         sequence !== this.loadSequence ||
         tab !== this.tab ||
         (tab === 'residents' && residentView !== this.residentView)
-      )
+      ) {
         return;
-      if (tab === 'requests') this.tickets = page.items as ManagedTicket[];
-      if (tab === 'residents' && residentView === 'pending')
+      }
+      if (tab === 'requests') {
+        this.tickets = page.items as ManagedTicket[];
+      }
+      if (tab === 'residents' && residentView === 'pending') {
         this.residents = page.items as Registration[];
-      if (tab === 'residents' && residentView === 'registered')
+      }
+      if (tab === 'residents' && residentView === 'registered') {
         this.registeredResidents = page.items as RegisteredResident[];
-      if (tab === 'messages') this.messages = page.items as BroadcastMessage[];
-      if (tab === 'admins') this.admins = page.items as Admin[];
+      }
+      if (tab === 'messages') {
+        this.messages = page.items as BroadcastMessage[];
+      }
+      if (tab === 'admins') {
+        this.admins = page.items as Admin[];
+      }
       this.pageIndex = index;
       this.pageCursors[index] = startCursor;
       if (page.cursor) {
-        if (this.pageCursors[index + 1] !== page.cursor)
+        if (this.pageCursors[index + 1] !== page.cursor) {
           this.pageCursors = this.pageCursors.slice(0, index + 1);
+        }
         this.pageCursors[index + 1] = page.cursor;
-      } else this.pageCursors = this.pageCursors.slice(0, index + 1);
+      } else {
+        this.pageCursors = this.pageCursors.slice(0, index + 1);
+      }
       this.cursor = page.cursor;
     } catch (e) {
-      if (epoch === this.epoch && sequence === this.loadSequence) this.error = errorMessage(e);
+      if (epoch === this.epoch && sequence === this.loadSequence) {
+        this.error = errorMessage(e);
+      }
     } finally {
-      if (epoch === this.epoch && sequence === this.loadSequence) this.loading = false;
+      if (epoch === this.epoch && sequence === this.loadSequence) {
+        this.loading = false;
+      }
     }
   }
-  async sendMessage(change: MessageChange): Promise<void> {
-    if (!this.me?.isSuperAdmin || !this.me.isActive || this.loading || this.saving) return;
+  protected async sendMessage(change: MessageChange): Promise<void> {
+    if (!this.me?.isSuperAdmin || !this.me.isActive || this.loading || this.saving) {
+      return;
+    }
     const epoch = this.epoch;
-    let sent = false;
+    const writeState = { sent: false };
     await this.write(async () => {
       const result = await this.api.request<BroadcastMessage>('/messages', 'POST', change);
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.epoch) {
+        return;
+      }
       this.sentMessageId = result.id;
       this.notice = 'Повідомлення передано на розсилку мешканцям у Telegram.';
-      sent = true;
+      writeState.sent = true;
     });
-    if (sent && epoch === this.epoch) {
+    if (writeState.sent && epoch === this.epoch) {
       this.resetPagination();
       await this.load();
     }
   }
-  async saveNotificationSettings(admin: Admin, settings: NotificationSettings): Promise<void> {
-    if (!this.me?.isSuperAdmin) return;
+  protected async saveNotificationSettings(
+    admin: Admin,
+    settings: NotificationSettings,
+  ): Promise<void> {
+    if (!this.me?.isSuperAdmin) {
+      return;
+    }
     await this.write(async () => {
       await this.api.request(
         '/administrators/' + encodeURIComponent(admin.userId) + '/notifications',
@@ -352,13 +425,16 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         },
       );
       Object.assign(admin, settings, { version: admin.version + 1 });
-      if (this.me?.userId === admin.userId)
+      if (this.me?.userId === admin.userId) {
         Object.assign(this.me, settings, { version: admin.version });
+      }
       this.notice = 'Налаштування сповіщень збережено.';
     });
   }
-  async setAccess(user: Admin): Promise<void> {
-    if (!this.me?.isSuperAdmin || user.isSuperAdmin) return;
+  protected async setAccess(user: Admin): Promise<void> {
+    if (!this.me?.isSuperAdmin || user.isSuperAdmin) {
+      return;
+    }
     await this.write(async () => {
       await this.api.request('/administrators/' + encodeURIComponent(user.userId), 'PATCH', {
         isActive: !user.isActive,
@@ -369,7 +445,11 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.notice = 'Доступ адміністратора оновлено.';
     });
   }
-  async decide(registration: Registration, approved: boolean, reason = ''): Promise<void> {
+  protected async decide(
+    registration: Registration,
+    approved: boolean,
+    reason = '',
+  ): Promise<void> {
     if (!approved && !reason.trim()) {
       this.error = 'Вкажіть причину відхилення.';
       return;
@@ -385,8 +465,10 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
     });
   }
-  async open(ticket: ManagedTicket): Promise<void> {
-    if (this.saving || this.loading) return;
+  protected async open(ticket: ManagedTicket): Promise<void> {
+    if (this.saving || this.loading) {
+      return;
+    }
     this.selected = ticket;
     this.draft = { ...ticket.request, entrance: ticket.request.entrance ?? null };
     this.history = [];
@@ -399,20 +481,29 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.api.request<ManagedTicket>(this.ticketPath(ticket)),
       this.api.request<{ items: Record<string, string>[] }>(this.ticketPath(ticket) + '/history'),
     ]);
-    if (epoch !== this.epoch || sequence !== this.detailSequence || this.selected !== ticket)
+    if (epoch !== this.epoch || sequence !== this.detailSequence || this.selected !== ticket) {
       return;
+    }
     this.authorLoading = false;
-    if (detail.status === 'fulfilled') this.author = detail.value.author ?? null;
-    else this.error = errorMessage(detail.reason);
-    if (history.status === 'fulfilled') this.history = history.value.items;
-    else this.error = errorMessage(history.reason);
+    if (detail.status === 'fulfilled') {
+      this.author = detail.value.author ?? null;
+    } else {
+      this.error = errorMessage(detail.reason);
+    }
+    if (history.status === 'fulfilled') {
+      this.history = history.value.items;
+    } else {
+      this.error = errorMessage(history.reason);
+    }
   }
-  async saveTicket(draft: Ticket): Promise<void> {
+  protected async saveTicket(draft: Ticket): Promise<void> {
     const selected = this.selected;
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const priorityChanged = selected.request.priority !== draft.priority;
     const epoch = this.epoch;
-    let saved = false;
+    const writeState = { saved: false };
     await this.write(async () => {
       await this.api.request(this.ticketPath(selected), 'PATCH', {
         scope: draft.scope,
@@ -432,9 +523,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.selected = null;
       this.draft = null;
       this.notice = 'Зміни заявки збережено.';
-      saved = true;
+      writeState.saved = true;
     });
-    if (saved && priorityChanged && epoch === this.epoch) {
+    if (writeState.saved && priorityChanged && epoch === this.epoch) {
       this.resetPagination();
       await this.load();
     }
@@ -443,7 +534,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     return '/requests/' + ticket.request.ownerId + '/' + ticket.request.id;
   }
   private async write(action: () => Promise<void>): Promise<void> {
-    if (this.saving) return;
+    if (this.saving) {
+      return;
+    }
     this.saving = true;
     this.savingChange.emit(true);
     this.error = '';
@@ -457,7 +550,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.savingChange.emit(false);
     }
   }
-  closeDialog(): void {
+  protected closeDialog(): void {
     if (!this.saving) {
       this.selected = null;
       this.draft = null;
