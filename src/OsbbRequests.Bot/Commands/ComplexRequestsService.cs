@@ -39,12 +39,11 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
 
     private static string Format(PublicRequestSummary request)
     {
-        var date = TimeZoneInfo.ConvertTime(request.CreatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         return $"№{request.Id} - {CommandHandler.StatusLabel(request.Status)}\n" +
-            $"Подано: {date:dd.MM.yyyy HH:mm}\n" +
-            $"{ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance)}\n" +
+            RequestListText.DateLine(request.CreatedAt) +
+            RequestListText.LocationLine(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) +
             $"{RequestListText.Limit(request.Category, 80)}" +
-            (string.IsNullOrEmpty(request.Location) ? "" : ": " + RequestListText.Limit(request.Location, 200)) + "\n" + RequestListText.Limit(request.Description, 2000);
+            (string.IsNullOrEmpty(request.Location) ? "" : ": " + RequestListText.Limit(request.Location, 200)) + RequestListText.Description(request.Description);
     }
 
     private static bool TryCursor(string value, out string? before)

@@ -92,9 +92,10 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             return new CommandOutcome("Заявок на цій сторінці немає. Створити заявку: /new.");
 
         var requests = page.Items.Where(r => r.BuildingId == buildingId && r.OwnerId == userId).ToList();
-        var lines = requests.Select(r => $"№{r.Id} - {StatusLabel(r.Status)}\n{ComplexLayout.Label(r.Scope, r.BuildingNumber, r.Floor, r.Entrance)}\n" +
+        var lines = requests.Select(r => $"№{r.Id} - {StatusLabel(r.Status)}\n" + RequestListText.DateLine(r.CreatedAt) +
+            RequestListText.LocationLine(r.Scope, r.BuildingNumber, r.Floor, r.Entrance) +
             RequestListText.Limit(r.Category, 80) + (string.IsNullOrEmpty(r.Location) ? "" : ": " + RequestListText.Limit(r.Location, 200)) +
-            "\n" + RequestListText.Limit(r.Description, 2000) + $"\n/request {r.Id}").ToList();
+            RequestListText.Description(r.Description) + $"\n/request {r.Id}").ToList();
         string? NextCommand(int count)
         {
             var next = count > 0 && count < requests.Count ? requests[count - 1].Id : page.NextBeforeId;

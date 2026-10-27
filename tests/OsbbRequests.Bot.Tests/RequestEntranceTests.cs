@@ -45,7 +45,8 @@ public sealed class RequestEntranceTests
         foreach (var command in new[] { "/my", "/complex", "/request 7" })
         {
             var result = await Handler(repository).HandleAsync(Message(8, command), default);
-            Assert.Contains("під’їзд " + (expected?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "Не зазначено"), result.Reply);
+            if (expected is null && command != "/request 7") Assert.DoesNotContain("під’їзд", result.Reply);
+            else Assert.Contains("під’їзд " + (expected?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "Не зазначено"), result.Reply);
         }
     }
 
