@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
 
-import type { RegisteredResident, Registration } from '../api.service';
+import type { RegisteredResident, Registration } from '../api.models';
 import { buildingNumbers, formatDate } from '../shared/ticket-presentation';
 import type { ResidentFilters } from './resident-directory';
 

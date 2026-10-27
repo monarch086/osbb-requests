@@ -36,6 +36,19 @@ export default defineConfig([
     files: ['src/**/*.html'],
     extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
   },
+  {
+    files: ['src/**/*.service.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TSInterfaceDeclaration',
+          message: 'Move interfaces to a separate models file.',
+        },
+        { selector: 'TSTypeAliasDeclaration', message: 'Move types to a separate models file.' },
+      ],
+    },
+  },
   prettier,
   {
     files: ['src/**/*.ts'],

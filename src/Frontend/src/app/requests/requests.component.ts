@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
 
-import type { ManagedTicket, TicketStatus } from '../api.service';
+import type { ManagedTicket, TicketStatus } from '../api.models';
 import type { TicketFilters } from '../shared/ticket-presentation';
 import {
   buildingFloors,

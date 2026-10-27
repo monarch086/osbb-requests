@@ -7,7 +7,7 @@ import {
   NgSelectComponent,
 } from '@ng-select/ng-select';
 
-import type { RequestAuthor, Ticket } from '../api.service';
+import type { RequestAuthor, Ticket } from '../api.models';
 import {
   buildingFloors,
   entranceOptions,

@@ -15,7 +15,7 @@ import type {
   Registration,
   RequestAuthor,
   Ticket,
-} from '../api.service';
+} from '../api.models';
 import { ApiService } from '../api.service';
 import { AuthService } from '../auth.service';
 import { errorMessage } from '../error-message';

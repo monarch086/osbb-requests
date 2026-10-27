@@ -2,7 +2,7 @@ import type { OnChanges } from '@angular/core';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import type { BroadcastMessage, MessageChange } from '../api.service';
+import type { BroadcastMessage, MessageChange } from '../api.models';
 import { formatDate } from '../shared/ticket-presentation';
 
 @Component({

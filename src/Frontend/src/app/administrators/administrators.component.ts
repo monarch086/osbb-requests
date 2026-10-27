@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 import { AdministratorNotificationsComponent } from '../administrator-notifications/administrator-notifications.component';
-import type { Admin, NotificationSettings } from '../api.service';
+import type { Admin, NotificationSettings } from '../api.models';
 
 @Component({
   selector: 'app-administrators',

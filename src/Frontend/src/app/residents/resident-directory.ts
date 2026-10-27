@@ -1,4 +1,4 @@
-import type { RegisteredResident } from '../api.service';
+import type { RegisteredResident } from '../api.models';
 
 export interface ResidentFilters {
   sort: 'registeredAt' | 'lastName';

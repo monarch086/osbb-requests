@@ -1,4 +1,4 @@
-import type { Ticket, TicketPriority, TicketStatus } from '../api.service';
+import type { Ticket, TicketPriority, TicketStatus } from '../api.models';
 
 export interface TicketFilters {
   target: string;

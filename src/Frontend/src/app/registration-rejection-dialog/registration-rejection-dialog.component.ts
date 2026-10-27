@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import type { Registration } from '../api.service';
+import type { Registration } from '../api.models';
 
 @Component({
   selector: 'app-registration-rejection-dialog',

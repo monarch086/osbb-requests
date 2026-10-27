@@ -2,7 +2,7 @@ import type { OnChanges, SimpleChanges } from '@angular/core';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import type { Admin, NotificationSettings } from '../api.service';
+import type { Admin, NotificationSettings } from '../api.models';
 
 @Component({
   selector: 'app-administrator-notifications',

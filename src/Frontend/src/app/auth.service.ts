@@ -2,20 +2,9 @@ import { isPlatformBrowser } from '@angular/common';
 import { inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 
+import type { AppConfig, SignedInUser, SignInResult } from './auth.models';
 import { CognitoAuthClient } from './cognito-auth-client.service';
 import { UserFacingError } from './error-message';
-
-export interface AppConfig {
-  apiUrl: string;
-  clientId: string;
-  userPoolId: string;
-}
-
-export interface SignedInUser {
-  profile: { email?: string };
-}
-
-export type SignInResult = 'SIGNED_IN' | 'CONFIRM_SIGN_UP' | 'RESET_PASSWORD';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
