@@ -6,6 +6,7 @@ using Amazon.Runtime;
 using OsbbRequests.AdminApi.Data;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Bot.Notifications;
+using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
 using Xunit;
 
@@ -13,6 +14,45 @@ namespace OsbbRequests.Bot.Tests;
 
 public sealed class AdministratorNotificationTests
 {
+    [Theory]
+    [InlineData(RequestVisibility.Public)]
+    [InlineData(RequestVisibility.Private)]
+    public void NewRequestAlertIncludesFullDescriptionButNoOtherPrivateFields(RequestVisibility visibility)
+    {
+        const string description = "Зламано освітлення\nБіля другого ліфта 🛠 <b>Перевірити</b>";
+        var request = new MaintenanceRequest(7, 987654321, "complex", "електрика", "", description, Now, Visibility: visibility,
+            Resolution: "Приватне пояснення", AssignedTo: "private-assignee", Scope: RequestScope.Building, BuildingNumber: "4Д", Floor: 12, Entrance: 2);
+        var alert = AdministratorNotifications.NewRequest(request);
+        Assert.Contains("\n~~~~~\n" + description + "\n~~~~~\n", alert.Text);
+        Assert.Contains("Нова заявка №7", alert.Text);
+        Assert.Contains("Будинок 4Д", alert.Text);
+        Assert.DoesNotContain("987654321", alert.Text);
+        Assert.DoesNotContain("Приватне пояснення", alert.Text);
+        Assert.DoesNotContain("private-assignee", alert.Text);
+        Assert.Equal(AdministratorEvent.NewRequest, alert.AdministratorEvent);
+        Assert.True(alert.IsBroadcast);
+    }
+
+    [Fact]
+    public async Task MaximumDescriptionFitsTelegramAndSurvivesAdministratorFanout()
+    {
+        var description = string.Concat(Enumerable.Repeat("🛠", 1000));
+        var request = new MaintenanceRequest(long.MaxValue, 42, "complex", "місця загального користування", "", description, Now,
+            Scope: RequestScope.Building, BuildingNumber: "4Д", Floor: 25, Entrance: 2);
+        var alert = AdministratorNotifications.NewRequest(request);
+        Assert.Contains(description, alert.Text);
+        Assert.InRange(alert.Text.Length, 1, 4096);
+        using var db = new NotificationDynamo();
+        db.Administrators["recipient"] = Administrator();
+        db.Page = new() { Items = [new() { ["UserId"] = new("recipient") }] };
+        await new DynamoNotificationRepository(db, "data", "complex", "admins")
+            .ExpandAsync(new("DUE#event", alert, 0), "lease", Now, default);
+        var item = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.Item.ContainsKey("attempts") == true).Put.Item;
+        var delivered = JsonSerializer.Deserialize<ResidentNotification>(item["payload"].S)!;
+        Assert.Equal(alert.Text, delivered.Text);
+        Assert.Equal("recipient", delivered.AdministratorId);
+    }
+
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-23T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
     private static readonly AdminUser Super = new("super", "head@example.invalid", "Head", true, true, 4);
     private static readonly AdminUser Regular = new("regular", "admin@example.invalid", "Admin", true, false, 2);
