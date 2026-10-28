@@ -81,3 +81,22 @@ export interface Page<T> {
   items: T[];
   cursor: string | null;
 }
+
+export interface Assignee {
+  userId: string;
+  email: string;
+}
+
+export interface TicketFilters {
+  target: string;
+  floor: string;
+  status: TicketStatus[];
+  category: string;
+  search: string;
+  from: string;
+  to: string;
+}
+
+export interface TicketHistory {
+  items: Record<string, string>[];
+}

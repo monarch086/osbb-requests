@@ -1,14 +1,6 @@
 import type { Ticket, TicketPriority, TicketStatus } from '../api.models';
 
-export interface TicketFilters {
-  target: string;
-  floor: string;
-  status: TicketStatus[];
-  category: string;
-  search: string;
-  from: string;
-  to: string;
-}
+export type { TicketFilters } from '../api.models';
 export const ticketStatuses: TicketStatus[] = [
   'New',
   'InProgress',

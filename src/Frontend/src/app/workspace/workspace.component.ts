@@ -10,7 +10,6 @@ import type {
   ManagedTicket,
   MessageChange,
   NotificationSettings,
-  Page,
   RegisteredResident,
   Registration,
   RequestAuthor,
@@ -173,7 +172,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = '';
     try {
-      const user = await this.api.request<Admin>('/me');
+      const user = await this.api.getCurrentAdmin();
       if (epoch !== this.epoch) {
         return;
       }
@@ -189,12 +188,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         }[] = [];
         let cursor: string | null = null;
         do {
-          const page: Page<{
-            userId: string;
-            email: string;
-          }> = await this.api.request(
-            '/assignees' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''),
-          );
+          const page = await this.api.getAssignees(cursor);
           assignees.push(...page.items);
           cursor = page.cursor;
         } while (cursor && epoch === this.epoch);
@@ -291,40 +285,13 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     const residentView = this.residentView;
     this.loading = true;
     this.error = '';
-    const params = new URLSearchParams();
-    if (startCursor) {
-      params.set('cursor', startCursor);
-    }
-    if (tab === 'requests') {
-      const { status, ...filters } = this.appliedFilters;
-      if (status.length) {
-        params.set('status', status.join(','));
-      }
-      for (const [key, value] of Object.entries(filters)) {
-        if (value) {
-          params.set(key, value);
-        }
-      }
-    }
-    const path =
-      tab === 'requests'
-        ? '/requests'
-        : tab === 'residents'
-          ? residentView === 'pending'
-            ? '/registrations'
-            : '/residents'
-          : tab === 'messages'
-            ? '/messages'
-            : '/administrators';
     try {
       if (tab === 'residents' && residentView === 'registered') {
         const residents: RegisteredResident[] = [];
         const visited = new Set<string>();
         let cursor: string | null = null;
         do {
-          const page: Page<RegisteredResident> = await this.api.request(
-            '/residents' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''),
-          );
+          const page = await this.api.getResidents(cursor);
           if (epoch !== this.epoch || sequence !== this.loadSequence) {
             return;
           }
@@ -341,9 +308,21 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         this.showResidentPage(index);
         return;
       }
-      const page = await this.api.request<
-        Page<ManagedTicket | Registration | RegisteredResident | Admin | BroadcastMessage>
-      >(path + '?' + params.toString());
+      const result = await (async () => {
+        if (tab === 'requests') {
+          return {
+            kind: 'requests' as const,
+            page: await this.api.getTickets(this.appliedFilters, startCursor),
+          };
+        }
+        if (tab === 'residents') {
+          return { kind: 'residents' as const, page: await this.api.getRegistrations(startCursor) };
+        }
+        if (tab === 'messages') {
+          return { kind: 'messages' as const, page: await this.api.getMessages(startCursor) };
+        }
+        return { kind: 'admins' as const, page: await this.api.getAdministrators(startCursor) };
+      })();
       if (
         epoch !== this.epoch ||
         sequence !== this.loadSequence ||
@@ -352,21 +331,21 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       ) {
         return;
       }
-      if (tab === 'requests') {
-        this.tickets = page.items as ManagedTicket[];
+      switch (result.kind) {
+        case 'requests':
+          this.tickets = result.page.items;
+          break;
+        case 'residents':
+          this.residents = result.page.items;
+          break;
+        case 'messages':
+          this.messages = result.page.items;
+          break;
+        case 'admins':
+          this.admins = result.page.items;
+          break;
       }
-      if (tab === 'residents' && residentView === 'pending') {
-        this.residents = page.items as Registration[];
-      }
-      if (tab === 'residents' && residentView === 'registered') {
-        this.registeredResidents = page.items as RegisteredResident[];
-      }
-      if (tab === 'messages') {
-        this.messages = page.items as BroadcastMessage[];
-      }
-      if (tab === 'admins') {
-        this.admins = page.items as Admin[];
-      }
+      const page = result.page;
       this.pageIndex = index;
       this.pageCursors[index] = startCursor;
       if (page.cursor) {
@@ -395,7 +374,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     const epoch = this.epoch;
     const writeState = { sent: false };
     await this.write(async () => {
-      const result = await this.api.request<BroadcastMessage>('/messages', 'POST', change);
+      const result = await this.api.sendMessage(change);
       if (epoch !== this.epoch) {
         return;
       }
@@ -416,14 +395,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       return;
     }
     await this.write(async () => {
-      await this.api.request(
-        '/administrators/' + encodeURIComponent(admin.userId) + '/notifications',
-        'PATCH',
-        {
-          ...settings,
-          version: admin.version,
-        },
-      );
+      await this.api.updateNotificationSettings(admin, settings);
       Object.assign(admin, settings, { version: admin.version + 1 });
       if (this.me?.userId === admin.userId) {
         Object.assign(this.me, settings, { version: admin.version });
@@ -436,10 +408,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       return;
     }
     await this.write(async () => {
-      await this.api.request('/administrators/' + encodeURIComponent(user.userId), 'PATCH', {
-        isActive: !user.isActive,
-        version: user.version,
-      });
+      await this.api.updateAdminAccess(user);
       user.isActive = !user.isActive;
       user.version++;
       this.notice = 'Доступ адміністратора оновлено.';
@@ -455,11 +424,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       return;
     }
     await this.write(async () => {
-      await this.api.request('/registrations/' + registration.id + '/decision', 'POST', {
-        approved,
-        reason: approved ? null : reason.trim(),
-        version: registration.version,
-      });
+      await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
       this.residents = this.residents.filter((r) => r.id !== registration.id);
       this.rejecting = null;
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
@@ -478,8 +443,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     const sequence = ++this.detailSequence;
     const epoch = this.epoch;
     const [detail, history] = await Promise.allSettled([
-      this.api.request<ManagedTicket>(this.ticketPath(ticket)),
-      this.api.request<{ items: Record<string, string>[] }>(this.ticketPath(ticket) + '/history'),
+      this.api.getTicket(ticket),
+      this.api.getTicketHistory(ticket),
     ]);
     if (epoch !== this.epoch || sequence !== this.detailSequence || this.selected !== ticket) {
       return;
@@ -505,19 +470,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     const epoch = this.epoch;
     const writeState = { saved: false };
     await this.write(async () => {
-      await this.api.request(this.ticketPath(selected), 'PATCH', {
-        scope: draft.scope,
-        buildingNumber: draft.buildingNumber,
-        floor: draft.floor,
-        entrance: draft.entrance,
-        status: draft.status,
-        visibility: draft.visibility,
-        resolution: draft.resolution,
-        assignedTo: draft.assignedTo,
-        priority: draft.priority,
-        plannedDate: draft.plannedDate || null,
-        version: selected.version,
-      });
+      await this.api.updateTicket(selected, draft);
       selected.request = { ...draft };
       selected.version++;
       this.selected = null;
@@ -529,9 +482,6 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.resetPagination();
       await this.load();
     }
-  }
-  private ticketPath(ticket: ManagedTicket): string {
-    return '/requests/' + ticket.request.ownerId + '/' + ticket.request.id;
   }
   private async write(action: () => Promise<void>): Promise<void> {
     if (this.saving) {
