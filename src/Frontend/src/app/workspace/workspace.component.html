@@ -61,38 +61,38 @@
       <a
         class="nav-link"
         [class.active]="tab === 'requests'"
-        [class.disabled]="loading || saving"
-        [attr.aria-disabled]="loading || saving"
+        [class.disabled]="saving"
+        [attr.aria-disabled]="saving"
         [attr.aria-current]="tab === 'requests' ? 'page' : null"
-        [routerLink]="loading || saving ? null : '/requests'"
+        [routerLink]="saving ? null : '/requests'"
         >Заявки</a
       >
       <a
         class="nav-link"
         [class.active]="tab === 'residents'"
-        [class.disabled]="loading || saving"
-        [attr.aria-disabled]="loading || saving"
+        [class.disabled]="saving"
+        [attr.aria-disabled]="saving"
         [attr.aria-current]="tab === 'residents' ? 'page' : null"
-        [routerLink]="loading || saving ? null : '/residents'"
+        [routerLink]="saving ? null : '/residents'"
         >Мешканці</a
       >
       @if (user.isSuperAdmin) {
         <a
           class="nav-link"
           [class.active]="tab === 'messages'"
-          [class.disabled]="loading || saving"
-          [attr.aria-disabled]="loading || saving"
+          [class.disabled]="saving"
+          [attr.aria-disabled]="saving"
           [attr.aria-current]="tab === 'messages' ? 'page' : null"
-          [routerLink]="loading || saving ? null : '/messages'"
+          [routerLink]="saving ? null : '/messages'"
           >Повідомлення</a
         >
         <a
           class="nav-link"
           [class.active]="tab === 'admins'"
-          [class.disabled]="loading || saving"
-          [attr.aria-disabled]="loading || saving"
+          [class.disabled]="saving"
+          [attr.aria-disabled]="saving"
           [attr.aria-current]="tab === 'admins' ? 'page' : null"
-          [routerLink]="loading || saving ? null : '/administrators'"
+          [routerLink]="saving ? null : '/administrators'"
           >Адміністратори</a
         >
       }

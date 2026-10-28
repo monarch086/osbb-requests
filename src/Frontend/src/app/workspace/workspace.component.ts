@@ -1,7 +1,7 @@
 import type { OnDestroy, OnInit } from '@angular/core';
 import { Component, EventEmitter, inject, Output } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import type { Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 
 import { AdministratorsComponent } from '../administrators/administrators.component';
 import type {
@@ -88,8 +88,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private appliedFilters: TicketFilters = { ...this.filters, status: [...this.filters.status] };
   private loadSequence = 0;
   private detailSequence = 0;
-  private subscription?: Subscription;
+  private readonly subscription = new Subscription();
   private epoch = 0;
+  private initializing = false;
   protected get availablePages(): number {
     if (this.isRegisteredResidentView) {
       return this.residentDirectory.pageCount;
@@ -128,21 +129,52 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.admins = [];
   }
   ngOnInit(): void {
-    this.subscription = this.auth.user$.subscribe((user) => {
-      this.epoch++;
-      this.clear();
-      if (user) {
-        void this.workspace();
-      }
-    });
+    this.subscription.add(
+      this.route.paramMap.subscribe((params) => {
+        const value = params.get('tab');
+        const tab = value === 'administrators' ? 'admins' : value;
+        if (tab !== 'requests' && tab !== 'residents' && tab !== 'messages' && tab !== 'admins') {
+          return;
+        }
+        if (tab === this.tab) {
+          return;
+        }
+        this.tab = tab;
+        this.loadSequence++;
+        this.detailSequence++;
+        this.resetTab();
+        if (this.me?.isActive && !this.initializing) {
+          if (!this.me.isSuperAdmin && (tab === 'admins' || tab === 'messages')) {
+            void this.router.navigateByUrl('/requests', { replaceUrl: true });
+          } else {
+            void this.loadPage(0, null);
+          }
+        }
+      }),
+    );
+    this.subscription.add(
+      this.auth.user$.subscribe((user) => {
+        this.epoch++;
+        this.clear();
+        if (user) {
+          void this.workspace();
+        }
+      }),
+    );
   }
   ngOnDestroy(): void {
     this.epoch++;
-    this.subscription?.unsubscribe();
+    this.subscription.unsubscribe();
     this.clear();
   }
   private clear(): void {
-    this.tab = this.route.snapshot.data['tab'] as typeof this.tab;
+    this.resetTab();
+    this.me = null;
+    this.assignees = [];
+    this.initializing = false;
+    this.loading = false;
+  }
+  private resetTab(): void {
     this.filters = {
       status: ['New', 'InProgress'],
       category: '',
@@ -154,10 +186,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     };
     this.appliedFilters = { ...this.filters, status: [...this.filters.status] };
     this.resetPagination();
-    this.me = null;
     this.residentView = 'pending';
     this.residentDirectory = new ResidentDirectory();
-    this.assignees = [];
     this.selected = null;
     this.draft = null;
     this.rejecting = null;
@@ -169,8 +199,10 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   }
   protected async workspace(): Promise<void> {
     const epoch = this.epoch;
+    this.initializing = true;
     this.loading = true;
     this.error = '';
+    let pageStarted = false;
     try {
       const user = await this.api.getCurrentAdmin();
       if (epoch !== this.epoch) {
@@ -179,7 +211,9 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.me = user;
       if (!user.isSuperAdmin && (this.tab === 'admins' || this.tab === 'messages')) {
         await this.router.navigateByUrl('/requests', { replaceUrl: true });
-        return;
+        if (epoch !== this.epoch) {
+          return;
+        }
       }
       if (user.isActive) {
         const assignees: {
@@ -196,6 +230,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
           return;
         }
         this.assignees = assignees;
+        this.initializing = false;
+        pageStarted = true;
         await this.loadPage(0, null);
       }
     } catch (e) {
@@ -204,7 +240,10 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       }
     } finally {
       if (epoch === this.epoch) {
-        this.loading = false;
+        this.initializing = false;
+        if (!pageStarted) {
+          this.loading = false;
+        }
       }
     }
   }
