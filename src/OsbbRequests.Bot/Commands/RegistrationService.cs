@@ -145,7 +145,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         RegistrationStage.AwaitingLastName => new CommandOutcome("Введіть своє прізвище.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.AwaitingBuilding => new CommandOutcome("У якому будинку ви проживаєте? Оберіть 4Б, 4В, 4Г або 4Д.", Keyboard: ReplyKeyboard.RegistrationBuilding),
         RegistrationStage.AwaitingApartment => new CommandOutcome("Введіть номер своєї квартири, наприклад 125.", Keyboard: ReplyKeyboard.Remove),
-        RegistrationStage.AwaitingEmail => new CommandOutcome("Введіть вашу email-адресу або натисніть «Пропустити». Email необов’язковий; його побачать адміністратори комплексу. Якщо ви змінюєте профіль, пропуск видалить попередню адресу.", Keyboard: ReplyKeyboard.OptionalEmail),
+        RegistrationStage.AwaitingEmail => new CommandOutcome("Введіть вашу email-адресу або натисніть «Пропустити». Email необов’язковий.", Keyboard: ReplyKeyboard.OptionalEmail),
         _ => throw new InvalidOperationException("Unknown registration step.")
     };
 
