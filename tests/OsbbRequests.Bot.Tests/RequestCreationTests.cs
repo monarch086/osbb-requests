@@ -49,6 +49,23 @@ public sealed class RequestCreationTests
     }
 
     [Fact]
+    public async Task ElevatorCategoryCanBeSelectedInWizardAndQuickCommand()
+    {
+        var repository = new MemoryRepository();
+        await Apply(repository, 1, "/new");
+        await Apply(repository, 2, "Будинок 4Б");
+        await Apply(repository, 3, "Парадне");
+        await Apply(repository, 4, "ліфт");
+        Assert.Equal(RequestDraftStage.Description, repository.Drafts[42].Stage);
+        await Apply(repository, 5, "Ліфт не працює");
+        Assert.Equal("ліфт", Assert.Single(repository.Requests).Category);
+
+        var quick = await Handler(new()).HandleAsync(Message(6, "/new 4В | 2 | 5 | ЛІФТ | Ліфт не працює"), default);
+        Assert.NotNull(quick.NewRequest);
+        Assert.Equal("ліфт", quick.NewRequest.Category);
+    }
+
+    [Fact]
     public async Task EntranceSelectionPersistsSeparatelyFromUnspecifiedFloorAndAppearsInLists()
     {
         var repository = new MemoryRepository();

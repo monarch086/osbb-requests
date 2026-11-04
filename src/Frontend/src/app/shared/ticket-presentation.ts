@@ -11,6 +11,7 @@ export const ticketStatuses: TicketStatus[] = [
 export const ticketCategories = [
   'сантехніка',
   'електрика',
+  'ліфт',
   'прибирання',
   'місця загального користування',
   'інше',

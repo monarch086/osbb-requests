@@ -444,6 +444,7 @@ public sealed class InfrastructureTests
     [InlineData(ReplyKeyboard.RequestEntrance, "2")]
     [InlineData(ReplyKeyboard.RequestEntrance, "Не зазначено")]
     [InlineData(ReplyKeyboard.RequestCategory, "сантехніка")]
+    [InlineData(ReplyKeyboard.RequestCategory, "ліфт")]
     public async Task WizardChoicesAreDeliveredAsReplyKeyboardButtons(ReplyKeyboard keyboard, string choice)
     {
         string? sent = null;

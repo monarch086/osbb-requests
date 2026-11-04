@@ -8,7 +8,7 @@ namespace OsbbRequests.Bot.Commands;
 
 public sealed class RequestCreationService(ICommandRepository repository, string complexId, TimeProvider clock)
 {
-    public const string Categories = "сантехніка, електрика, прибирання, місця загального користування, інше";
+    public const string Categories = "сантехніка, електрика, ліфт, прибирання, місця загального користування, інше";
     public const string Usage = "Створити заявку для ЖК «Зелений острів 2»: /new.\n" +
         "Бот запитає будинок або весь комплекс, під’їзд та поверх (для будинку), категорію та опис. Скасувати: /cancel.\n\n" +
         "Або однією командою:\n/new 4В | 2 | 12 | сантехніка | Протікає труба\n" +
