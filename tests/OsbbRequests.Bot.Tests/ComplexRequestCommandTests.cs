@@ -37,7 +37,7 @@ public sealed class ComplexRequestCommandTests
         Assert.Contains("№8 - В роботі", result.Reply);
         Assert.Contains("Подано: 20.10.2026 13:07\n", result.Reply);
         Assert.Contains("Будинок 4Б", result.Reply);
-        Assert.Contains("Весь комплекс", result.Reply);
+        Assert.Contains("Весь комплекс та прибудинкова територія", result.Reply);
         Assert.Contains("електрика: Біля ліфта", result.Reply);
         Assert.DoesNotContain("№9", result.Reply);
         Assert.DoesNotContain("№10", result.Reply);

@@ -10,7 +10,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
 {
     public const string Categories = "сантехніка, електрика, ліфт, прибирання, місця загального користування, інше";
     public const string Usage = "Створити заявку для ЖК «Зелений острів 2»: /new.\n" +
-        "Бот запитає будинок або весь комплекс, під’їзд та поверх (для будинку), категорію та опис. Скасувати: /cancel.\n\n" +
+        "Бот запитає будинок або весь комплекс та прибудинкову територію, під’їзд та поверх (для будинку), категорію та опис. Скасувати: /cancel.\n\n" +
         "Або однією командою:\n/new 4В | 2 | 12 | сантехніка | Протікає труба\n" +
         "/new комплекс | - | електрика | Не працює освітлення\n\n" +
         "Під’їзди: 1, 2 або «Не зазначено»; для 4Б автоматично 1.\n" +
@@ -114,7 +114,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     {
         var value = text.Trim().ToLowerInvariant();
         scope = RequestScope.Building; building = null;
-        if (value is "комплекс" or "весь комплекс") { scope = RequestScope.Complex; return true; }
+        if (value is "комплекс" or "весь комплекс" || value.Equals(ComplexLayout.ComplexLabel, StringComparison.OrdinalIgnoreCase)) { scope = RequestScope.Complex; return true; }
         value = value.Replace("будинок", "", StringComparison.Ordinal).Replace("№", "", StringComparison.Ordinal).Trim();
         var number = value.ToUpperInvariant();
         if (!ComplexLayout.BuildingNumbers.Contains(number, StringComparer.Ordinal)) return false;
@@ -141,7 +141,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     private static CommandOutcome Prompt(RequestDraft draft) => draft.Stage switch
     {
         RequestDraftStage.Scope => new("ЖК «Зелений острів 2».\n" +
-            "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «Весь комплекс». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
+            "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «" + ComplexLayout.ComplexLabel + "». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
         RequestDraftStage.Entrance => new($"Будинок {draft.BuildingNumber}. Оберіть під’їзд: 1, 2 або «Не зазначено». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestEntrance),
         RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Вкажіть поверх від 1 до 25, оберіть «Парадне» або «Без поверху» " +
             "для фасаду, підвалу чи проблеми всього будинку. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),

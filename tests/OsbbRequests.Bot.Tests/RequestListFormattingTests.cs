@@ -31,7 +31,7 @@ public sealed class RequestListFormattingTests
     [InlineData(RequestScope.Building, "4Г", 12, null, "Будинок 4Г · поверх 12\n")]
     [InlineData(RequestScope.Building, "4В", 12, 1, "Будинок 4В · під’їзд 1 · поверх 12\n")]
     [InlineData(RequestScope.Building, "4Д", 0, null, "Будинок 4Д · Парадне\n")]
-    [InlineData(RequestScope.Complex, null, null, null, "Весь комплекс\n")]
+    [InlineData(RequestScope.Complex, null, null, null, "Весь комплекс та прибудинкова територія\n")]
     [InlineData(null, "4Д", null, null, "Будинок 4Д\n")]
     public async Task BothListsShowOnlyKnownLocationParts(RequestScope? scope, string? building, int? floor, int? entrance, string location)
     {

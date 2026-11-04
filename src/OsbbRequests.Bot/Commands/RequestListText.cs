@@ -12,7 +12,7 @@ internal static class RequestListText
 
     public static string LocationLine(RequestScope? scope, string? buildingNumber, int? floor, int? entrance)
     {
-        if (scope == RequestScope.Complex) return "Весь комплекс\n";
+        if (scope == RequestScope.Complex) return ComplexLayout.ComplexLabel + "\n";
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(buildingNumber)) parts.Add("Будинок " + buildingNumber);
         if (entrance is { } entry) parts.Add("під’їзд " + entry.ToString(CultureInfo.InvariantCulture));

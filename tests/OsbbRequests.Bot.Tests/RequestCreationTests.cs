@@ -93,7 +93,7 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
-        await Apply(repository, 2, "Весь комплекс");
+        await Apply(repository, 2, "Весь комплекс та прибудинкова територія");
         Assert.Equal(RequestDraftStage.Category, repository.Drafts[42].Stage);
         await Apply(repository, 3, "прибирання");
         await Apply(repository, 5, "/cancel");
@@ -106,6 +106,7 @@ public sealed class RequestCreationTests
 
     [Theory]
     [InlineData("/new комплекс | - | електрика | Не працює освітлення", RequestScope.Complex, null, null)]
+    [InlineData("/new Весь комплекс та прибудинкова територія | - | ліфт | Не працює освітлення", RequestScope.Complex, null, null)]
     [InlineData("/new 4Б | Парадне | сантехніка | Протікає труба", RequestScope.Building, "4Б", 0)]
     [InlineData("/new 4В | парадне | інше | Зламано двері входу", RequestScope.Building, "4В", 0)]
     [InlineData("/new 4Б | 1 | сантехніка | Протікає труба", RequestScope.Building, "4Б", 1)]

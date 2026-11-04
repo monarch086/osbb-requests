@@ -7,6 +7,7 @@ public enum RequestScope { Complex, Building }
 
 public static class ComplexLayout
 {
+    public const string ComplexLabel = "Весь комплекс та прибудинкова територія";
     public static IReadOnlyList<string> BuildingNumbers { get; } = Array.AsReadOnly(new[] { "4Б", "4В", "4Г", "4Д" });
     public const int FloorCount = 25;
     public const int EntranceFloor = 0;
@@ -21,7 +22,7 @@ public static class ComplexLayout
         scope == RequestScope.Building && buildingNumber is not null && BuildingNumbers.Contains(buildingNumber, StringComparer.Ordinal) ? "Building" + buildingNumber : "Unspecified";
     public static string Label(RequestScope? scope, string? buildingNumber, int? floor, int? entrance = null) => scope switch
     {
-        RequestScope.Complex => "Весь комплекс",
+        RequestScope.Complex => ComplexLabel,
         RequestScope.Building => $"Будинок {buildingNumber} · під’їзд {(entrance is { } entry ? entry.ToString(System.Globalization.CultureInfo.InvariantCulture) : "Не зазначено")}" + (floor == EntranceFloor ? " · Парадне" : floor is { } number ? $", поверх {number}" : " · без прив’язки до поверху"),
         _ => "Будинок не уточнено"
     };

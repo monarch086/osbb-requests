@@ -30,7 +30,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         {
             var rows = keyboard switch
             {
-                ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { "Весь комплекс" }).ToArray(),
+                ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { ComplexLayout.ComplexLabel }).ToArray(),
                 ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation], ["Скасувати"]],
                 ReplyKeyboard.OptionalEmail => [[RegistrationService.SkipEmail]],
                 ReplyKeyboard.RegistrationBuilding => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).ToArray(),

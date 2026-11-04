@@ -438,6 +438,7 @@ public sealed class InfrastructureTests
 
     [Theory]
     [InlineData(ReplyKeyboard.RequestScope, "Будинок 4Д")]
+    [InlineData(ReplyKeyboard.RequestScope, "Весь комплекс та прибудинкова територія")]
     [InlineData(ReplyKeyboard.RequestFloor, "Без поверху")]
     [InlineData(ReplyKeyboard.RequestFloor, "Парадне")]
     [InlineData(ReplyKeyboard.RequestEntrance, "1")]
