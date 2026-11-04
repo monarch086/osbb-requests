@@ -13,7 +13,8 @@ class RevokeDeletedTests(unittest.TestCase):
     def run_migration(self, apply=False, changed=False):
         self.calls = []
         profile = {'Id': 'reference', 'UserId': 99, 'BuildingId': 'complex', 'Stage': 'Approved', 'Version': 7,
-                   'PersonalDataDeleted': True, 'PersonalDataDeletedAt': '2026-10-25T10:00:00Z'}
+                   'PersonalDataDeleted': True, 'PersonalDataDeletedAt': '2026-10-25T10:00:00Z',
+                   'Email': 'resident@example.com'}
         def aws(service, operation, region, payload):
             self.calls.append((operation, payload))
             if operation == 'query':
@@ -35,6 +36,7 @@ class RevokeDeletedTests(unittest.TestCase):
         profile = json.loads(writes[0]['Update']['ExpressionAttributeValues'][':next']['S'])
         self.assertEqual('Deleted', profile['Stage'])
         self.assertEqual(8, profile['Version'])
+        self.assertIsNone(profile['Email'])
         self.assertEqual('2026-10-25T10:00:00Z', profile['PersonalDataDeletedAt'])
         self.assertFalse(writes[-1]['Update']['ExpressionAttributeValues'][':no']['BOOL'])
         self.assertTrue(all('Delete' not in item for item in writes))

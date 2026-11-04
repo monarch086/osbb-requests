@@ -87,6 +87,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     r.FirstName,
                     r.LastName,
                     r.Phone,
+                    r.Email,
                     r.BuildingNumber,
                     r.ApartmentNumber,
                     r.UpdatedAt,

@@ -27,6 +27,7 @@ export interface Registration {
   firstName: string;
   lastName: string;
   phone: string;
+  email?: string | null;
   buildingNumber?: string | null;
   apartmentNumber?: string | null;
   updatedAt: string;
@@ -38,6 +39,7 @@ export interface RegisteredResident {
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
+  email?: string | null;
   buildingNumber?: string | null;
   apartmentNumber?: string | null;
   personalDataDeleted?: boolean;

@@ -32,7 +32,9 @@ public sealed class AutomaticResidentApprovalTests
         await processor.ProcessAsync(Message(5, "Будинок 4Д"), default);
         Assert.DoesNotContain(99, repo.Residents);
         Assert.Equal(RegistrationStage.AwaitingApartment, repo.Registrations[99].Stage);
-        var final = Message(6, "125");
+        await processor.ProcessAsync(Message(6, "125"), default);
+        Assert.DoesNotContain(99, repo.Residents);
+        var final = Message(60, RegistrationService.SkipEmail);
         await processor.ProcessAsync(final, default);
         Assert.Contains(99, repo.Residents);
         Assert.Equal(RegistrationStage.Approved, repo.Registrations[99].Stage);
@@ -40,7 +42,7 @@ public sealed class AutomaticResidentApprovalTests
         Assert.Equal((99L, true), telegram.Menus[^1]);
         Assert.DoesNotContain("очікує", telegram.Messages[^1].Text);
         await processor.ProcessAsync(final, default);
-        Assert.Equal(6, repo.Registrations[99].Version);
+        Assert.Equal(7, repo.Registrations[99].Version);
         await processor.ProcessAsync(Message(7, "/new 4Д | 2 | інше | Зламано світло"), default);
         Assert.Single(repo.Requests);
     }

@@ -38,7 +38,7 @@ def migrate(table, building, region, apply=False, aws=manage.call_aws):
             if apply:
                 next_profile = dict(profile, Stage='Deleted', Version=profile['Version'] + 1,
                                     UpdatedAt=datetime.now(timezone.utc).isoformat())
-                for field in ('FirstName', 'LastName', 'Phone', 'BuildingNumber', 'ApartmentNumber', 'DecisionReason'):
+                for field in ('FirstName', 'LastName', 'Phone', 'Email', 'BuildingNumber', 'ApartmentNumber', 'DecisionReason'):
                     next_profile[field] = None
                 writes = [manage.conditional_update(table, source_key, current['payload']['S'], next_profile)]
                 for key in [manage.key('REGISTRATION#' + profile['Id'], 'META'),

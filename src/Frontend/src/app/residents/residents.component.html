@@ -46,6 +46,9 @@
               </p>
             }
             <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
+            @if (r.email) {
+              <p class="small mt-2 mb-1">Email: {{ r.email }}</p>
+            }
             <p class="text-body-secondary small mt-2 mb-1">
               Telegram Chat Id: {{ r.telegramChatId || '-' }}
             </p>
@@ -200,6 +203,9 @@
             }
             @if (resident.phone) {
               <a [href]="'tel:' + resident.phone">{{ resident.phone }}</a>
+            }
+            @if (resident.email) {
+              <p class="small mt-2 mb-1">Email: {{ resident.email }}</p>
             }
             <p class="text-body-secondary small mt-2 mb-1">
               Telegram Chat Id: {{ resident.telegramChatId || '-' }}

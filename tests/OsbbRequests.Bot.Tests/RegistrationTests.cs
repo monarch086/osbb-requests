@@ -45,9 +45,12 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(5, "Будинок 4В"), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingApartment, repository.Registrations[99].Stage);
         await processor.ProcessAsync(Message(6, "125"), CancellationToken.None);
+        Assert.Equal(RegistrationStage.AwaitingEmail, repository.Registrations[99].Stage);
+        await processor.ProcessAsync(Message(60, "olena@example.com"), CancellationToken.None);
         var registration = repository.Registrations[99];
         Assert.Equal("4В", registration.BuildingNumber);
         Assert.Equal("125", registration.ApartmentNumber);
+        Assert.Equal("olena@example.com", registration.Email);
         Assert.Equal("+380671234567", registration.Phone);
         Assert.Equal("Олена", registration.FirstName);
         Assert.Equal("Ковальчук", registration.LastName);
@@ -125,6 +128,7 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(5, "О’Коннор"), CancellationToken.None);
         await processor.ProcessAsync(Message(6, "4Г"), CancellationToken.None);
         await processor.ProcessAsync(Message(7, "1"), CancellationToken.None);
+        await processor.ProcessAsync(Message(70, RegistrationService.SkipEmail), CancellationToken.None);
         var before = repository.Registrations[99];
         await processor.ProcessAsync(Message(8, "/register"), CancellationToken.None);
         Assert.Equal(before, repository.Registrations[99]);
@@ -238,8 +242,11 @@ public sealed class RegistrationTests
         Assert.Contains("квартири", repository.Replies[3].Text);
         await processor.ProcessAsync(Message(4, "00125"), default);
         Assert.Equal("125", repository.Registrations[99].ApartmentNumber);
-        Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
+        Assert.Equal(RegistrationStage.AwaitingEmail, repository.Registrations[99].Stage);
         Assert.Equal(6, repository.Registrations[99].Version);
+        await processor.ProcessAsync(Message(5, RegistrationService.SkipEmail), default);
+        Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
+        Assert.Null(repository.Registrations[99].Email);
     }
 
     [Theory]
@@ -292,8 +299,38 @@ public sealed class RegistrationTests
         var old = JsonSerializer.Deserialize<ResidentRegistration>("{\"Id\":\"old\",\"UserId\":99,\"BuildingId\":\"building\",\"Stage\":\"Approved\",\"Version\":4}")!;
         Assert.Null(old.BuildingNumber);
         Assert.Null(old.ApartmentNumber);
+        Assert.Null(old.Email);
         Assert.Equal(3, (int)RegistrationStage.Pending);
         Assert.Equal(4, (int)RegistrationStage.Approved);
+    }
+
+    [Theory]
+    [InlineData("invalid")]
+    [InlineData("first last@example.com")]
+    [InlineData("Name <person@example.com>")]
+    [InlineData("person@example")]
+    public async Task InvalidEmailDoesNotCompleteRegistration(string email)
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingEmail, 6,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        await processor.ProcessAsync(Message(1, email), default);
+        Assert.Equal(RegistrationStage.AwaitingEmail, repository.Registrations[99].Stage);
+        Assert.Equal(6, repository.Registrations[99].Version);
+        Assert.Equal(ReplyKeyboard.OptionalEmail, repository.Replies[1].Keyboard);
+    }
+
+    [Fact]
+    public async Task EmailStepCanBeResumedSkippedAndCancelled()
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingEmail, 6,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, Email: "previous@example.com");
+        await processor.ProcessAsync(Message(1, "/start"), default);
+        Assert.Equal(ReplyKeyboard.OptionalEmail, repository.Replies[1].Keyboard);
+        await processor.ProcessAsync(Message(2, "/cancel"), default);
+        Assert.Null(repository.Registrations[99].Email);
+        Assert.Equal(RegistrationStage.Cancelled, repository.Registrations[99].Stage);
     }
 
     [Fact]
@@ -323,6 +360,7 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(4, "Ковальчук"), default);
         await processor.ProcessAsync(Message(5, "4Д"), default);
         await processor.ProcessAsync(Message(6, "125"), default);
+        await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
         Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
         Assert.DoesNotContain(99, repository.Residents);
     }

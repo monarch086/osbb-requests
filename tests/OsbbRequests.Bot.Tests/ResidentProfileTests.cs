@@ -15,7 +15,7 @@ public sealed class ResidentProfileTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-25T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
     private static readonly ResidentRegistration Original = new("reference", 42, "building", RegistrationStage.Approved, 6,
-        Now.AddDays(-10), Now.AddDays(-9), "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "12");
+        Now.AddDays(-10), Now.AddDays(-9), "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "12", Email: "old@example.com");
     private static CommandEnvelope Message(long id, string text, TelegramContact? contact = null) => new(id, 42, 42, text, contact);
     private static (MemoryRepository Repo, CommandProcessor Processor) Setup()
     {
@@ -26,7 +26,7 @@ public sealed class ResidentProfileTests
     private sealed class Clock : TimeProvider { public override DateTimeOffset GetUtcNow() => Now; }
 
     [Fact]
-    public async Task EditingRunsRegistrationStepsAndCommitsOnlyAfterApartmentWithoutRevokingAccess()
+    public async Task EditingRunsRegistrationStepsAndCommitsOnlyAfterEmailWithoutRevokingAccess()
     {
         var (repo, processor) = Setup();
         await processor.ProcessAsync(Message(1, "/edit_profile"), default);
@@ -38,11 +38,14 @@ public sealed class ResidentProfileTests
         await processor.ProcessAsync(Message(5, "Будинок 4Д"), default);
         Assert.Equal(Original, repo.Registrations[42]);
         await processor.ProcessAsync(Message(6, "125"), default);
+        Assert.Equal(Original, repo.Registrations[42]);
+        await processor.ProcessAsync(Message(7, "new@example.com"), default);
         var profile = repo.Registrations[42];
         Assert.Equal("Іван", profile.FirstName);
         Assert.Equal("Новий", profile.LastName);
         Assert.Equal("4Д", profile.BuildingNumber);
         Assert.Equal("125", profile.ApartmentNumber);
+        Assert.Equal("new@example.com", profile.Email);
         Assert.Equal(Original.Id, profile.Id);
         Assert.Equal(RegistrationStage.Approved, profile.Stage);
         Assert.Equal(Original.UpdatedAt, profile.ApprovedAt);
@@ -52,6 +55,22 @@ public sealed class ResidentProfileTests
         Assert.Null(repo.ProfileDialogs[42].Draft);
         await processor.ProcessAsync(Message(6, "125"), default);
         Assert.Equal(profile, repo.Registrations[42]);
+    }
+
+    [Fact]
+    public async Task SkippingEmailDuringEditRemovesPreviousEmail()
+    {
+        var (repo, processor) = Setup();
+        await processor.ProcessAsync(Message(1, "/edit_profile"), default);
+        await processor.ProcessAsync(Message(2, "", new("+380671234567", 42)), default);
+        await processor.ProcessAsync(Message(3, "Іван"), default);
+        await processor.ProcessAsync(Message(4, "Новий"), default);
+        await processor.ProcessAsync(Message(5, "4Д"), default);
+        await processor.ProcessAsync(Message(6, "125"), default);
+        Assert.Equal("old@example.com", repo.Registrations[42].Email);
+        await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
+        Assert.Null(repo.Registrations[42].Email);
+        Assert.Contains(42, repo.Residents);
     }
 
     [Theory]
@@ -87,6 +106,7 @@ public sealed class ResidentProfileTests
         Assert.Null(profile.FirstName);
         Assert.Null(profile.LastName);
         Assert.Null(profile.Phone);
+        Assert.Null(profile.Email);
         Assert.Null(profile.BuildingNumber);
         Assert.Null(profile.ApartmentNumber);
         Assert.Equal(Now, profile.PersonalDataDeletedAt);
@@ -142,6 +162,7 @@ public sealed class ResidentProfileTests
             FirstName = null,
             LastName = null,
             Phone = null,
+            Email = null,
             BuildingNumber = null,
             ApartmentNumber = null,
             PersonalDataDeleted = true,
@@ -166,6 +187,7 @@ public sealed class ResidentProfileTests
             Assert.True(profile.PersonalDataDeleted);
             Assert.Null(profile.FirstName);
             Assert.Null(profile.Phone);
+            Assert.Null(profile.Email);
             Assert.Equal("6", write.Put.ExpressionAttributeValues[":expected"].N);
         }
         Assert.DoesNotContain(writes, w => w.Delete is not null);
@@ -178,6 +200,7 @@ public sealed class ResidentProfileTests
         repo.Registrations[42] = Original with
         {
             Phone = null,
+            Email = null,
             FirstName = null,
             LastName = null,
             BuildingNumber = null,
@@ -193,6 +216,7 @@ public sealed class ResidentProfileTests
         await processor.ProcessAsync(Message(4, "Новий"), default);
         await processor.ProcessAsync(Message(5, "4Д"), default);
         await processor.ProcessAsync(Message(6, "125"), default);
+        await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
         var profile = repo.Registrations[42];
         Assert.False(profile.PersonalDataDeleted);
         Assert.Equal("Іван", profile.FirstName);
@@ -246,6 +270,8 @@ public sealed class ResidentProfileTests
         await processor.ProcessAsync(Message(9, "4Д"), default);
         Assert.DoesNotContain(42, repo.Residents);
         await processor.ProcessAsync(Message(10, "125"), default);
+        Assert.DoesNotContain(42, repo.Residents);
+        await processor.ProcessAsync(Message(11, RegistrationService.SkipEmail), default);
         Assert.Contains(42, repo.Residents);
         Assert.Equal((42L, true), telegram.Menus[^1]);
         Assert.Single(repo.Requests);

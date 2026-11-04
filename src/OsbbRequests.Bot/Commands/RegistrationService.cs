@@ -1,6 +1,7 @@
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Domain;
 using System.Globalization;
+using System.Net.Mail;
 using System.Text.RegularExpressions;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
@@ -9,6 +10,7 @@ namespace OsbbRequests.Bot.Commands;
 
 public sealed partial class RegistrationService(ICommandRepository repository, string buildingId, TimeProvider clock, ResidentApprovalMode approvalMode = ResidentApprovalMode.Automatic)
 {
+    public const string SkipEmail = "Пропустити";
     public async Task<CommandOutcome> StartAsync(long userId, CancellationToken cancellationToken)
     {
         if (await repository.IsResidentAsync(userId, buildingId, cancellationToken))
@@ -41,6 +43,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             LastName = null,
             BuildingNumber = null,
             ApartmentNumber = null,
+            Email = null,
             Version = current.Version + 1,
             UpdatedAt = clock.GetUtcNow()
         };
@@ -107,7 +110,13 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             case RegistrationStage.AwaitingApartment:
                 if (envelope.Contact is not null || !int.TryParse(envelope.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var apartment) || apartment <= 0)
                     return new CommandOutcome("Введіть номер квартири цілим додатним числом, наприклад 125.", Keyboard: ReplyKeyboard.Remove);
-                next = current with { ApartmentNumber = apartment.ToString(CultureInfo.InvariantCulture), Stage = RegistrationStage.Pending };
+                next = current with { ApartmentNumber = apartment.ToString(CultureInfo.InvariantCulture), Stage = RegistrationStage.AwaitingEmail };
+                break;
+            case RegistrationStage.AwaitingEmail:
+                var email = envelope.Text.Trim();
+                if (envelope.Contact is not null || (email != SkipEmail && !ValidEmail(email)))
+                    return new CommandOutcome("Введіть коректну email-адресу або натисніть «Пропустити».", Keyboard: ReplyKeyboard.OptionalEmail);
+                next = current with { Email = email == SkipEmail ? null : email, Stage = RegistrationStage.Pending };
                 break;
             default:
                 throw new InvalidOperationException("Unknown registration step.");
@@ -122,7 +131,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
     }
 
     public static bool IsDraft(RegistrationStage stage) => stage is RegistrationStage.AwaitingPhone or
-        RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName or RegistrationStage.AwaitingBuilding or RegistrationStage.AwaitingApartment;
+        RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName or RegistrationStage.AwaitingBuilding or RegistrationStage.AwaitingApartment or RegistrationStage.AwaitingEmail;
 
     public static CommandOutcome Prompt(RegistrationStage stage, ResidentApprovalMode approvalMode = ResidentApprovalMode.Manual) => stage switch
     {
@@ -130,12 +139,13 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             (approvalMode == ResidentApprovalMode.Automatic
                 ? "Після заповнення всіх даних доступ буде надано автоматично. Дані профілю доступні адміністраторам комплексу.\n\n"
                 : "Їх побачить адміністратор ОСББ для перевірки та надання доступу.\n\n") +
-            "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, оберіть будинок і введіть номер квартири. Скасувати: /cancel.",
+            "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, оберіть будинок, введіть номер квартири та за бажанням email. Скасувати: /cancel.",
             Keyboard: ReplyKeyboard.RequestContact),
         RegistrationStage.AwaitingFirstName => new CommandOutcome("Дякуємо! Тепер введіть своє ім’я.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.AwaitingLastName => new CommandOutcome("Введіть своє прізвище.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.AwaitingBuilding => new CommandOutcome("У якому будинку ви проживаєте? Оберіть 4Б, 4В, 4Г або 4Д.", Keyboard: ReplyKeyboard.RegistrationBuilding),
         RegistrationStage.AwaitingApartment => new CommandOutcome("Введіть номер своєї квартири, наприклад 125.", Keyboard: ReplyKeyboard.Remove),
+        RegistrationStage.AwaitingEmail => new CommandOutcome("Введіть вашу email-адресу або натисніть «Пропустити». Email необов’язковий; його побачать адміністратори комплексу. Якщо ви змінюєте профіль, пропуск видалить попередню адресу.", Keyboard: ReplyKeyboard.OptionalEmail),
         _ => throw new InvalidOperationException("Unknown registration step.")
     };
 
@@ -166,6 +176,10 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             name.All(c => char.IsLetter(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark ||
                 c is ' ' or '-' or '\'' or '’' or 'ʼ');
     }
+
+    private static bool ValidEmail(string email) => email.Length is > 0 and <= 254 &&
+        !email.Any(char.IsWhiteSpace) && MailAddress.TryCreate(email, out var address) &&
+        string.Equals(address.Address, email, StringComparison.OrdinalIgnoreCase) && address.Host.Contains('.', StringComparison.Ordinal);
 
     [GeneratedRegex(@"^\+[1-9][0-9]{7,14}$", RegexOptions.CultureInvariant)]
     private static partial Regex PhonePattern();
