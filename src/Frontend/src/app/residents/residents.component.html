@@ -2,17 +2,6 @@
   <button
     type="button"
     class="btn"
-    [class.btn-primary]="view === 'pending'"
-    [class.btn-outline-secondary]="view !== 'pending'"
-    [attr.aria-pressed]="view === 'pending'"
-    [disabled]="loading || saving"
-    (click)="viewChange.emit('pending')"
-  >
-    Очікують перевірки
-  </button>
-  <button
-    type="button"
-    class="btn"
     [class.btn-primary]="view === 'registered'"
     [class.btn-outline-secondary]="view !== 'registered'"
     [attr.aria-pressed]="view === 'registered'"
@@ -20,6 +9,17 @@
     (click)="viewChange.emit('registered')"
   >
     Зареєстровані мешканці
+  </button>
+  <button
+    type="button"
+    class="btn"
+    [class.btn-primary]="view === 'pending'"
+    [class.btn-outline-secondary]="view !== 'pending'"
+    [attr.aria-pressed]="view === 'pending'"
+    [disabled]="loading || saving"
+    (click)="viewChange.emit('pending')"
+  >
+    Очікують перевірки
   </button>
 </div>
 @if (view === 'pending') {

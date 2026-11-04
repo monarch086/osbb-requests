@@ -14,7 +14,7 @@ export type ResidentView = 'pending' | 'registered';
   templateUrl: './residents.component.html',
 })
 export class ResidentsComponent {
-  @Input() view: ResidentView = 'pending';
+  @Input() view: ResidentView = 'registered';
   @Input() registeredResidents: RegisteredResident[] = [];
   @Input() filters: ResidentFilters = { sort: 'registeredAt', direction: 'desc', building: '' };
   @Output() readonly filtersChange = new EventEmitter<ResidentFilters>();

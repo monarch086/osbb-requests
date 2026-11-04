@@ -60,7 +60,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   protected tickets: ManagedTicket[] = [];
   protected residents: Registration[] = [];
   protected registeredResidents: RegisteredResident[] = [];
-  protected residentView: ResidentView = 'pending';
+  protected residentView: ResidentView = 'registered';
   protected residentDirectory = new ResidentDirectory();
   protected admins: Admin[] = [];
   protected assignees: {
@@ -186,7 +186,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     };
     this.appliedFilters = { ...this.filters, status: [...this.filters.status] };
     this.resetPagination();
-    this.residentView = 'pending';
+    this.residentView = 'registered';
     this.residentDirectory = new ResidentDirectory();
     this.selected = null;
     this.draft = null;
