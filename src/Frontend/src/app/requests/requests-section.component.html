@@ -1,0 +1,49 @@
+@if (error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+}
+@if (notice) {
+  <div class="alert alert-success" role="status">{{ notice }}</div>
+}
+<div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+  <button class="btn btn-outline-secondary" (click)="exportExcel()" [disabled]="loading || saving">
+    Експортувати в Excel
+  </button>
+  <button class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
+    ↻ Оновити
+  </button>
+</div>
+<app-requests
+  [tickets]="lists.tickets"
+  [filters]="lists.filters"
+  [loading]="loading"
+  [saving]="saving"
+  (applyFilters)="applyRequestFilters($event)"
+  (openTicket)="open($event)"
+/>
+@if (loading) {
+  <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>
+}
+<app-pagination
+  [pageNumber]="lists.pagination.index + 1"
+  [availablePages]="lists.availablePages()"
+  [itemCount]="lists.itemCount()"
+  [hasPrevious]="lists.pagination.index > 0"
+  [hasNext]="lists.hasNext()"
+  [disabled]="loading || saving"
+  (pageSelected)="goToPage($event)"
+  (previousPage)="previousPage()"
+  (nextPage)="nextPage()"
+/>
+@if (selected && draft) {
+  <app-ticket-dialog
+    [draft]="draft"
+    [assignees]="assignees"
+    [history]="history"
+    [author]="author"
+    [authorLoading]="authorLoading"
+    [saving]="saving"
+    [error]="error"
+    (saved)="saveTicket($event)"
+    (closed)="closeDialog()"
+  />
+}
