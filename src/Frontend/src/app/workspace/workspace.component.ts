@@ -6,11 +6,9 @@ import { Subscription } from 'rxjs';
 import { AdministratorsComponent } from '../administrators/administrators.component';
 import type {
   Admin,
-  BroadcastMessage,
   ManagedTicket,
   MessageChange,
   NotificationSettings,
-  RegisteredResident,
   Registration,
   RequestAuthor,
   Ticket,
@@ -24,10 +22,12 @@ import { PaginationComponent } from '../pagination/pagination.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { RequestsComponent } from '../requests/requests.component';
 import type { ResidentFilters, ResidentView } from '../residents/resident-directory';
-import { ResidentDirectory } from '../residents/resident-directory';
 import { ResidentsComponent } from '../residents/residents.component';
 import type { TicketFilters } from '../shared/ticket-presentation';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
+import { WorkspaceLists } from './workspace-lists';
+import type { WorkspaceTab } from './workspace-page.models';
+import { WorkspacePageService } from './workspace-page.service';
 
 @Component({
   selector: 'app-workspace',
@@ -42,6 +42,7 @@ import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component'
     TicketDialogComponent,
   ],
   templateUrl: './workspace.component.html',
+  providers: [WorkspacePageService],
 })
 export class WorkspaceComponent implements OnInit, OnDestroy {
   @Output() readonly savingChange = new EventEmitter<boolean>();
@@ -50,85 +51,30 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly excel = inject(ExcelExportService);
+  private readonly pageService = inject(WorkspacePageService);
+  protected readonly lists = new WorkspaceLists();
   protected me: Admin | null = null;
   protected loading = false;
   saving = false;
   protected error = '';
   protected notice = '';
-  protected tab: 'requests' | 'residents' | 'messages' | 'admins' = 'requests';
-  protected messages: BroadcastMessage[] = [];
+  protected tab: WorkspaceTab = 'requests';
   protected sentMessageId: string | null = null;
-  protected tickets: ManagedTicket[] = [];
-  protected residents: Registration[] = [];
-  protected registeredResidents: RegisteredResident[] = [];
-  protected residentView: ResidentView = 'registered';
-  protected residentDirectory = new ResidentDirectory();
-  protected admins: Admin[] = [];
   protected assignees: {
     userId: string;
     email: string;
   }[] = [];
-  private cursor: string | null = null;
-  protected pageIndex = 0;
-  private pageCursors: (string | null)[] = [null];
   protected selected: ManagedTicket | null = null;
   protected draft: Ticket | null = null;
   protected history: Record<string, string>[] = [];
   protected author: RequestAuthor | null = null;
   protected authorLoading = false;
   protected rejecting: Registration | null = null;
-  protected filters: TicketFilters = {
-    status: ['New', 'InProgress'],
-    category: '',
-    search: '',
-    from: '',
-    to: '',
-    target: '',
-    floor: '',
-  };
-  private appliedFilters: TicketFilters = { ...this.filters, status: [...this.filters.status] };
   private loadSequence = 0;
   private detailSequence = 0;
   private readonly subscription = new Subscription();
   private epoch = 0;
   private initializing = false;
-  protected get availablePages(): number {
-    if (this.isRegisteredResidentView) {
-      return this.residentDirectory.pageCount;
-    }
-    return this.pageCursors.length;
-  }
-  private get isRegisteredResidentView(): boolean {
-    return this.tab === 'residents' && this.residentView === 'registered';
-  }
-  protected get hasNextPage(): boolean {
-    return this.isRegisteredResidentView ? this.pageIndex + 1 < this.availablePages : !!this.cursor;
-  }
-  protected get pageItemCount(): number {
-    if (this.tab === 'requests') {
-      return this.tickets.length;
-    }
-    if (this.tab === 'messages') {
-      return this.messages.length;
-    }
-    if (this.tab === 'admins') {
-      return this.admins.length;
-    }
-    return this.residentView === 'pending'
-      ? this.residents.length
-      : this.registeredResidents.length;
-  }
-  private resetPagination(): void {
-    this.pageIndex = 0;
-    this.pageCursors = [null];
-    this.cursor = null;
-    this.messages = [];
-    this.tickets = [];
-    this.residents = [];
-    this.registeredResidents = [];
-    this.residentDirectory.setItems([]);
-    this.admins = [];
-  }
   ngOnInit(): void {
     this.subscription.add(
       this.route.paramMap.subscribe((params) => {
@@ -176,19 +122,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.loading = false;
   }
   private resetTab(): void {
-    this.filters = {
-      status: ['New', 'InProgress'],
-      category: '',
-      search: '',
-      from: '',
-      to: '',
-      target: '',
-      floor: '',
-    };
-    this.appliedFilters = { ...this.filters, status: [...this.filters.status] };
-    this.resetPagination();
-    this.residentView = 'registered';
-    this.residentDirectory = new ResidentDirectory();
+    this.lists.resetTab();
     this.selected = null;
     this.draft = null;
     this.rejecting = null;
@@ -249,11 +183,16 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     }
   }
   protected async switchResidentView(view: ResidentView): Promise<void> {
-    if (this.saving || this.loading || this.tab !== 'residents' || view === this.residentView) {
+    if (
+      this.saving ||
+      this.loading ||
+      this.tab !== 'residents' ||
+      view === this.lists.residentView
+    ) {
       return;
     }
-    this.residentView = view;
-    this.resetPagination();
+    this.lists.residentView = view;
+    this.lists.resetPagination();
     this.rejecting = null;
     this.notice = '';
     await this.load();
@@ -270,19 +209,19 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     const epoch = this.epoch;
     const sequence = ++this.loadSequence;
     const tab = this.tab;
-    const view = this.residentView;
+    const view = this.lists.residentView;
     const isCurrent = (): boolean =>
       epoch === this.epoch &&
       sequence === this.loadSequence &&
       tab === this.tab &&
-      (tab !== 'residents' || view === this.residentView);
+      (tab !== 'residents' || view === this.lists.residentView);
     this.loading = true;
     this.error = '';
     try {
       if (tab === 'requests') {
-        await this.excel.exportTickets(this.appliedFilters, isCurrent);
+        await this.excel.exportTickets(this.lists.appliedFilters, isCurrent);
       } else {
-        await this.excel.exportResidents(view, this.residentDirectory, isCurrent);
+        await this.excel.exportResidents(view, this.lists.residentDirectory, isCurrent);
       }
     } catch (error) {
       if (isCurrent()) {
@@ -298,36 +237,33 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     if (this.loading || this.saving) {
       return;
     }
-    this.filters = { ...filters, status: [...filters.status] };
-    this.appliedFilters = { ...filters, status: [...filters.status] };
-    this.resetPagination();
+    this.lists.applyTicketFilters(filters);
     await this.load();
   }
   protected applyResidentFilters(filters: ResidentFilters): void {
-    if (this.loading || this.saving || !this.isRegisteredResidentView) {
+    if (this.loading || this.saving || !this.lists.isRegisteredView(this.tab)) {
       return;
     }
-    this.residentDirectory.applyFilters(filters);
-    this.showResidentPage(0);
-  }
-  private showResidentPage(index: number): void {
-    this.pageIndex = Math.min(index, this.residentDirectory.pageCount - 1);
-    this.registeredResidents = this.residentDirectory.page(this.pageIndex);
+    this.lists.residentDirectory.applyFilters(filters);
+    this.lists.showResidentPage(0);
   }
   protected async load(): Promise<void> {
     if (this.loading || this.saving) {
       return;
     }
-    await this.loadPage(this.pageIndex, this.pageCursors[this.pageIndex] ?? null);
+    await this.loadPage(
+      this.lists.pagination.index,
+      this.lists.pagination.start(this.lists.pagination.index) ?? null,
+    );
   }
   protected async previousPage(): Promise<void> {
-    await this.goToPage(this.pageIndex);
+    await this.goToPage(this.lists.pagination.index);
   }
   protected async nextPage(): Promise<void> {
-    if (!this.hasNextPage) {
+    if (!this.lists.hasNext(this.tab)) {
       return;
     }
-    await this.goToPage(this.pageIndex + 2);
+    await this.goToPage(this.lists.pagination.index + 2);
   }
   protected async goToPage(number: number): Promise<void> {
     if (
@@ -335,17 +271,17 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.saving ||
       !Number.isInteger(number) ||
       number < 1 ||
-      number > this.availablePages ||
-      number === this.pageIndex + 1
+      number > this.lists.availablePages(this.tab) ||
+      number === this.lists.pagination.index + 1
     ) {
       return;
     }
     const index = number - 1;
-    if (this.isRegisteredResidentView) {
-      this.showResidentPage(index);
+    if (this.lists.isRegisteredView(this.tab)) {
+      this.lists.showResidentPage(index);
       return;
     }
-    const start = this.pageCursors.at(index);
+    const start = this.lists.pagination.start(index);
     if (start === undefined || (index > 0 && start === null)) {
       return;
     }
@@ -358,81 +294,46 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     const sequence = ++this.loadSequence;
     const epoch = this.epoch;
     const tab = this.tab;
-    const residentView = this.residentView;
+    const residentView = this.lists.residentView;
     this.loading = true;
     this.error = '';
     try {
       if (tab === 'residents' && residentView === 'registered') {
-        const residents: RegisteredResident[] = [];
-        const visited = new Set<string>();
-        let cursor: string | null = null;
-        do {
-          const page = await this.api.getResidents(cursor);
-          if (epoch !== this.epoch || sequence !== this.loadSequence) {
-            return;
-          }
-          residents.push(...page.items);
-          cursor = page.cursor;
-          if (cursor && visited.has(cursor)) {
-            throw new Error('Repeated resident directory cursor');
-          }
-          if (cursor) {
-            visited.add(cursor);
-          }
-        } while (cursor);
-        this.residentDirectory.setItems(residents);
-        this.showResidentPage(index);
+        const residents = await this.pageService.residents(
+          () => epoch === this.epoch && sequence === this.loadSequence,
+        );
+        if (!residents) {
+          return;
+        }
+        this.lists.residentDirectory.setItems(residents);
+        this.lists.showResidentPage(index);
         return;
       }
-      const result = await (async () => {
-        if (tab === 'requests') {
-          return {
-            kind: 'requests' as const,
-            page: await this.api.getTickets(this.appliedFilters, startCursor),
-          };
-        }
-        if (tab === 'residents') {
-          return { kind: 'residents' as const, page: await this.api.getRegistrations(startCursor) };
-        }
-        if (tab === 'messages') {
-          return { kind: 'messages' as const, page: await this.api.getMessages(startCursor) };
-        }
-        return { kind: 'admins' as const, page: await this.api.getAdministrators(startCursor) };
-      })();
+      const result = await this.pageService.load(tab, this.lists.appliedFilters, startCursor);
       if (
         epoch !== this.epoch ||
         sequence !== this.loadSequence ||
         tab !== this.tab ||
-        (tab === 'residents' && residentView !== this.residentView)
+        (tab === 'residents' && residentView !== this.lists.residentView)
       ) {
         return;
       }
       switch (result.kind) {
         case 'requests':
-          this.tickets = result.page.items;
+          this.lists.tickets = result.page.items;
           break;
         case 'residents':
-          this.residents = result.page.items;
+          this.lists.residents = result.page.items;
           break;
         case 'messages':
-          this.messages = result.page.items;
+          this.lists.messages = result.page.items;
           break;
         case 'admins':
-          this.admins = result.page.items;
+          this.lists.admins = result.page.items;
           break;
       }
       const page = result.page;
-      this.pageIndex = index;
-      this.pageCursors[index] = startCursor;
-      if (page.cursor) {
-        if (this.pageCursors[index + 1] !== page.cursor) {
-          this.pageCursors = this.pageCursors.slice(0, index + 1);
-        }
-        this.pageCursors[index + 1] = page.cursor;
-      } else {
-        this.pageCursors = this.pageCursors.slice(0, index + 1);
-      }
-      this.cursor = page.cursor;
+      this.lists.pagination.accept(index, startCursor, page.cursor);
     } catch (e) {
       if (epoch === this.epoch && sequence === this.loadSequence) {
         this.error = errorMessage(e);
@@ -459,7 +360,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       writeState.sent = true;
     });
     if (writeState.sent && epoch === this.epoch) {
-      this.resetPagination();
+      this.lists.resetPagination();
       await this.load();
     }
   }
@@ -501,7 +402,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     }
     await this.write(async () => {
       await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
-      this.residents = this.residents.filter((r) => r.id !== registration.id);
+      this.lists.residents = this.lists.residents.filter((r) => r.id !== registration.id);
       this.rejecting = null;
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
     });
@@ -555,7 +456,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       writeState.saved = true;
     });
     if (writeState.saved && priorityChanged && epoch === this.epoch) {
-      this.resetPagination();
+      this.lists.resetPagination();
       await this.load();
     }
   }
