@@ -53,9 +53,20 @@
           }}
         </p>
       </div>
-      <button class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
-        ↻ Оновити
-      </button>
+      <div class="d-flex flex-wrap justify-content-end gap-2">
+        @if (tab === 'requests' || tab === 'residents') {
+          <button
+            class="btn btn-outline-secondary"
+            (click)="exportExcel()"
+            [disabled]="loading || saving"
+          >
+            Експортувати в Excel
+          </button>
+        }
+        <button class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
+          ↻ Оновити
+        </button>
+      </div>
     </div>
     <nav class="nav nav-pills gap-2 my-4" aria-label="Розділи панелі">
       <a

@@ -4,9 +4,7 @@ import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
 
 import type { RegisteredResident, Registration } from '../api.models';
 import { buildingNumbers, formatDate } from '../shared/ticket-presentation';
-import type { ResidentFilters } from './resident-directory';
-
-export type ResidentView = 'pending' | 'registered';
+import type { ResidentFilters, ResidentView } from './resident-directory';
 
 @Component({
   selector: 'app-residents',

@@ -1,5 +1,7 @@
 import type { RegisteredResident } from '../api.models';
 
+export type ResidentView = 'pending' | 'registered';
+
 export interface ResidentFilters {
   sort: 'registeredAt' | 'lastName';
   direction: 'asc' | 'desc';
@@ -51,5 +53,9 @@ export class ResidentDirectory {
 
   page(index: number): RegisteredResident[] {
     return this.filtered.slice(index * this.pageSize, (index + 1) * this.pageSize);
+  }
+
+  all(): RegisteredResident[] {
+    return [...this.filtered];
   }
 }

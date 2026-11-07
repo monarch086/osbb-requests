@@ -18,13 +18,13 @@ import type {
 import { ApiService } from '../api.service';
 import { AuthService } from '../auth.service';
 import { errorMessage } from '../error-message';
+import { ExcelExportService } from '../export/excel-export.service';
 import { MessagesComponent } from '../messages/messages.component';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { RequestsComponent } from '../requests/requests.component';
-import type { ResidentFilters } from '../residents/resident-directory';
+import type { ResidentFilters, ResidentView } from '../residents/resident-directory';
 import { ResidentDirectory } from '../residents/resident-directory';
-import type { ResidentView } from '../residents/residents.component';
 import { ResidentsComponent } from '../residents/residents.component';
 import type { TicketFilters } from '../shared/ticket-presentation';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
@@ -49,6 +49,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
+  private readonly excel = inject(ExcelExportService);
   protected me: Admin | null = null;
   protected loading = false;
   saving = false;
@@ -256,6 +257,42 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.rejecting = null;
     this.notice = '';
     await this.load();
+  }
+  protected async exportExcel(): Promise<void> {
+    if (
+      !this.me?.isActive ||
+      this.loading ||
+      this.saving ||
+      (this.tab !== 'requests' && this.tab !== 'residents')
+    ) {
+      return;
+    }
+    const epoch = this.epoch;
+    const sequence = ++this.loadSequence;
+    const tab = this.tab;
+    const view = this.residentView;
+    const isCurrent = (): boolean =>
+      epoch === this.epoch &&
+      sequence === this.loadSequence &&
+      tab === this.tab &&
+      (tab !== 'residents' || view === this.residentView);
+    this.loading = true;
+    this.error = '';
+    try {
+      if (tab === 'requests') {
+        await this.excel.exportTickets(this.appliedFilters, isCurrent);
+      } else {
+        await this.excel.exportResidents(view, this.residentDirectory, isCurrent);
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        this.error = errorMessage(error);
+      }
+    } finally {
+      if (isCurrent()) {
+        this.loading = false;
+      }
+    }
   }
   protected async applyRequestFilters(filters: TicketFilters): Promise<void> {
     if (this.loading || this.saving) {

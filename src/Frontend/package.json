@@ -27,6 +27,7 @@
     "@ng-select/ng-select": "^21.8.2",
     "aws-amplify": "^6.22.0",
     "bootstrap": "^5.3.8",
+    "exceljs": "^4.4.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.16.0"
