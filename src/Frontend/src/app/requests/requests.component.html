@@ -25,7 +25,7 @@
 <form class="card card-body mb-4" (ngSubmit)="submitFilters()">
   <div class="row g-3 align-items-end">
     <div class="col-12 col-sm-6 col-lg-4">
-      <label class="form-label" for="request-target">Будинок / комплекс</label>
+      <label class="form-label" for="request-target">Будинок / територія</label>
       <ng-select
         labelForId="request-target"
         name="target"
@@ -35,7 +35,7 @@
         [searchable]="false"
         [disabled]="loading || saving"
       >
-        <ng-option value="">Усі будинки й комплекс</ng-option>
+        <ng-option value="">Усі локації</ng-option>
         @for (target of targets; track target.value) {
           <ng-option [value]="target.value">{{ target.label }}</ng-option>
         }

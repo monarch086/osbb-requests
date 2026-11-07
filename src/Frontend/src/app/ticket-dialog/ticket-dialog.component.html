@@ -47,7 +47,7 @@
         <form #ticketForm="ngForm" (ngSubmit)="ticketForm.valid && saved.emit(draft)">
           <div class="row g-3 mb-3">
             <div class="col-12 col-md-6">
-              <label class="form-label" for="ticket-target">Будинок / комплекс</label>
+              <label class="form-label" for="ticket-target">Будинок / прибудинкова територія</label>
               <ng-select
                 labelForId="ticket-target"
                 name="target"
@@ -56,7 +56,7 @@
                 [searchable]="false"
                 [disabled]="saving"
                 appendTo="body"
-                placeholder="Уточніть будинок або комплекс"
+                placeholder="Уточніть локацію"
                 required
               >
                 @for (item of targets; track item.value) {

@@ -34,7 +34,7 @@ export function formatDate(value: string): string {
 
 export const buildingNumbers = ['4Б', '4В', '4Г', '4Д'];
 export const requestTargets = [
-  { value: 'Complex', label: 'Весь комплекс та прибудинкова територія' },
+  { value: 'Complex', label: 'Прибудинкова територія' },
   ...buildingNumbers.map((number) => ({ value: `Building${number}`, label: `Будинок ${number}` })),
 ];
 export const entranceOptions = [
@@ -55,7 +55,7 @@ export function requestTarget(ticket: Ticket): string | null {
 }
 export function requestLocationLabel(ticket: Ticket): string {
   if (ticket.scope === 'Complex') {
-    return 'Весь комплекс та прибудинкова територія';
+    return 'Прибудинкова територія';
   }
   if (ticket.scope === 'Building') {
     return (

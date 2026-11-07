@@ -114,7 +114,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             if (query.GetValueOrDefault("search")?.Length > 200) throw new ApiError(400, "Пошук: до 200 символів.");
             var target = query.GetValueOrDefault("target");
             if (target is { Length: > 0 } && target is not ("Complex" or "Unspecified") && !ComplexLayout.BuildingNumbers.Any(number => target == "Building" + number))
-                throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або весь комплекс.");
+                throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або прибудинкову територію.");
             int? floor = null;
             if (query.GetValueOrDefault("floor") is { Length: > 0 } floorText)
             {
@@ -142,7 +142,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 if (change.Resolution?.Length > 1000 || status is RequestStatus.Completed or RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
                     throw new ApiError(400, "Для виконання або відхилення потрібне пояснення до 1000 символів.");
                 if (!Enum.TryParse<RequestScope>(change.Scope, out var scope) || !ComplexLayout.IsValid(scope, change.BuildingNumber, change.Floor, change.Entrance))
-                    throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або весь комплекс. Для будинку оберіть поверх 1–25 або «Парадне»; під’їзд - 1, 2 або «Не зазначено» (для 4Б лише 1 або «Не зазначено»).");
+                    throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або прибудинкову територію. Для будинку оберіть поверх 1–25 або «Парадне»; під’їзд - 1, 2 або «Не зазначено» (для 4Б лише 1 або «Не зазначено»).");
                 var date = Date(change.PlannedDate);
                 if (!string.IsNullOrEmpty(change.AssignedTo) && (await store.GetAdminAsync(change.AssignedTo, ct))?.IsActive != true)
                     throw new ApiError(400, "Оберіть активного адміністратора.");
