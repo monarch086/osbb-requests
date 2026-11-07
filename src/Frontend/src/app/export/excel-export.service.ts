@@ -12,6 +12,7 @@ import {
   ticketHeadings,
   ticketRows,
 } from './export-data';
+import { exportFilename } from './export-filename';
 
 @Injectable({ providedIn: 'root' })
 export class ExcelExportService {
@@ -80,7 +81,7 @@ export class ExcelExportService {
     try {
       const link = document.createElement('a');
       link.href = url;
-      link.download = name + '.xlsx';
+      link.download = exportFilename(name);
       link.click();
     } finally {
       URL.revokeObjectURL(url);
