@@ -4,6 +4,7 @@ import type { TicketFilters } from '../api.models';
 import { ApiService } from '../api.service';
 import type { ResidentDirectory, ResidentView } from '../residents/resident-directory';
 import { collectPages } from './collect-pages';
+import { resolveExcelModule } from './excel-module';
 import {
   pendingResidentRows,
   registeredResidentRows,
@@ -55,11 +56,11 @@ export class ExcelExportService {
     rows: (string | number)[][],
     isCurrent: () => boolean,
   ): Promise<void> {
-    const { Workbook } = await import('exceljs');
+    const excel = resolveExcelModule(await import('exceljs'));
     if (!isCurrent()) {
       return;
     }
-    const workbook = new Workbook();
+    const workbook = new excel.Workbook();
     const sheet = workbook.addWorksheet(name);
     sheet.addRow(headings);
     sheet.addRows(rows);
