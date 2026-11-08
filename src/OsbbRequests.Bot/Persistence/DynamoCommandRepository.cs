@@ -67,7 +67,7 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
                 FilterExpression = "requestStatus IN (:new, :progress)",
                 ExpressionAttributeValues = values,
                 ScanIndexForward = false,
-                Limit = pageSize - items.Count,
+                Limit = pageSize + 1 - items.Count,
                 ProjectionExpression = "pk, sk, requestCreatedAt",
                 ExclusiveStartKey = startKey
             }, ct);
@@ -82,12 +82,16 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
                 items.Add(new(request.Id, request.Status, request.CreatedAt, request.Scope, request.BuildingNumber,
                     request.Floor, request.Category, request.Location, request.Description, request.Entrance, candidate.GetValueOrDefault("requestCreatedAt")?.S));
             }
+            if (items.Count > pageSize)
+            {
+                var cursor = items[pageSize - 1].CursorKey ?? throw new InvalidOperationException("Missing public request cursor.");
+                return new(items.Take(pageSize).ToArray(), cursor);
+            }
             if (page.LastEvaluatedKey is not { Count: > 0 } lastKey) return new(items, null);
             var last = lastKey.GetValueOrDefault("requestCreatedAt")?.S;
             if (string.IsNullOrEmpty(last) || next == last || before == last)
                 throw new InvalidOperationException("Invalid public request cursor.");
             next = last;
-            if (items.Count == pageSize) return new(items, next);
             startKey = lastKey;
         }
         return new(items, next);
@@ -148,13 +152,14 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
                 ? Key("USER#" + Number(userId), RequestKey(beforeId.Value)) : null,
             ScanIndexForward = false,
             ConsistentRead = true,
-            Limit = 10
+            Limit = 11
         }, cancellationToken);
         var requests = (response.Items ?? []).Select(item =>
             JsonSerializer.Deserialize<MaintenanceRequest>(item["payload"].S)
                 ?? throw new InvalidOperationException("Invalid request data.")).ToList();
-        return new RequestPage(requests,
-            response.LastEvaluatedKey is { Count: > 0 } && requests.Count > 0 ? requests[^1].Id : null);
+        var items = requests.Take(10).ToList();
+        return new RequestPage(items,
+            requests.Count > 10 || response.LastEvaluatedKey is { Count: > 0 } && items.Count > 0 ? items[^1].Id : null);
     }
 
     public async Task<StoredReply?> GetReplyAsync(long updateId, CancellationToken cancellationToken)

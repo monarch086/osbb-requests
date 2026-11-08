@@ -161,7 +161,7 @@ public sealed class InfrastructureTests
         Assert.Equal("building", client.Query.ExpressionAttributeValues[":complex"].S);
         Assert.Equal("requestStatus IN (:new, :progress)", client.Query.FilterExpression);
         Assert.Equal("pk, sk, requestCreatedAt", client.Query.ProjectionExpression);
-        Assert.Equal(5, client.Query.Limit);
+        Assert.Equal(6, client.Query.Limit);
         Assert.False(client.Query.ScanIndexForward);
         Assert.True(client.Get!.ConsistentRead);
         Assert.Equal("USER#99", client.Get.Key["pk"].S);

@@ -155,7 +155,28 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         string? nextCommand = null;
         string? CaptureNext(int count) => nextCommand = NextCommand(count);
         var reply = RequestListText.Build("Ваші заявки:", lines, CaptureNext);
+        if (nextCommand is not null && page.NextBeforeId is { } nextId && nextCommand == "/my " + nextId.ToString(CultureInfo.InvariantCulture) &&
+            !await HasOwnRequestsAfterAsync(userId, nextId, cancellationToken))
+        {
+            reply = RequestListText.Build("Ваші заявки:", lines, _ => null);
+            nextCommand = null;
+        }
         return new CommandOutcome(reply, NextPageCommand: nextCommand);
+    }
+
+    private async Task<bool> HasOwnRequestsAfterAsync(long userId, long beforeId, CancellationToken ct)
+    {
+        const int maxPages = 25;
+        for (var i = 0; i < maxPages; i++)
+        {
+            var page = await repository.ListRequestsAsync(userId, beforeId, ct);
+            if (page.Items.Any(request => request.BuildingId == buildingId && request.OwnerId == userId)) return true;
+            if (page.NextBeforeId is not { } next) return false;
+            if (next >= beforeId) throw new InvalidOperationException("Invalid personal request cursor.");
+            beforeId = next;
+        }
+        // Keep continuation when the bounded lookahead cannot determine whether more items exist.
+        return true;
     }
 
     private static bool TryId(string value, out long id) =>

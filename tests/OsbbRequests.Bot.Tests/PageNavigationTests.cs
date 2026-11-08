@@ -41,6 +41,17 @@ public sealed class PageNavigationTests
     }
 
     [Fact]
+    public async Task PersonalListDoesNotShowNextForRequestsFromAnotherComplex()
+    {
+        var (repo, telegram, processor) = Setup();
+        for (var id = 4; id <= 13; id++) repo.Requests.Add(Request(id));
+        for (var id = 1; id <= 3; id++) repo.Requests.Add(Request(id) with { BuildingId = "other" });
+        await processor.ProcessAsync(Message(1, "/my"), default);
+        Assert.Equal(ReplyKeyboard.MainResident, telegram.Keyboards[^1]);
+        Assert.DoesNotContain("Наступна сторінка", telegram.Messages[^1].Text);
+    }
+
+    [Fact]
     public async Task PageKeyboardContainsCancelAndNext()
     {
         using var capture = new KeyboardCapture();

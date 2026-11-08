@@ -42,6 +42,37 @@ public sealed class PublicRequestPaginationTests
     }
 
     [Fact]
+    public async Task FivePublicRequestsFollowedOnlyByHiddenRecordsHaveNoNextPage()
+    {
+        var records = Enumerable.Range(1, 14).Select(id => id switch
+        {
+            >= 10 => Item(id),
+            >= 5 => Item(id, RequestStatus.Completed),
+            >= 2 => Item(id, visibility: RequestVisibility.Private),
+            _ => Item(id, category: RequestCategories.KeyOrder)
+        }).ToArray();
+        using var db = new PagingDynamo(records);
+        var page = await new DynamoCommandRepository(db, "data").ListPublicRequestsAsync("building", null, default);
+        Assert.Equal(new long[] { 14, 13, 12, 11, 10 }, page.Items.Select(item => item.Id));
+        Assert.Null(page.NextBefore);
+        Assert.True(db.Queries > 1);
+    }
+
+    [Fact]
+    public async Task SixthPublicRequestAfterHiddenRecordsIsNotSkipped()
+    {
+        var records = Enumerable.Range(1, 12).Select(id => id is >= 3 and <= 7 ? Item(id, visibility: RequestVisibility.Private) : Item(id)).ToArray();
+        using var db = new PagingDynamo(records);
+        var store = new DynamoCommandRepository(db, "data");
+        var first = await store.ListPublicRequestsAsync("building", null, default);
+        Assert.Equal(new long[] { 12, 11, 10, 9, 8 }, first.Items.Select(item => item.Id));
+        Assert.NotNull(first.NextBefore);
+        var second = await store.ListPublicRequestsAsync("building", first.NextBefore, default);
+        Assert.Equal(new long[] { 2, 1 }, second.Items.Select(item => item.Id));
+        Assert.Null(second.NextBefore);
+    }
+
+    [Fact]
     public async Task LongTelegramMessageContinuesFromTheActualIndexKey()
     {
         var records = Enumerable.Range(1, 5).Select(id => Item(id) with { CreatedAt = DateTimeOffset.UnixEpoch, Description = new string('а', 2000) }).ToArray();
@@ -62,7 +93,7 @@ public sealed class PublicRequestPaginationTests
     [Fact]
     public async Task ReadBudgetReturnsCursorForContinuationWithoutSkipping()
     {
-        var records = Enumerable.Range(2, 130).Select(id => Item(id, visibility: RequestVisibility.Private)).Append(Item(1)).ToArray();
+        var records = Enumerable.Range(2, 160).Select(id => Item(id, visibility: RequestVisibility.Private)).Append(Item(1)).ToArray();
         using var db = new PagingDynamo(records);
         var store = new DynamoCommandRepository(db, "data");
         var first = await store.ListPublicRequestsAsync("building", null, default);
