@@ -15,7 +15,7 @@ public sealed class ResidentProfileTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-25T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
     private static readonly ResidentRegistration Original = new("reference", 42, "building", RegistrationStage.Approved, 6,
-        Now.AddDays(-10), Now.AddDays(-9), "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "12", Email: "old@example.com");
+        Now.AddDays(-10), Now.AddDays(-9), "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "12", Email: "old@example.com", ConsentAt: Now.AddDays(-10), ConsentVersion: "1");
     private static CommandEnvelope Message(long id, string text, TelegramContact? contact = null) => new(id, 42, 42, text, contact);
     private static (MemoryRepository Repo, CommandProcessor Processor) Setup()
     {
@@ -47,6 +47,8 @@ public sealed class ResidentProfileTests
         Assert.Equal("125", profile.ApartmentNumber);
         Assert.Equal("new@example.com", profile.Email);
         Assert.Equal(Original.Id, profile.Id);
+        Assert.Equal(Original.ConsentAt, profile.ConsentAt);
+        Assert.Equal(Original.ConsentVersion, profile.ConsentVersion);
         Assert.Equal(RegistrationStage.Approved, profile.Stage);
         Assert.Equal(Original.UpdatedAt, profile.ApprovedAt);
         Assert.Equal(7, profile.Version);
@@ -55,6 +57,30 @@ public sealed class ResidentProfileTests
         Assert.Null(repo.ProfileDialogs[42].Draft);
         await processor.ProcessAsync(Message(6, "125"), default);
         Assert.Equal(profile, repo.Registrations[42]);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task EditingLegacyDraftPreservesExistingConsentWithoutAskingAgain(bool hasConsent)
+    {
+        var (repo, processor) = Setup();
+        var existing = hasConsent ? Original : Original with { ConsentAt = null, ConsentVersion = null };
+        repo.Registrations[42] = existing;
+        await processor.ProcessAsync(Message(1, "/edit_profile"), default);
+        var dialog = repo.ProfileDialogs[42];
+        Assert.Equal(ReplyKeyboard.RequestContact, repo.Replies[1].Keyboard);
+        repo.ProfileDialogs[42] = dialog with { Draft = dialog.Draft! with { ConsentAt = null, ConsentVersion = null } };
+        await processor.ProcessAsync(Message(2, "", new("+380671234567", 42)), default);
+        await processor.ProcessAsync(Message(3, "Іван"), default);
+        await processor.ProcessAsync(Message(4, "Новий"), default);
+        await processor.ProcessAsync(Message(5, "4Д"), default);
+        await processor.ProcessAsync(Message(6, "125"), default);
+        await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
+        Assert.Equal(RegistrationStage.Approved, repo.Registrations[42].Stage);
+        Assert.Equal(existing.ConsentAt, repo.Registrations[42].ConsentAt);
+        Assert.Equal(existing.ConsentVersion, repo.Registrations[42].ConsentVersion);
+        Assert.DoesNotContain(repo.Replies.Values, reply => reply.Keyboard == ReplyKeyboard.PersonalDataConsent);
     }
 
     [Fact]
@@ -211,6 +237,7 @@ public sealed class ResidentProfileTests
         };
         repo.Residents.Remove(42);
         await processor.ProcessAsync(Message(1, "/start"), default);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), default);
         await processor.ProcessAsync(Message(2, "", new("+380671234567", 42)), default);
         await processor.ProcessAsync(Message(3, "Іван"), default);
         await processor.ProcessAsync(Message(4, "Новий"), default);
@@ -261,9 +288,10 @@ public sealed class ResidentProfileTests
         await processor.ProcessAsync(Message(4, "/edit_profile"), default);
         Assert.Contains("реєстрацію заново", telegram.Messages[^1].Text);
         await processor.ProcessAsync(Message(5, "/start"), default);
-        Assert.Equal(RegistrationStage.AwaitingPhone, repo.Registrations[42].Stage);
+        Assert.Equal(RegistrationStage.AwaitingConsent, repo.Registrations[42].Stage);
         Assert.Null(repo.Registrations[42].Phone);
         Assert.Null(repo.Registrations[42].FirstName);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), default);
         await processor.ProcessAsync(Message(6, "", new("+380671234567", 42)), default);
         await processor.ProcessAsync(Message(7, "Іван"), default);
         await processor.ProcessAsync(Message(8, "Новий"), default);

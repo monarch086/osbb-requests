@@ -22,14 +22,48 @@ public sealed class RegistrationTests
     }
 
     [Fact]
-    public async Task StartRequestsContactWithoutExposingTelegramId()
+    public async Task StartRequestsConsentWithoutExposingTelegramId()
     {
         var (repository, telegram, processor) = Create();
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
-        Assert.Equal(RegistrationStage.AwaitingPhone, repository.Registrations[99].Stage);
-        Assert.Equal(ReplyKeyboard.RequestContact, repository.Replies[1].Keyboard);
+        Assert.Equal(RegistrationStage.AwaitingConsent, repository.Registrations[99].Stage);
+        Assert.Equal(ReplyKeyboard.PersonalDataConsent, repository.Replies[1].Keyboard);
         Assert.DoesNotContain("Telegram ID", Assert.Single(telegram.Messages).Text);
         Assert.DoesNotContain(99, repository.Residents);
+    }
+
+    [Fact]
+    public async Task ConsentIsRequiredAndRecordedOnceBeforeContact()
+    {
+        var (repository, _, processor) = Create();
+        await processor.ProcessAsync(Message(1, "/start"), default);
+        await processor.ProcessAsync(Message(2, contact: new("+380671234567", 99)), default);
+        Assert.Equal(RegistrationStage.AwaitingConsent, repository.Registrations[99].Stage);
+        Assert.Null(repository.Registrations[99].ConsentAt);
+        Assert.Null(repository.Registrations[99].Phone);
+        var consent = Message(3, RegistrationService.ConsentButton);
+        await processor.ProcessAsync(consent, default);
+        var accepted = repository.Registrations[99];
+        Assert.NotNull(accepted.ConsentAt);
+        Assert.Equal(RegistrationService.ConsentVersion, accepted.ConsentVersion);
+        Assert.Equal(RegistrationStage.AwaitingPhone, accepted.Stage);
+        await processor.ProcessAsync(consent, default);
+        Assert.Equal(accepted, repository.Registrations[99]);
+    }
+
+    [Fact]
+    public async Task LegacyDraftMustConsentBeforeResumingItsPreviousStep()
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("old", 99, "building", RegistrationStage.AwaitingBuilding, 4,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, FirstName: "Олена");
+        await processor.ProcessAsync(Message(1, "4Б"), default);
+        Assert.Equal(RegistrationStage.AwaitingConsent, repository.Registrations[99].Stage);
+        Assert.Null(repository.Registrations[99].BuildingNumber);
+        await processor.ProcessAsync(Message(2, RegistrationService.ConsentButton), default);
+        Assert.Equal(RegistrationStage.AwaitingBuilding, repository.Registrations[99].Stage);
+        Assert.Equal("Олена", repository.Registrations[99].FirstName);
+        Assert.NotNull(repository.Registrations[99].ConsentAt);
     }
 
     [Fact]
@@ -37,6 +71,7 @@ public sealed class RegistrationTests
     {
         var (repository, telegram, processor) = Create();
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         await processor.ProcessAsync(Message(2, contact: new TelegramContact("380 (67) 123-45-67", 99)), CancellationToken.None);
         Assert.Equal(ReplyKeyboard.Remove, repository.Replies[2].Keyboard);
         await processor.ProcessAsync(Message(3, "Олена"), CancellationToken.None);
@@ -71,6 +106,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         await processor.ProcessAsync(Message(1, "/register"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         await processor.ProcessAsync(Message(2, contact: new TelegramContact(phone, contactOwner)), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingPhone, repository.Registrations[99].Stage);
         Assert.Null(repository.Registrations[99].Phone);
@@ -82,6 +118,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         await processor.ProcessAsync(Message(2, "+380671234567"), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingPhone, repository.Registrations[99].Stage);
     }
@@ -94,6 +131,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         await processor.ProcessAsync(Message(2, contact: new TelegramContact("+380671234567", 99)), CancellationToken.None);
         await processor.ProcessAsync(Message(3, name), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingFirstName, repository.Registrations[99].Stage);
@@ -104,6 +142,7 @@ public sealed class RegistrationTests
     {
         var (repository, telegram, processor) = Create();
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         var contact = Message(2, contact: new TelegramContact("+380671234567", 99));
         telegram.Fail = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(contact, CancellationToken.None));
@@ -111,9 +150,9 @@ public sealed class RegistrationTests
         telegram.Fail = false;
         await processor.ProcessAsync(contact, CancellationToken.None);
         await processor.ProcessAsync(contact, CancellationToken.None);
-        Assert.Equal(2, repository.Registrations[99].Version);
+        Assert.Equal(3, repository.Registrations[99].Version);
         Assert.Equal(RegistrationStage.AwaitingFirstName, repository.Registrations[99].Stage);
-        Assert.Equal(2, telegram.Messages.Count);
+        Assert.Equal(3, telegram.Messages.Count);
     }
 
     [Fact]
@@ -121,6 +160,7 @@ public sealed class RegistrationTests
     {
         var (repository, telegram, processor) = Create();
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         await processor.ProcessAsync(Message(2, contact: new TelegramContact("+380671234567", 99)), CancellationToken.None);
         await processor.ProcessAsync(Message(3, "/start"), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingFirstName, repository.Registrations[99].Stage);
@@ -140,6 +180,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         await processor.ProcessAsync(Message(1, "/start"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         await processor.ProcessAsync(Message(2, contact: new TelegramContact("+380671234567", 99)), CancellationToken.None);
         await processor.ProcessAsync(Message(3, "/cancel"), CancellationToken.None);
         Assert.Equal(RegistrationStage.Cancelled, repository.Registrations[99].Stage);
@@ -174,7 +215,7 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(2, "/start"), CancellationToken.None);
         Assert.Contains("Уточніть прізвище", telegram.Messages[^1].Text);
         await processor.ProcessAsync(Message(3, "/register"), CancellationToken.None);
-        Assert.Equal(RegistrationStage.AwaitingPhone, repository.Registrations[99].Stage);
+        Assert.Equal(RegistrationStage.AwaitingConsent, repository.Registrations[99].Stage);
         Assert.NotEqual(current.Id, repository.Registrations[99].Id);
     }
 
@@ -229,7 +270,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingBuilding, 4,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "+380671234567", "Олена", "Ковальчук");
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "+380671234567", "Олена", "Ковальчук", ConsentAt: DateTimeOffset.UnixEpoch);
         await processor.ProcessAsync(Message(1, "/start"), default);
         Assert.Equal(ReplyKeyboard.RegistrationBuilding, repository.Replies[1].Keyboard);
         var selection = Message(2, "Будинок " + building);
@@ -257,7 +298,7 @@ public sealed class RegistrationTests
     public async Task InvalidResidentialBuildingCannotAdvanceRegistration(string text)
     {
         var (repository, _, processor) = Create();
-        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingBuilding, 4, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingBuilding, 4, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ConsentAt: DateTimeOffset.UnixEpoch);
         await processor.ProcessAsync(Message(1, text), default);
         Assert.Equal(RegistrationStage.AwaitingBuilding, repository.Registrations[99].Stage);
         Assert.Null(repository.Registrations[99].BuildingNumber);
@@ -274,7 +315,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingApartment, 5,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, BuildingNumber: "4Д");
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, BuildingNumber: "4Д", ConsentAt: DateTimeOffset.UnixEpoch);
         await processor.ProcessAsync(Message(1, text), default);
         Assert.Equal(RegistrationStage.AwaitingApartment, repository.Registrations[99].Stage);
         Assert.Null(repository.Registrations[99].ApartmentNumber);
@@ -313,7 +354,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingEmail, 6,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ConsentAt: DateTimeOffset.UnixEpoch);
         await processor.ProcessAsync(Message(1, email), default);
         Assert.Equal(RegistrationStage.AwaitingEmail, repository.Registrations[99].Stage);
         Assert.Equal(6, repository.Registrations[99].Version);
@@ -325,7 +366,7 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         repository.Registrations[99] = new("reference", 99, "building", RegistrationStage.AwaitingEmail, 6,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, Email: "previous@example.com");
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, Email: "previous@example.com", ConsentAt: DateTimeOffset.UnixEpoch);
         await processor.ProcessAsync(Message(1, "/start"), default);
         Assert.Equal(ReplyKeyboard.OptionalEmail, repository.Replies[1].Keyboard);
         await processor.ProcessAsync(Message(2, "/cancel"), default);
@@ -352,9 +393,10 @@ public sealed class RegistrationTests
         repository.Registrations[99] = new("old", 99, "building", RegistrationStage.Rejected, 7,
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, DecisionReason: "Уточніть дані");
         await processor.ProcessAsync(Message(1, "/start"), default);
-        Assert.Equal(RegistrationStage.AwaitingPhone, repository.Registrations[99].Stage);
-        Assert.Equal(ReplyKeyboard.RequestContact, repository.Replies[1].Keyboard);
+        Assert.Equal(RegistrationStage.AwaitingConsent, repository.Registrations[99].Stage);
+        Assert.Equal(ReplyKeyboard.PersonalDataConsent, repository.Replies[1].Keyboard);
         Assert.DoesNotContain("/register", telegram.Messages[^1].Text);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), CancellationToken.None);
         await processor.ProcessAsync(Message(2, contact: new("+380671234567", 99)), default);
         await processor.ProcessAsync(Message(3, "Олена"), default);
         await processor.ProcessAsync(Message(4, "Ковальчук"), default);

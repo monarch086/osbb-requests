@@ -16,7 +16,7 @@ public sealed class AutomaticResidentApprovalTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-25T11:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
     private static CommandEnvelope Message(long id, string text, TelegramContact? contact = null) => new(id, 99, 99, text, contact);
     private static readonly ResidentRegistration Approved = new(new string('a', 32), 99, "building", RegistrationStage.Approved,
-        6, Now.AddMinutes(-1), Now, "+380671234567", "Олена", "Ковальчук", BuildingNumber: "4Д", ApartmentNumber: "125", ApprovedAt: Now);
+        6, Now.AddMinutes(-1), Now, "+380671234567", "Олена", "Ковальчук", BuildingNumber: "4Д", ApartmentNumber: "125", ApprovedAt: Now, ConsentAt: Now.AddMinutes(-1), ConsentVersion: "1");
 
     [Fact]
     public async Task DefaultModeGrantsAccessOnlyAfterFinalStepAndSynchronizesResidentMenu()
@@ -25,6 +25,7 @@ public sealed class AutomaticResidentApprovalTests
         var telegram = new FakeTelegram();
         var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building"), telegram, "building");
         await processor.ProcessAsync(Message(1, "/start"), default);
+        await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), default);
         Assert.Contains("автоматично", telegram.Messages[^1].Text);
         await processor.ProcessAsync(Message(2, "", new("+380671234567", 99)), default);
         await processor.ProcessAsync(Message(3, "Олена"), default);
@@ -42,7 +43,7 @@ public sealed class AutomaticResidentApprovalTests
         Assert.Equal((99L, true), telegram.Menus[^1]);
         Assert.DoesNotContain("очікує", telegram.Messages[^1].Text);
         await processor.ProcessAsync(final, default);
-        Assert.Equal(7, repo.Registrations[99].Version);
+        Assert.Equal(8, repo.Registrations[99].Version);
         await processor.ProcessAsync(Message(7, "/new 4Д | 2 | інше | Зламано світло"), default);
         Assert.Single(repo.Requests);
     }
@@ -95,12 +96,14 @@ public sealed class AutomaticResidentApprovalTests
     [InlineData("missing-phone")]
     [InlineData("missing-building")]
     [InlineData("missing-firstname")]
+    [InlineData("missing-consent")]
     public async Task IncompleteRegistrationCannotCreateMembership(string kind)
     {
         using var db = new Capture();
         var profile = kind switch
         {
             "pending" => Approved with { Stage = RegistrationStage.Pending },
+            "missing-consent" => Approved with { ConsentAt = null },
             "missing-apartment" => Approved with { ApartmentNumber = null },
             "missing-phone" => Approved with { Phone = null },
             "missing-building" => Approved with { BuildingNumber = null },
@@ -132,7 +135,7 @@ public sealed class AutomaticResidentApprovalTests
         Assert.NotNull(outcome.Registration);
         Assert.False(outcome.Registration.Value.PersonalDataDeleted);
         Assert.True(outcome.Registration.Value.HasDeletedPersonalData);
-        Assert.Equal(RegistrationStage.AwaitingPhone, outcome.Registration.Value.Stage);
+        Assert.Equal(RegistrationStage.AwaitingConsent, outcome.Registration.Value.Stage);
     }
 
     private sealed class FixedClock : TimeProvider { public override DateTimeOffset GetUtcNow() => Now.AddHours(1); }

@@ -15,14 +15,15 @@ public enum RegistrationStage
     AwaitingBuilding,
     AwaitingApartment,
     Deleted,
-    AwaitingEmail
+    AwaitingEmail,
+    AwaitingConsent
 }
 
 public sealed record ResidentRegistration(
     string Id, long UserId, string BuildingId, RegistrationStage Stage, int Version,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     string? Phone = null, string? FirstName = null, string? LastName = null, string? DecisionReason = null,
-    string? BuildingNumber = null, string? ApartmentNumber = null, bool PersonalDataDeleted = false, DateTimeOffset? PersonalDataDeletedAt = null, DateTimeOffset? ApprovedAt = null, string? Email = null)
+    string? BuildingNumber = null, string? ApartmentNumber = null, bool PersonalDataDeleted = false, DateTimeOffset? PersonalDataDeletedAt = null, DateTimeOffset? ApprovedAt = null, string? Email = null, DateTimeOffset? ConsentAt = null, string? ConsentVersion = null, RegistrationStage? ResumeAfterConsent = null)
 {
     [JsonIgnore]
     public bool HasDeletedPersonalData => PersonalDataDeleted || Stage == RegistrationStage.Deleted ||

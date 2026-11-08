@@ -30,6 +30,7 @@ export interface Registration {
   email?: string | null;
   buildingNumber?: string | null;
   apartmentNumber?: string | null;
+  consentAt?: string | null;
   updatedAt: string;
   version: number;
 }
@@ -44,6 +45,7 @@ export interface RegisteredResident {
   apartmentNumber?: string | null;
   personalDataDeleted?: boolean;
   registeredAt: string;
+  consentAt?: string | null;
 }
 export type TicketStatus =
   'New' | 'InProgress' | 'AwaitingClarification' | 'Completed' | 'Rejected';
