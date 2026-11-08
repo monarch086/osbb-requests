@@ -17,6 +17,21 @@ public static class CommandMenu
             ?? throw new InvalidOperationException("Command menu resource missing.");
         return JsonSerializer.Deserialize<MenuCommand[]>(stream) ?? throw new InvalidOperationException("Invalid command menu.");
     }
+    public static string? CommandForButton(string text, bool registered)
+    {
+        var selected = ForResident(registered).FirstOrDefault(command => string.Equals(command.Description, text, StringComparison.Ordinal));
+        if (selected is not null) return selected.Command;
+        var previous = text switch
+        {
+            "Початок роботи та перевірка доступу" => "start",
+            "Створити заявку для будинку або комплексу" => "new",
+            "Переглянути власні заявки" => "my",
+            "Відкриті заявки для мешканців комплексу" => "complex",
+            "Видалити власну нову заявку" => "delete",
+            _ => null
+        };
+        return ForResident(registered).Any(command => command.Command == previous) ? previous : null;
+    }
     public static IReadOnlyList<MenuCommand> ForResident(bool registered) =>
         Commands.Where(command => registered ? command.Command != "start" : !command.RegisteredOnly).ToArray();
 }

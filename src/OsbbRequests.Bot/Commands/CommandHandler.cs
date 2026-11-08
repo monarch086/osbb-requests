@@ -2,6 +2,7 @@ using OsbbRequests.Shared.Models;
 using System.Globalization;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
+using OsbbRequests.Bot.Telegram;
 using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.Bot.Commands;
@@ -30,8 +31,18 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
 
     public async Task<CommandOutcome> HandleAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
-        var outcome = await HandleCoreAsync(envelope, cancellationToken);
         var command = BotCommand.Parse(envelope.Text, botUsername);
+        if (command is null && envelope.Contact is null)
+        {
+            var registered = await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken);
+            var button = CommandMenu.CommandForButton(envelope.Text, registered);
+            if (button is not null && !await MainKeyboardState.HasActiveDialogAsync(repository, envelope.UserId, buildingId, registered, cancellationToken))
+            {
+                envelope = envelope with { Text = "/" + button };
+                command = new BotCommand(button, "");
+            }
+        }
+        var outcome = await HandleCoreAsync(envelope, cancellationToken);
         if (command is not null && command.Name is not ("edit_profile" or "delete_profile" or "account" or "cancel") && outcome.ProfileDialog is null)
             outcome = await profiles.ClearAsync(envelope.UserId, outcome, cancellationToken);
         if (command is not null && outcome.Lookup is null)

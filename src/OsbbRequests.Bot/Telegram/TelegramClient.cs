@@ -27,6 +27,12 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
+        else if (keyboard is ReplyKeyboard.MainGuest or ReplyKeyboard.MainResident)
+        {
+            var rows = CommandMenu.ForResident(keyboard == ReplyKeyboard.MainResident)
+                .Select(command => command.Description).Chunk(2).ToArray();
+            payload["reply_markup"] = new { keyboard = rows.Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = false, is_persistent = true };
+        }
         else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation or ReplyKeyboard.OptionalEmail or ReplyKeyboard.PersonalDataConsent or ReplyKeyboard.ResidentType or ReplyKeyboard.OwnerRequestCategory or ReplyKeyboard.KeyType)
         {
             var rows = keyboard switch

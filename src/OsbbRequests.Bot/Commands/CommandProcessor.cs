@@ -25,10 +25,16 @@ public sealed class CommandProcessor(ICommandRepository repository, CommandHandl
         if (reply.Delivered)
             return;
 
+        var keyboard = reply.Keyboard;
         if (complexId is not null)
-            await telegram.SetCommandMenuAsync(reply.ChatId,
-                await repository.IsResidentAsync(reply.UserId, complexId, cancellationToken), cancellationToken, force: reply.RefreshMenu);
-        await telegram.SendMessageAsync(reply.ChatId, reply.Text, cancellationToken, reply.Keyboard);
+        {
+            var registered = await repository.IsResidentAsync(reply.UserId, complexId, cancellationToken);
+            await telegram.SetCommandMenuAsync(reply.ChatId, registered, cancellationToken, force: reply.RefreshMenu);
+            if (keyboard is null or ReplyKeyboard.Remove &&
+                !await MainKeyboardState.HasActiveDialogAsync(repository, reply.UserId, complexId, registered, cancellationToken))
+                keyboard = registered ? ReplyKeyboard.MainResident : ReplyKeyboard.MainGuest;
+        }
+        await telegram.SendMessageAsync(reply.ChatId, reply.Text, cancellationToken, keyboard);
         await repository.MarkDeliveredAsync(reply.UpdateId, cancellationToken);
     }
 }

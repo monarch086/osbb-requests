@@ -1,23 +1,23 @@
 [
   {
     "command": "start",
-    "description": "Початок роботи та перевірка доступу"
+    "description": "Початок роботи"
   },
   {
     "command": "new",
-    "description": "Створити заявку для будинку або комплексу"
+    "description": "Створити заявку"
   },
   {
     "command": "my",
-    "description": "Переглянути власні заявки"
+    "description": "Власні заявки"
   },
   {
     "command": "complex",
-    "description": "Відкриті заявки для мешканців комплексу"
+    "description": "Заявки по комплексу"
   },
   {
     "command": "delete",
-    "description": "Видалити власну нову заявку"
+    "description": "Видалити заявку"
   },
   {
     "command": "request",

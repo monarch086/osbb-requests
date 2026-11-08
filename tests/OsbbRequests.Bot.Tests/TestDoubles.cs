@@ -149,12 +149,14 @@ internal sealed class FakeTelegram : ITelegramClient
     public Task SetCommandMenuAsync(long chatId, bool registered, CancellationToken cancellationToken, bool force = false)
     { Menus.Add((chatId, registered)); return Task.CompletedTask; }
     public List<(long ChatId, string Text)> Messages { get; } = [];
+    public List<ReplyKeyboard?> Keyboards { get; } = [];
     public bool Fail { get; set; }
     public Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken, ReplyKeyboard? keyboard = null)
     {
         if (Fail)
             throw new InvalidOperationException("Delivery unavailable.");
         Messages.Add((chatId, text));
+        Keyboards.Add(keyboard);
         return Task.CompletedTask;
     }
 }
