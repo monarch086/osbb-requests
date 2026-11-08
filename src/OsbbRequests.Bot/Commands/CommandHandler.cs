@@ -22,7 +22,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         "Ліфтер:\n0683558674\n0634835206\n0443602845";
     public const string Help = "Бот ЖК «Зелений острів 2».\n" +
         "/start - початок роботи та реєстрація\n/help - довідка\n/contacts - контакти диспетчерів\n" +
-        "/account - мій особовий рахунок\n/edit_profile - змінити інформацію про себе\n/delete_profile - видалити інформацію про себе\n" +
+        "/account - мій особовий рахунок\n/edit_profile - змінити профіль\n/delete_profile - видалити профіль\n" +
         "/cancel - скасувати поточний діалог\n" +
         "/new - створити заявку для всіх мешканців комплексу: будинок або прибудинкова територія → поверх → категорія → опис\n" +
         "/my - власні заявки\n/complex - відкриті заявки для мешканців комплексу\n" +

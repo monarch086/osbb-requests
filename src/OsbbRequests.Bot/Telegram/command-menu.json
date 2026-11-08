@@ -30,12 +30,12 @@
   },
   {
     "command": "edit_profile",
-    "description": "Змінити інформацію про себе",
+    "description": "Змінити профіль",
     "registered_only": true
   },
   {
     "command": "delete_profile",
-    "description": "Видалити інформацію про себе",
+    "description": "Видалити профіль",
     "registered_only": true
   },
   {

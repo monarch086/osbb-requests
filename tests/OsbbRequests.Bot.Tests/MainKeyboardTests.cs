@@ -43,6 +43,17 @@ public sealed class MainKeyboardTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("Змінити профіль", "edit_profile")]
+    [InlineData("Змінити інформацію про себе", "edit_profile")]
+    [InlineData("Видалити профіль", "delete_profile")]
+    [InlineData("Видалити інформацію про себе", "delete_profile")]
+    public void ProfileButtonNamesKeepRegisteredOnlyAccess(string label, string command)
+    {
+        Assert.Equal(command, CommandMenu.CommandForButton(label, true));
+        Assert.Null(CommandMenu.CommandForButton(label, false));
+    }
+
     [Fact]
     public async Task ButtonsDoNotStealTextInActiveRequestAndMenuReturnsAfterCancel()
     {

@@ -30,6 +30,8 @@ public static class CommandMenu
             "Видалити власну нову заявку" => "delete",
             "Деталі заявки: /request номер" => "request",
             "Довідка: контакти диспетчерів" => "contacts",
+            "Змінити інформацію про себе" => "edit_profile",
+            "Видалити інформацію про себе" => "delete_profile",
             _ => null
         };
         return ForResident(registered).Any(command => command.Command == previous) ? previous : null;
