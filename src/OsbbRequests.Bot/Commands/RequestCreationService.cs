@@ -8,11 +8,11 @@ namespace OsbbRequests.Bot.Commands;
 
 public sealed class RequestCreationService(ICommandRepository repository, string complexId, TimeProvider clock)
 {
-    public const string Categories = "сантехніка, електрика, ліфт, прибирання, місця загального користування, інше";
+    public const string Categories = "Електрика МЗК, Сантехніка МЗК, Ліфти, Прибирання МЗК, Інше";
     public const string Usage = "Створити заявку для ЖК «Зелений острів 2»: /new.\n" +
         "Бот запитає будинок або прибудинкову територію, під’їзд та поверх (для будинку), категорію та опис. Скасувати: /cancel.\n\n" +
-        "Або однією командою:\n/new 4В | 2 | 12 | сантехніка | Протікає труба\n" +
-        "/new комплекс | - | електрика | Не працює освітлення\n\n" +
+        "Або однією командою:\n/new 4В | 2 | 12 | Сантехніка МЗК | Протікає труба\n" +
+        "/new комплекс | - | Електрика МЗК | Не працює освітлення\n\n" +
         "Під’їзди: 1, 2 або «Не зазначено»; для 4Б автоматично 1.\n" +
         "Будинки: 4Б, 4В, 4Г, 4Д. Поверхи: 1–25 або «Парадне»; «-» - без поверху. Категорії: " + Categories +
         ". Опис: 10–2000 символів. Заявка буде видимою для всіх мешканців комплексу.";
@@ -36,7 +36,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
                 return new(Usage);
             if (building == "4Б") entrance = 1;
             return Finish(command, new(command.UserId, complexId, RequestDraftStage.Description, current?.Version ?? 0,
-                scope, building, floor, parts[floorIndex + 1].ToLowerInvariant(), Entrance: entrance), current?.Version, parts[floorIndex + 2]);
+                scope, building, floor, CanonicalCategory(parts[floorIndex + 1])!, Entrance: entrance), current?.Version, parts[floorIndex + 2]);
         }
         if (current is { Stage: RequestDraftStage.Location })
         {
@@ -78,7 +78,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
                 break;
             case RequestDraftStage.Category:
                 if (!ValidCategory(text)) return Prompt(current);
-                next = current with { Category = text.ToLowerInvariant(), Stage = RequestDraftStage.Description };
+                next = current with { Category = CanonicalCategory(text), Stage = RequestDraftStage.Description };
                 break;
             default:
                 if (text.Length is < 10 or > 2000) return Prompt(current);
@@ -102,7 +102,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         var entrance = draft.BuildingNumber == "4Б" ? 1 : draft.Entrance;
         if (!ComplexLayout.IsValid(draft.Scope, draft.BuildingNumber, draft.Floor, entrance) || draft.Category is null)
             throw new InvalidOperationException("Incomplete request draft.");
-        var request = new MaintenanceRequest(command.UpdateId, command.UserId, complexId, draft.Category, draft.Location ?? "",
+        var request = new MaintenanceRequest(command.UpdateId, command.UserId, complexId, CanonicalCategory(draft.Category) ?? throw new InvalidOperationException("Unknown request category."), draft.Location ?? "",
             description, clock.GetUtcNow(), Visibility: RequestVisibility.Public, Scope: draft.Scope, BuildingNumber: draft.BuildingNumber, Floor: draft.Floor, Entrance: entrance);
         return new($"Заявку №{request.Id} створено. Статус: Нова. Видимість: для всіх мешканців комплексу.\n" +
             ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + $"\nДеталі: /request {request.Id}",
@@ -137,7 +137,16 @@ public sealed class RequestCreationService(ICommandRepository repository, string
             return false;
         floor = number; return true;
     }
-    private static bool ValidCategory(string text) => Categories.Split(", ").Contains(text.ToLowerInvariant(), StringComparer.Ordinal);
+    private static bool ValidCategory(string text) => CanonicalCategory(text) is not null;
+    private static string? CanonicalCategory(string text) => text.Trim().ToLowerInvariant() switch
+    {
+        "електрика" or "електрика мзк" => "Електрика МЗК",
+        "сантехніка" or "сантехніка мзк" => "Сантехніка МЗК",
+        "ліфт" or "ліфти" => "Ліфти",
+        "прибирання" or "прибирання мзк" => "Прибирання МЗК",
+        "інше" or "місця загального користування" => "Інше",
+        _ => null
+    };
     private static CommandOutcome Prompt(RequestDraft draft) => draft.Stage switch
     {
         RequestDraftStage.Scope => new("ЖК «Зелений острів 2».\n" +

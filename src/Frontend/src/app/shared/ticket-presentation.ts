@@ -9,12 +9,11 @@ export const ticketStatuses: TicketStatus[] = [
   'Rejected',
 ];
 export const ticketCategories = [
-  'сантехніка',
-  'електрика',
-  'ліфт',
-  'прибирання',
-  'місця загального користування',
-  'інше',
+  'Електрика МЗК',
+  'Сантехніка МЗК',
+  'Ліфти',
+  'Прибирання МЗК',
+  'Інше',
 ];
 export const statusLabels: Record<TicketStatus, string> = {
   New: 'Нова',

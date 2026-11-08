@@ -58,11 +58,24 @@ public sealed class RequestCreationTests
         await Apply(repository, 4, "ліфт");
         Assert.Equal(RequestDraftStage.Description, repository.Drafts[42].Stage);
         await Apply(repository, 5, "Ліфт не працює");
-        Assert.Equal("ліфт", Assert.Single(repository.Requests).Category);
+        Assert.Equal("Ліфти", Assert.Single(repository.Requests).Category);
 
         var quick = await Handler(new()).HandleAsync(Message(6, "/new 4В | 2 | 5 | ЛІФТ | Ліфт не працює"), default);
         Assert.NotNull(quick.NewRequest);
-        Assert.Equal("ліфт", quick.NewRequest.Category);
+        Assert.Equal("Ліфти", quick.NewRequest.Category);
+    }
+
+    [Theory]
+    [InlineData("електрика", "Електрика МЗК")]
+    [InlineData("Сантехніка МЗК", "Сантехніка МЗК")]
+    [InlineData("Ліфти", "Ліфти")]
+    [InlineData("прибирання", "Прибирання МЗК")]
+    [InlineData("місця загального користування", "Інше")]
+    [InlineData("Інше", "Інше")]
+    public async Task CategoriesAreStoredWithCanonicalNames(string input, string expected)
+    {
+        var outcome = await Handler(new()).HandleAsync(Message(1, $"/new 4Б | 1 | {input} | Опис проблеми"), default);
+        Assert.Equal(expected, Assert.IsType<OsbbRequests.Shared.Models.MaintenanceRequest>(outcome.NewRequest).Category);
     }
 
     [Fact]
