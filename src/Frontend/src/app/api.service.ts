@@ -32,6 +32,10 @@ export class ApiService {
     return this.request('/residents' + this.cursorQuery(cursor));
   }
 
+  getRegistrationCount(): Promise<{ count: number }> {
+    return this.request('/registrations/count');
+  }
+
   getRegistrations(cursor: string | null): Promise<Page<Registration>> {
     return this.request('/registrations' + this.cursorQuery(cursor));
   }

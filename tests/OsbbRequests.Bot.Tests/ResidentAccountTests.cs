@@ -9,7 +9,7 @@ public sealed class ResidentAccountTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-25T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
     private static readonly ResidentRegistration Profile = new("reference", 42, "building", RegistrationStage.Approved, 6,
-        Now, Now, "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "1", ConsentAt: Now, ConsentVersion: "1");
+        Now, Now, "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "1", ResidentType: ResidentType.Owner, ConsentAt: Now, ConsentVersion: "1");
     private static CommandEnvelope Message(long id, string text) => new(id, 42, 42, text);
     private static (MemoryRepository Repo, CommandProcessor Processor) Setup(ResidentRegistration profile)
     {
@@ -58,6 +58,7 @@ public sealed class ResidentAccountTests
         var updated = repo.Registrations[42];
         Assert.Equal(original.FirstName, updated.FirstName);
         Assert.Equal(original.Phone, updated.Phone);
+        Assert.Equal(original.ResidentType, updated.ResidentType);
         Assert.Equal(original.ConsentAt, updated.ConsentAt);
         Assert.Equal(original.ConsentVersion, updated.ConsentVersion);
         Assert.Equal(original.Version + 1, updated.Version);

@@ -34,7 +34,7 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         }
         var now = clock.GetUtcNow();
         var value = new ResidentRegistration(current?.Id ?? Guid.NewGuid().ToString("N"), userId, complexId,
-            RegistrationStage.AwaitingPhone, 1, current?.CreatedAt ?? now, now, PersonalDataDeletedAt: current?.PersonalDataDeletedAt, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now, ConsentAt: current?.ConsentAt, ConsentVersion: current?.ConsentVersion);
+            RegistrationStage.AwaitingPhone, 1, current?.CreatedAt ?? now, now, PersonalDataDeletedAt: current?.PersonalDataDeletedAt, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now, ConsentAt: current?.ConsentAt, ConsentVersion: current?.ConsentVersion, ResidentType: current?.ResidentType ?? ResidentType.FamilyMember);
         var dialog = new ResidentProfileDialog(userId, complexId, action, (previous?.Version ?? 0) + 1, current?.Version,
             action == ProfileAction.Edit ? value : null);
         var prompt = action == ProfileAction.Edit ? EditPrompt(value.Stage) : DeletePrompt();
@@ -81,6 +81,7 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
                 Stage = RegistrationStage.Approved,
                 ConsentAt = current?.ConsentAt,
                 ConsentVersion = current?.ConsentVersion,
+                ResidentType = current?.ResidentType ?? ResidentType.FamilyMember,
                 Version = (dialog.ExpectedProfileVersion ?? 0) + 1,
                 PersonalDataDeletedAt = current?.PersonalDataDeleted == true ? now : current?.PersonalDataDeletedAt
             };

@@ -52,6 +52,20 @@ public sealed class RegistrationTests
     }
 
     [Fact]
+    public async Task ChangedConsentTextMustBeShownBeforeAcceptingIt()
+    {
+        var (repository, _, processor) = Create();
+        repository.Registrations[99] = new("old", 99, "building", RegistrationStage.AwaitingConsent, 4,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ConsentVersion: "1");
+        await processor.ProcessAsync(Message(1, RegistrationService.ConsentButton), default);
+        Assert.Null(repository.Registrations[99].ConsentAt);
+        Assert.Equal(RegistrationService.ConsentVersion, repository.Registrations[99].ConsentVersion);
+        Assert.Contains("тип мешканця", repository.Replies[1].Text);
+        await processor.ProcessAsync(Message(2, RegistrationService.ConsentButton), default);
+        Assert.NotNull(repository.Registrations[99].ConsentAt);
+    }
+
+    [Fact]
     public async Task LegacyDraftMustConsentBeforeResumingItsPreviousStep()
     {
         var (repository, _, processor) = Create();
@@ -82,6 +96,7 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(6, "125"), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingEmail, repository.Registrations[99].Stage);
         await processor.ProcessAsync(Message(60, "olena@example.com"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1060, "Власник"), CancellationToken.None);
         var registration = repository.Registrations[99];
         Assert.Equal("4В", registration.BuildingNumber);
         Assert.Equal("125", registration.ApartmentNumber);
@@ -169,6 +184,7 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(6, "4Г"), CancellationToken.None);
         await processor.ProcessAsync(Message(7, "1"), CancellationToken.None);
         await processor.ProcessAsync(Message(70, RegistrationService.SkipEmail), CancellationToken.None);
+        await processor.ProcessAsync(Message(1070, "Власник"), CancellationToken.None);
         var before = repository.Registrations[99];
         await processor.ProcessAsync(Message(8, "/register"), CancellationToken.None);
         Assert.Equal(before, repository.Registrations[99]);
@@ -286,6 +302,7 @@ public sealed class RegistrationTests
         Assert.Equal(RegistrationStage.AwaitingEmail, repository.Registrations[99].Stage);
         Assert.Equal(6, repository.Registrations[99].Version);
         await processor.ProcessAsync(Message(5, RegistrationService.SkipEmail), default);
+        await processor.ProcessAsync(Message(1005, "Власник"), default);
         Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
         Assert.Null(repository.Registrations[99].Email);
     }
@@ -403,6 +420,7 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(5, "4Д"), default);
         await processor.ProcessAsync(Message(6, "125"), default);
         await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
+        await processor.ProcessAsync(Message(1007, "Власник"), default);
         Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
         Assert.DoesNotContain(99, repository.Residents);
     }

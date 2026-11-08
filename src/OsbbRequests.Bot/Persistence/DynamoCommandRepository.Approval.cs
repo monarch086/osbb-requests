@@ -9,7 +9,7 @@ public sealed partial class DynamoCommandRepository
     private void AddAutomaticApprovalWrites(List<TransactWriteItem> writes, ResidentRegistration profile, int? expectedVersion)
     {
         if (profile.Stage != RegistrationStage.Approved || profile.ApprovedAt != profile.UpdatedAt || profile.ApprovedAt is null ||
-            expectedVersion != profile.Version - 1 || profile.PersonalDataDeleted || profile.ConsentAt is null || string.IsNullOrWhiteSpace(profile.ConsentVersion) ||
+            expectedVersion != profile.Version - 1 || profile.PersonalDataDeleted || profile.ResidentType is not (ResidentType.FamilyMember or ResidentType.Tenant) || profile.ConsentAt is null || string.IsNullOrWhiteSpace(profile.ConsentVersion) ||
             string.IsNullOrWhiteSpace(profile.Phone) || string.IsNullOrWhiteSpace(profile.FirstName) || string.IsNullOrWhiteSpace(profile.LastName) ||
             !ComplexLayout.BuildingNumbers.Contains(profile.BuildingNumber, StringComparer.Ordinal) ||
             !int.TryParse(profile.ApartmentNumber, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var apartment) || apartment <= 0)

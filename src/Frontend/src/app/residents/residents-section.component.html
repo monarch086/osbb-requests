@@ -14,6 +14,7 @@
 </div>
 <app-residents
   [view]="lists.residentView"
+  [pendingCount]="pendingCount"
   [registeredResidents]="lists.registeredResidents"
   [filters]="lists.residentDirectory.filters"
   (filtersChange)="applyResidentFilters($event)"

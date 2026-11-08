@@ -5,14 +5,18 @@ import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
 import type { RegisteredResident, Registration } from '../api.models';
 import { buildingNumbers, formatDate } from '../shared/ticket-presentation';
 import type { ResidentFilters, ResidentView } from './resident-directory';
+import { residentTypeLabel } from './resident-type';
 
 @Component({
   selector: 'app-residents',
   imports: [FormsModule, NgSelectComponent, NgOptionComponent],
   templateUrl: './residents.component.html',
+  styleUrl: './residents.component.scss',
 })
 export class ResidentsComponent {
   @Input() view: ResidentView = 'registered';
+  @Input() pendingCount = 0;
+  protected readonly typeLabel = residentTypeLabel;
   @Input() registeredResidents: RegisteredResident[] = [];
   @Input() filters: ResidentFilters = { sort: 'registeredAt', direction: 'desc', building: '' };
   @Output() readonly filtersChange = new EventEmitter<ResidentFilters>();

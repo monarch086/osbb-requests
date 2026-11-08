@@ -193,6 +193,27 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         return new Page<ResidentRegistration>((result.Items ?? []).Select(Payload<ResidentRegistration>).ToList(), Encode(result.LastEvaluatedKey));
     }
 
+    public async Task<int> CountRegistrationsAsync(CancellationToken ct)
+    {
+        Dictionary<string, AttributeValue>? cursor = null;
+        var count = 0;
+        do
+        {
+            var page = await db.QueryAsync(new QueryRequest
+            {
+                TableName = dataTable,
+                ConsistentRead = true,
+                Select = Select.COUNT,
+                KeyConditionExpression = "pk = :pk AND begins_with(sk, :prefix)",
+                ExpressionAttributeValues = new() { [":pk"] = S("BUILDING#" + building), [":prefix"] = S("REGISTRATION#") },
+                ExclusiveStartKey = cursor
+            }, ct);
+            count += page.Count ?? throw new InvalidOperationException("Missing registration count.");
+            cursor = page.LastEvaluatedKey;
+        } while (cursor is { Count: > 0 });
+        return count;
+    }
+
     public async Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)
     {
         var pk = "BUILDING#" + building;
@@ -210,7 +231,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }, ct);
         var residents = (result.Items ?? []).Select(Payload<ResidentRegistration>)
             .Where(r => r.BuildingId == building && r.Stage == RegistrationStage.Approved)
-            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.ApprovedAt ?? r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture), r.BuildingNumber, r.ApartmentNumber, r.PersonalDataDeleted, r.Email, r.ConsentAt)).ToList();
+            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.ApprovedAt ?? r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture), r.BuildingNumber, r.ApartmentNumber, r.PersonalDataDeleted, r.Email, r.ConsentAt, r.ResidentType)).ToList();
         return new Page<RegisteredResident>(residents, Encode(result.LastEvaluatedKey));
     }
 

@@ -20,6 +20,13 @@
     (click)="viewChange.emit('pending')"
   >
     Очікують перевірки
+    @if (pendingCount > 0) {
+      <span
+        class="badge rounded-pill pending-count ms-1"
+        [attr.aria-label]="'Очікують перевірки: ' + pendingCount"
+        >{{ pendingCount }}</span
+      >
+    }
   </button>
 </div>
 @if (view === 'pending') {
@@ -35,6 +42,7 @@
         >
           <div>
             <h3 class="h6">{{ r.firstName }} {{ r.lastName }}</h3>
+            <p class="small text-body-secondary">{{ typeLabel(r.residentType) }}</p>
             @if (r.buildingNumber || r.apartmentNumber) {
               <p class="small text-body-secondary">
                 @if (r.buildingNumber) {
@@ -194,6 +202,7 @@
                 {{ resident.firstName }} {{ resident.lastName }}
               }
             </h3>
+            <p class="small text-body-secondary">{{ typeLabel(resident.residentType) }}</p>
             @if (resident.buildingNumber || resident.apartmentNumber) {
               <p class="small text-body-secondary">
                 @if (resident.buildingNumber) {

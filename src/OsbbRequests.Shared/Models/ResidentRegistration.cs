@@ -16,14 +16,18 @@ public enum RegistrationStage
     AwaitingApartment,
     Deleted,
     AwaitingEmail,
-    AwaitingConsent
+    AwaitingConsent,
+    AwaitingResidentType
 }
+
+[JsonConverter(typeof(JsonStringEnumConverter<ResidentType>))]
+public enum ResidentType { FamilyMember, Owner, Tenant }
 
 public sealed record ResidentRegistration(
     string Id, long UserId, string BuildingId, RegistrationStage Stage, int Version,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     string? Phone = null, string? FirstName = null, string? LastName = null, string? DecisionReason = null,
-    string? BuildingNumber = null, string? ApartmentNumber = null, bool PersonalDataDeleted = false, DateTimeOffset? PersonalDataDeletedAt = null, DateTimeOffset? ApprovedAt = null, string? Email = null, DateTimeOffset? ConsentAt = null, string? ConsentVersion = null, RegistrationStage? ResumeAfterConsent = null)
+    string? BuildingNumber = null, string? ApartmentNumber = null, bool PersonalDataDeleted = false, DateTimeOffset? PersonalDataDeletedAt = null, DateTimeOffset? ApprovedAt = null, string? Email = null, DateTimeOffset? ConsentAt = null, string? ConsentVersion = null, RegistrationStage? ResumeAfterConsent = null, ResidentType ResidentType = ResidentType.FamilyMember)
 {
     [JsonIgnore]
     public bool HasDeletedPersonalData => PersonalDataDeleted || Stage == RegistrationStage.Deleted ||

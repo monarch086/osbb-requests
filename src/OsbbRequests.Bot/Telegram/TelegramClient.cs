@@ -26,12 +26,13 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
-        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation or ReplyKeyboard.OptionalEmail or ReplyKeyboard.PersonalDataConsent)
+        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation or ReplyKeyboard.OptionalEmail or ReplyKeyboard.PersonalDataConsent or ReplyKeyboard.ResidentType)
         {
             var rows = keyboard switch
             {
                 ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { ComplexLayout.ComplexLabel }).ToArray(),
                 ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation], ["Скасувати"]],
+                ReplyKeyboard.ResidentType => [["Власник"], ["Член родини"], ["Орендар"]],
                 ReplyKeyboard.PersonalDataConsent => [[RegistrationService.ConsentButton]],
                 ReplyKeyboard.OptionalEmail => [[RegistrationService.SkipEmail]],
                 ReplyKeyboard.RegistrationBuilding => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).ToArray(),

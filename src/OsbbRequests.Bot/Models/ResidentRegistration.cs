@@ -13,7 +13,8 @@ public enum ReplyKeyboard
     RegistrationBuilding,
     ProfileDeleteConfirmation,
     OptionalEmail,
-    PersonalDataConsent
+    PersonalDataConsent,
+    ResidentType
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion, bool AutomaticallyApproved = false);

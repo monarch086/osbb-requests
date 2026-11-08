@@ -76,6 +76,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             return Reply(200, new { items = page.Items.Where(a => a.IsActive).Select(a => new { a.UserId, a.Email }), page.Cursor });
         }
         if (method == "GET" && path == "/admin/residents") return Reply(200, await store.ListResidentsAsync(cursor, ct));
+        if (method == "GET" && path == "/admin/registrations/count") return Reply(200, new { count = await store.CountRegistrationsAsync(ct) });
         if (method == "GET" && path == "/admin/registrations")
         {
             var page = await store.ListRegistrationsAsync(cursor, ct);
@@ -90,6 +91,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     r.Email,
                     r.BuildingNumber,
                     r.ApartmentNumber,
+                    r.ResidentType,
+                    r.ConsentAt,
                     r.UpdatedAt,
                     r.Version,
                     TelegramChatId = r.UserId.ToString(CultureInfo.InvariantCulture)

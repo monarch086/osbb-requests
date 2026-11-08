@@ -19,11 +19,17 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   private readonly excel = inject(ExcelExportService);
   protected override readonly lists = new ResidentsList();
   protected rejecting: Registration | null = null;
+  protected pendingCount = 0;
   protected override async loadItems(
     index: number,
     cursor: string | null,
     isCurrent: () => boolean,
   ): Promise<void> {
+    const count = await this.api.getRegistrationCount();
+    if (!isCurrent()) {
+      return;
+    }
+    this.pendingCount = count.count;
     if (this.lists.residentView === 'registered') {
       const residents = await collectPages((next) => this.api.getResidents(next), isCurrent);
       if (residents) {
@@ -72,6 +78,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     await this.write(async () => {
       await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
       this.lists.residents = this.lists.residents.filter((r) => r.id !== registration.id);
+      this.pendingCount = Math.max(0, this.pendingCount - 1);
       this.rejecting = null;
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
     });

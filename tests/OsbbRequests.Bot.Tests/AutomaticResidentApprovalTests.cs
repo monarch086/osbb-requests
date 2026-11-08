@@ -35,7 +35,8 @@ public sealed class AutomaticResidentApprovalTests
         Assert.Equal(RegistrationStage.AwaitingApartment, repo.Registrations[99].Stage);
         await processor.ProcessAsync(Message(6, "125"), default);
         Assert.DoesNotContain(99, repo.Residents);
-        var final = Message(60, RegistrationService.SkipEmail);
+        await processor.ProcessAsync(Message(60, RegistrationService.SkipEmail), default);
+        var final = Message(61, "Член родини");
         await processor.ProcessAsync(final, default);
         Assert.Contains(99, repo.Residents);
         Assert.Equal(RegistrationStage.Approved, repo.Registrations[99].Stage);
@@ -43,9 +44,40 @@ public sealed class AutomaticResidentApprovalTests
         Assert.Equal((99L, true), telegram.Menus[^1]);
         Assert.DoesNotContain("очікує", telegram.Messages[^1].Text);
         await processor.ProcessAsync(final, default);
-        Assert.Equal(8, repo.Registrations[99].Version);
+        Assert.Equal(9, repo.Registrations[99].Version);
         await processor.ProcessAsync(Message(7, "/new 4Д | 2 | інше | Зламано світло"), default);
         Assert.Single(repo.Requests);
+    }
+
+    [Theory]
+    [InlineData("Власник", ResidentType.Owner, false)]
+    [InlineData("Член родини", ResidentType.FamilyMember, true)]
+    [InlineData("Орендар", ResidentType.Tenant, true)]
+    public async Task ResidentTypeControlsAutomaticApproval(string choice, ResidentType type, bool automatic)
+    {
+        var repo = new MemoryRepository();
+        repo.Registrations[99] = Approved with { Stage = RegistrationStage.AwaitingResidentType, ApprovedAt = null };
+        var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building"), new FakeTelegram());
+        await processor.ProcessAsync(Message(1, "некоректно"), default);
+        Assert.Equal(RegistrationStage.AwaitingResidentType, repo.Registrations[99].Stage);
+        var selection = Message(2, choice);
+        await processor.ProcessAsync(selection, default);
+        await processor.ProcessAsync(selection, default);
+        Assert.Equal(type, repo.Registrations[99].ResidentType);
+        Assert.Equal(automatic ? RegistrationStage.Approved : RegistrationStage.Pending, repo.Registrations[99].Stage);
+        Assert.Equal(automatic, repo.Residents.Contains(99));
+        if (!automatic)
+        {
+            await processor.ProcessAsync(Message(3, "/new"), default);
+            Assert.Empty(repo.Requests);
+        }
+    }
+
+    [Fact]
+    public void LegacyProfilesDefaultToFamilyMember()
+    {
+        var json = "{\"Id\":\"old\",\"UserId\":99,\"BuildingId\":\"building\",\"Stage\":\"Approved\",\"Version\":1}";
+        Assert.Equal(ResidentType.FamilyMember, JsonSerializer.Deserialize<ResidentRegistration>(json)!.ResidentType);
     }
 
     [Fact]
@@ -97,6 +129,7 @@ public sealed class AutomaticResidentApprovalTests
     [InlineData("missing-building")]
     [InlineData("missing-firstname")]
     [InlineData("missing-consent")]
+    [InlineData("owner")]
     public async Task IncompleteRegistrationCannotCreateMembership(string kind)
     {
         using var db = new Capture();
@@ -104,6 +137,7 @@ public sealed class AutomaticResidentApprovalTests
         {
             "pending" => Approved with { Stage = RegistrationStage.Pending },
             "missing-consent" => Approved with { ConsentAt = null },
+            "owner" => Approved with { ResidentType = ResidentType.Owner },
             "missing-apartment" => Approved with { ApartmentNumber = null },
             "missing-phone" => Approved with { Phone = null },
             "missing-building" => Approved with { BuildingNumber = null },

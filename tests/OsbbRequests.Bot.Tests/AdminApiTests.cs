@@ -68,6 +68,20 @@ public sealed class AdminApiTests
         Assert.Equal(0, store.PrivateReads);
     }
     [Fact]
+    public async Task PendingCountRequiresActiveAdminAndReturnsOnlyCount()
+    {
+        var store = new FakeStore();
+        var anonymous = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/registrations/count", user: null), default));
+        Assert.Equal(401, anonymous.Status);
+        var inactive = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/registrations/count", user: "target"), default));
+        Assert.Equal(403, inactive.Status);
+        var response = await Handler(store).HandleAsync(Request("/admin/registrations/count"), default);
+        using var json = JsonDocument.Parse(response.Body);
+        Assert.Equal(0, json.RootElement.GetProperty("count").GetInt32());
+        Assert.Single(json.RootElement.EnumerateObject());
+    }
+
+    [Fact]
     public async Task NewAccountIsInactiveAndCannotProcessRequests()
     {
         var store = new FakeStore();
@@ -466,6 +480,7 @@ public sealed class AdminApiTests
         public Task SetNotificationSettingsAsync(AdminUser actor, AdminUser target, NotificationSettingsChange change, CancellationToken ct) { SettingsWrites++; return Task.CompletedTask; }
         public Task SetAccessAsync(AdminUser actor, AdminUser target, AccessChange change, CancellationToken ct)
         { AccessWrites++; Users[target.UserId] = target with { IsActive = change.IsActive }; return Task.CompletedTask; }
+        public Task<int> CountRegistrationsAsync(CancellationToken ct) => Task.FromResult(0);
         public Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new Page<ResidentRegistration>([new("reference", 99, "building", RegistrationStage.Pending, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "+380500000000", "Олена", "Ковальчук", Email: "resident@example.com")], null)); }
         public Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)

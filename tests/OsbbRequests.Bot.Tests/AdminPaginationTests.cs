@@ -61,6 +61,33 @@ public sealed class AdminPaginationTests
     }
 
     [Fact]
+    public async Task PendingCountQueriesEveryPageWithinTheComplexWithoutReadingPayloads()
+    {
+        using var db = new CountDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        Assert.Equal(32, await store.CountRegistrationsAsync(default));
+        Assert.Equal(2, db.Calls);
+        Assert.Equal(Select.COUNT, db.Request!.Select);
+        Assert.True(db.Request.ConsistentRead);
+        Assert.Equal("BUILDING#complex", db.Request.ExpressionAttributeValues[":pk"].S);
+        Assert.NotEmpty(db.Request.ExclusiveStartKey);
+    }
+
+    private sealed class CountDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
+    {
+        public int Calls;
+        public QueryRequest? Request;
+        public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken ct = default)
+        {
+            Request = request;
+            Calls++;
+            return Task.FromResult(Calls == 1
+                ? new QueryResponse { Count = 30, LastEvaluatedKey = new() { ["pk"] = new("BUILDING#complex"), ["sk"] = new("REGISTRATION#30") } }
+                : new QueryResponse { Count = 2, LastEvaluatedKey = [] });
+        }
+    }
+
+    [Fact]
     public async Task ResidentDirectoryCursorCannotBeUsedForPendingRegistrations()
     {
         using var db = new PagedDynamo("residents");

@@ -21,8 +21,10 @@ export interface Admin extends NotificationSettings {
   isSuperAdmin: boolean;
   version: number;
 }
+export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant';
 export interface Registration {
   telegramChatId: string;
+  residentType?: ResidentType;
   id: string;
   firstName: string;
   lastName: string;
@@ -36,6 +38,7 @@ export interface Registration {
 }
 export interface RegisteredResident {
   telegramChatId: string;
+  residentType?: ResidentType;
   id: string;
   firstName: string | null;
   lastName: string | null;
