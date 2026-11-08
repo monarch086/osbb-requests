@@ -70,7 +70,7 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
             var item = await GetAsync(candidate["pk"].S, candidate["sk"].S, ct);
             if (!item.TryGetValue("payload", out var payload)) continue;
             var request = JsonSerializer.Deserialize<MaintenanceRequest>(payload.S);
-            if (request is null || request.BuildingId != complexId || request.Visibility != RequestVisibility.Public ||
+            if (request is null || request.BuildingId != complexId || request.Visibility != RequestVisibility.Public || request.Category == RequestCategories.KeyOrder ||
                 request.Status is not (RequestStatus.New or RequestStatus.InProgress)) continue;
             items.Add(new(request.Id, request.Status, request.CreatedAt, request.Scope, request.BuildingNumber,
                 request.Floor, request.Category, request.Location, request.Description, request.Entrance));
@@ -161,6 +161,34 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         {
             if (!ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor, request.Entrance))
                 throw new InvalidOperationException("Request scope is required.");
+            if (request.Category == RequestCategories.KeyOrder)
+            {
+                if (request.OwnerId != command.UserId || outcome.OwnerProfileVersion is not { } profileVersion ||
+                    request.Visibility != RequestVisibility.Private || request.KeyType is not ("Магніт" or "Перепустка") || request.KeyQuantity is not >= 1)
+                    throw new InvalidOperationException("Invalid key order authorization.");
+                writes.Add(new()
+                {
+                    ConditionCheck = new()
+                    {
+                        TableName = tableName,
+                        Key = Key("USER#" + Number(command.UserId), "REGISTRATION"),
+                        ConditionExpression = "#v = :version",
+                        ExpressionAttributeNames = new() { ["#v"] = "version" },
+                        ExpressionAttributeValues = new() { [":version"] = new() { N = Number(profileVersion) } }
+                    }
+                });
+                writes.Add(new()
+                {
+                    ConditionCheck = new()
+                    {
+                        TableName = tableName,
+                        Key = Key("USER#" + Number(command.UserId), "MEMBERSHIP"),
+                        ConditionExpression = "buildingId = :complex AND #active = :active",
+                        ExpressionAttributeNames = new() { ["#active"] = "active" },
+                        ExpressionAttributeValues = new() { [":complex"] = new(request.BuildingId), [":active"] = new() { BOOL = true } }
+                    }
+                });
+            }
             var item = Key("USER#" + Number(request.OwnerId), RequestKey(request.Id));
             item["payload"] = new AttributeValue(JsonSerializer.Serialize(request));
             item["requestBuildingId"] = new AttributeValue(request.BuildingId);

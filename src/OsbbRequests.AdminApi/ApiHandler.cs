@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Models;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -125,8 +126,10 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     throw new ApiError(400, "Оберіть «Парадне» або поверх від 1 до 25.");
                 floor = floorNumber;
             }
+            var section = query.GetValueOrDefault("section");
+            if (section is not (null or "complex" or "keys")) throw new ApiError(400, "Некоректний розділ заявок.");
             return Reply(200, await store.ListRequestsAsync(new(statuses, query.GetValueOrDefault("category"),
-                query.GetValueOrDefault("search"), from, to, target, floor), cursor, ct));
+                query.GetValueOrDefault("search"), from, to, target, floor, section), cursor, ct));
         }
         if (segments.Length is 4 or 5 && segments[0] == "admin" && segments[1] == "requests" &&
             long.TryParse(segments[2], NumberStyles.None, CultureInfo.InvariantCulture, out var owner) && owner > 0 &&
@@ -142,6 +145,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 if (!Enum.TryParse<RequestStatus>(change.Status, out var status) || !Enum.IsDefined(status) ||
                     !Enum.TryParse<RequestVisibility>(change.Visibility, out var visibility) || !Enum.IsDefined(visibility) ||
                     change.Priority is not ("Low" or "Normal" or "High" or "Urgent")) throw new ApiError(400, "Некоректні параметри заявки.");
+                if (current.Request.Category == RequestCategories.KeyOrder && visibility != RequestVisibility.Private)
+                    throw new ApiError(400, "Замовлення ключів має бути приватним.");
                 if (change.Resolution?.Length > 1000 || status is RequestStatus.Completed or RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
                     throw new ApiError(400, "Для виконання або відхилення потрібне пояснення до 1000 символів.");
                 if (!Enum.TryParse<RequestScope>(change.Scope, out var scope) || !ComplexLayout.IsValid(scope, change.BuildingNumber, change.Floor, change.Entrance))

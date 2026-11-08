@@ -95,6 +95,7 @@ export interface Assignee {
 }
 
 export interface TicketFilters {
+  section?: string;
   target: string;
   floor: string;
   status: TicketStatus[];

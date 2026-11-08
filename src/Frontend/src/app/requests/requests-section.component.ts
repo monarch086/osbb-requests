@@ -77,6 +77,13 @@ export class RequestsSectionComponent extends WorkspaceSection {
   protected async exportExcel(): Promise<void> {
     await this.runExport((current) => this.excel.exportTickets(this.lists.appliedFilters, current));
   }
+  protected async switchSection(section: string): Promise<void> {
+    if (this.loading || this.saving || this.lists.filters.section === section) {
+      return;
+    }
+    this.lists.applyTicketFilters({ ...this.lists.filters, section, category: '' });
+    await this.load();
+  }
   protected async applyRequestFilters(filters: TicketFilters): Promise<void> {
     if (this.loading || this.saving) {
       return;

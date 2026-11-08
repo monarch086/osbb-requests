@@ -180,8 +180,10 @@
                 appendTo="body"
                 required
               >
-                <ng-option value="Private">Приватна</ng-option
-                ><ng-option value="Public">Для мешканців комплексу</ng-option>
+                <ng-option value="Private">Приватна</ng-option>
+                @if (draft.category !== 'Замовлення ключів') {
+                  <ng-option value="Public">Для мешканців комплексу</ng-option>
+                }
               </ng-select>
             </div>
           </div>

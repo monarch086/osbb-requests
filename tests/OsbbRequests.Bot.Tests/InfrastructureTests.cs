@@ -311,6 +311,26 @@ public sealed class InfrastructureTests
         Assert.All(transaction.TransactItems.Skip(1), item => Assert.False(item.Put.Item.ContainsKey("expiresAt")));
     }
 
+    [Fact]
+    public async Task KeyOrderTransactionChecksProfileVersionAndActiveMembership()
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        var command = new CommandEnvelope(100, 42, 42, "2");
+        var request = new MaintenanceRequest(100, 42, "building", RequestCategories.KeyOrder, "", "Тип ключа: Магніт\nКількість: 2", DateTimeOffset.UtcNow,
+            Visibility: RequestVisibility.Private, Scope: RequestScope.Complex, KeyType: "Магніт", KeyQuantity: 2);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.CommitAsync(command, new("ok", request), default));
+        Assert.Null(client.Transaction);
+        await repository.CommitAsync(command, new("ok", request, OwnerProfileVersion: 7), default);
+        var checks = client.Transaction!.TransactItems.Where(item => item.ConditionCheck is not null).Select(item => item.ConditionCheck).ToArray();
+        Assert.Equal(2, checks.Length);
+        var profile = Assert.Single(checks, item => item.Key["sk"].S == "REGISTRATION");
+        Assert.Equal("7", profile.ExpressionAttributeValues[":version"].N);
+        var membership = Assert.Single(checks, item => item.Key["sk"].S == "MEMBERSHIP");
+        Assert.True(membership.ExpressionAttributeValues[":active"].BOOL);
+        Assert.Equal("building", membership.ExpressionAttributeValues[":complex"].S);
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(2)]

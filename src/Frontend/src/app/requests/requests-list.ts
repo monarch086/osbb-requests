@@ -20,6 +20,7 @@ export class RequestsList extends WorkspaceLists {
   }
   private defaultFilters(): TicketFilters {
     return {
+      section: 'complex',
       status: ['New', 'InProgress'],
       category: '',
       search: '',

@@ -93,6 +93,16 @@ public sealed class AdminApiTests
         Assert.Equal(403, forbidden.Status);
         Assert.Equal(0, store.PrivateReads);
     }
+    [Fact]
+    public async Task KeyOrderCannotBeMadePublic()
+    {
+        var store = new FakeStore { ForcedRequest = new(7, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow) };
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/7", "PATCH", body:
+            new { status = "New", visibility = "Public", resolution = "", assignedTo = "", priority = "Normal", plannedDate = "", version = 1, scope = "Complex" }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Equal(0, store.RequestWrites);
+    }
+
     [Theory]
     [InlineData("GET")]
     [InlineData("PATCH")]
@@ -468,6 +478,7 @@ public sealed class AdminApiTests
         public Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct) => Task.FromResult(new BroadcastMessage(change.Id, change.Text, actor.Email, actor.UserId, DateTimeOffset.UtcNow));
         public Dictionary<string, AdminUser> Users { get; } = new() { ["super"] = Super, ["regular"] = Regular, ["target"] = new("target", "new@example.org", "New", false, false, 1) };
         public MaintenanceRequest? LastRequest;
+        public MaintenanceRequest? ForcedRequest;
         public RequestFilters? LastFilters;
         public MaintenanceRequest? LastHistoryRequest;
         public int SettingsWrites;
@@ -487,7 +498,7 @@ public sealed class AdminApiTests
         { PrivateReads++; return Task.FromResult(new Page<RegisteredResident>([new("reference", "Олена", "Ковальчук", "+380500000000", DateTimeOffset.UnixEpoch, "99", Email: "resident@example.com")], "next-page")); }
         public Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct) => Task.CompletedTask;
         public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) { LastFilters = filters; return Task.FromResult(new Page<ManagedRequest>([], null)); }
-        public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
+        public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(ForcedRequest ?? new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
         public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<RequestAuthor?>(new("Олена", "Ковальчук", "4Д", "125"));
         public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
         public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct) { LastHistoryRequest = request; return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]); }

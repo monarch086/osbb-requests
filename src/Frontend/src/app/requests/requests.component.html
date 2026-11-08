@@ -90,22 +90,24 @@
         }
       </ng-select>
     </div>
-    <div class="col-12 col-sm-6 col-lg-4">
-      <label class="form-label" for="request-category">Категорія</label>
-      <ng-select
-        labelForId="request-category"
-        name="category"
-        [(ngModel)]="filters.category"
-        [clearable]="false"
-        [disabled]="loading || saving"
-        notFoundText="Нічого не знайдено"
-      >
-        <ng-option value="">Усі категорії</ng-option>
-        @for (c of categories; track c) {
-          <ng-option [value]="c">{{ c }}</ng-option>
-        }
-      </ng-select>
-    </div>
+    @if (filters.section !== 'keys') {
+      <div class="col-12 col-sm-6 col-lg-4">
+        <label class="form-label" for="request-category">Категорія</label>
+        <ng-select
+          labelForId="request-category"
+          name="category"
+          [(ngModel)]="filters.category"
+          [clearable]="false"
+          [disabled]="loading || saving"
+          notFoundText="Нічого не знайдено"
+        >
+          <ng-option value="">Усі категорії</ng-option>
+          @for (c of categories; track c) {
+            <ng-option [value]="c">{{ c }}</ng-option>
+          }
+        </ng-select>
+      </div>
+    }
     <div class="col-12 col-sm-6 col-lg-4">
       <label class="form-label" for="request-from">Від дати</label
       ><input

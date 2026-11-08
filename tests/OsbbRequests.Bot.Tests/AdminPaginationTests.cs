@@ -97,6 +97,18 @@ public sealed class AdminPaginationTests
         Assert.Equal(1, db.QueryCount);
     }
 
+    [Theory]
+    [InlineData("complex", "(attribute_not_exists(requestCategory) OR requestCategory <> :keyCategory)")]
+    [InlineData("keys", "requestCategory = :keyCategory")]
+    public async Task RequestSectionFiltersAreAppliedBeforePagination(string section, string expected)
+    {
+        using var db = new PagedDynamo("requests");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
+        await store.ListRequestsAsync(new(null, null, null, null, null, Section: section), null, default);
+        Assert.Equal(expected, db.Query!.FilterExpression);
+        Assert.Equal(RequestCategories.KeyOrder, db.Query.ExpressionAttributeValues[":keyCategory"].S);
+    }
+
     [Fact]
     public async Task MultipleStatusesUseOneQueryCombinedWithOtherFiltersAndCursor()
     {

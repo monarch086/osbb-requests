@@ -321,6 +321,11 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     private static string? RequestFilterExpression(RequestFilters filters, Dictionary<string, AttributeValue> values)
     {
         var parts = new List<string>();
+        if (filters.Section is "complex" or "keys")
+        {
+            values[":keyCategory"] = S(RequestCategories.KeyOrder);
+            parts.Add(filters.Section == "keys" ? "requestCategory = :keyCategory" : "(attribute_not_exists(requestCategory) OR requestCategory <> :keyCategory)");
+        }
         if (filters.Statuses is { Count: > 0 } statuses)
         {
             var parameters = new List<string>();

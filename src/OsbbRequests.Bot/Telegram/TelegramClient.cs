@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Telegram;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -26,12 +27,14 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
-        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation or ReplyKeyboard.OptionalEmail or ReplyKeyboard.PersonalDataConsent or ReplyKeyboard.ResidentType)
+        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation or ReplyKeyboard.OptionalEmail or ReplyKeyboard.PersonalDataConsent or ReplyKeyboard.ResidentType or ReplyKeyboard.OwnerRequestCategory or ReplyKeyboard.KeyType)
         {
             var rows = keyboard switch
             {
                 ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { ComplexLayout.ComplexLabel }).ToArray(),
                 ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation], ["Скасувати"]],
+                ReplyKeyboard.OwnerRequestCategory => RequestCreationService.Categories.Split(", ").Append(RequestCategories.KeyOrder).Select(category => new[] { category }).ToArray(),
+                ReplyKeyboard.KeyType => [["Магніт"], ["Перепустка"]],
                 ReplyKeyboard.ResidentType => [["Власник"], ["Член родини"], ["Орендар"]],
                 ReplyKeyboard.PersonalDataConsent => [[RegistrationService.ConsentButton]],
                 ReplyKeyboard.OptionalEmail => [[RegistrationService.SkipEmail]],

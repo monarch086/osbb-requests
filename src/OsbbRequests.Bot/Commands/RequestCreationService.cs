@@ -20,6 +20,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
 
     public async Task<CommandOutcome> StartAsync(CommandEnvelope command, string arguments, CancellationToken ct)
     {
+        var owner = await OwnerAsync(command.UserId, ct);
         var current = await repository.GetRequestDraftAsync(command.UserId, ct);
         if (current is not null && current.ComplexId != complexId) throw new InvalidOperationException("Draft complex mismatch.");
         if (arguments.Length > 0)
@@ -43,7 +44,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
             var resumed = current with { Stage = RequestDraftStage.Description, Version = current.Version + 1 };
             return Prompt(resumed) with { Draft = new(resumed, current.Version) };
         }
-        if (current is not null && IsActive(current)) return Prompt(current);
+        if (current is not null && IsActive(current)) return Prompt(current, owner is not null);
         var draft = new RequestDraft(command.UserId, complexId, RequestDraftStage.Scope, (current?.Version ?? 0) + 1);
         return Prompt(draft) with { Draft = new(draft, current?.Version) };
     }
@@ -53,7 +54,10 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         var current = await repository.GetRequestDraftAsync(command.UserId, ct);
         if (current is null || !IsActive(current)) return null;
         if (current.ComplexId != complexId) throw new InvalidOperationException("Draft complex mismatch.");
-        if (command.Contact is not null) return Prompt(current);
+        var owner = await OwnerAsync(command.UserId, ct);
+        if ((current.Category == RequestCategories.KeyOrder || current.Stage is RequestDraftStage.KeyType or RequestDraftStage.KeyQuantity) && owner is null)
+            return new("Замовлення ключів доступне лише підтвердженим власникам. Скасувати: /cancel.");
+        if (command.Contact is not null) return Prompt(current, owner is not null);
         var text = command.Text.Trim();
         RequestDraft next;
         switch (current.Stage)
@@ -77,15 +81,32 @@ public sealed class RequestCreationService(ICommandRepository repository, string
                 next = current with { Floor = floor, Stage = RequestDraftStage.Category };
                 break;
             case RequestDraftStage.Category:
-                if (!ValidCategory(text)) return Prompt(current);
-                next = current with { Category = CanonicalCategory(text), Stage = RequestDraftStage.Description };
+                if (text.Equals(RequestCategories.KeyOrder, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (owner is null) return Prompt(current, false);
+                    next = current with { Category = RequestCategories.KeyOrder, Stage = RequestDraftStage.KeyType };
+                }
+                else
+                {
+                    if (!ValidCategory(text)) return Prompt(current, owner is not null);
+                    next = current with { Category = CanonicalCategory(text), Stage = RequestDraftStage.Description };
+                }
                 break;
+            case RequestDraftStage.KeyType:
+                var keyType = text.ToLowerInvariant() switch { "магніт" => "Магніт", "перепустка" => "Перепустка", _ => null };
+                if (keyType is null) return Prompt(current, true);
+                next = current with { KeyType = keyType, Stage = RequestDraftStage.KeyQuantity };
+                break;
+            case RequestDraftStage.KeyQuantity:
+                if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var quantity) || quantity < 1)
+                    return Prompt(current, true);
+                return FinishKeyOrder(command, current, owner!, quantity);
             default:
                 if (text.Length is < 10 or > 2000) return Prompt(current);
                 return Finish(command, current, current.Version, text);
         }
         next = next with { Version = current.Version + 1 };
-        return Prompt(next) with { Draft = new(next, current.Version) };
+        return Prompt(next, owner is not null) with { Draft = new(next, current.Version) };
     }
 
     public async Task<CommandOutcome?> CancelAsync(long user, CancellationToken ct)
@@ -95,6 +116,26 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         if (current.ComplexId != complexId) throw new InvalidOperationException("Draft complex mismatch.");
         return new("Створення заявки скасовано. Почати знову: /new.", Keyboard: ReplyKeyboard.Remove,
             Draft: new(new(user, complexId, RequestDraftStage.Cancelled, current.Version + 1), current.Version));
+    }
+
+    private async Task<ResidentRegistration?> OwnerAsync(long userId, CancellationToken ct)
+    {
+        var profile = await repository.GetRegistrationAsync(userId, ct);
+        return profile is { Stage: RegistrationStage.Approved, ResidentType: ResidentType.Owner, PersonalDataDeleted: false } && profile.BuildingId == complexId && profile.UserId == userId ? profile : null;
+    }
+
+    private CommandOutcome FinishKeyOrder(CommandEnvelope command, RequestDraft draft, ResidentRegistration owner, int quantity)
+    {
+        var entrance = draft.BuildingNumber == "4Б" ? 1 : draft.Entrance;
+        if (draft.Category != RequestCategories.KeyOrder || draft.KeyType is not ("Магніт" or "Перепустка") ||
+            !ComplexLayout.IsValid(draft.Scope, draft.BuildingNumber, draft.Floor, entrance)) throw new InvalidOperationException("Incomplete key order.");
+        var description = $"Тип ключа: {draft.KeyType}\nКількість: {quantity}";
+        var request = new MaintenanceRequest(command.UpdateId, command.UserId, complexId, RequestCategories.KeyOrder, "", description,
+            clock.GetUtcNow(), Visibility: RequestVisibility.Private, Scope: draft.Scope, BuildingNumber: draft.BuildingNumber,
+            Floor: draft.Floor, Entrance: entrance, KeyType: draft.KeyType, KeyQuantity: quantity);
+        return new($"Замовлення №{request.Id} створено. Статус: Нова. Видимість: приватна.\n{description}\nДеталі: /request {request.Id}",
+            request, Keyboard: ReplyKeyboard.Remove, Draft: new(new(command.UserId, complexId, RequestDraftStage.Completed, draft.Version + 1), draft.Version),
+            OwnerProfileVersion: owner.Version);
     }
 
     private CommandOutcome Finish(CommandEnvelope command, RequestDraft draft, int? expectedVersion, string description)
@@ -147,14 +188,16 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         "інше" or "місця загального користування" => "Інше",
         _ => null
     };
-    private static CommandOutcome Prompt(RequestDraft draft) => draft.Stage switch
+    private static CommandOutcome Prompt(RequestDraft draft, bool owner = false) => draft.Stage switch
     {
         RequestDraftStage.Scope => new("ЖК «Зелений острів 2».\n" +
             "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «" + ComplexLayout.ComplexLabel + "». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
         RequestDraftStage.Entrance => new($"Будинок {draft.BuildingNumber}. Оберіть під’їзд: 1, 2 або «Не зазначено». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestEntrance),
         RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Вкажіть поверх від 1 до 25, оберіть «Парадне» або «Без поверху» " +
             "для фасаду, підвалу чи проблеми всього будинку. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),
-        RequestDraftStage.Category => new("Оберіть категорію: " + Categories + ". Заявка буде видимою для всіх мешканців комплексу. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestCategory),
+        RequestDraftStage.Category => new("Оберіть категорію: " + Categories + (owner ? ", " + RequestCategories.KeyOrder : "") + ". Скасувати: /cancel.", Keyboard: owner ? ReplyKeyboard.OwnerRequestCategory : ReplyKeyboard.RequestCategory),
+        RequestDraftStage.KeyType => new("Оберіть тип ключа: Магніт або Перепустка. Скасувати: /cancel.", Keyboard: ReplyKeyboard.KeyType),
+        RequestDraftStage.KeyQuantity => new("Введіть кількість ключів цілим додатним числом. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove),
         _ => new("Опишіть проблему (10–2000 символів). Після цього заявку буде створено для всіх мешканців комплексу. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove)
     };
 }
