@@ -52,30 +52,44 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         };
         var condition = "requestBuildingId = :complex";
         if (before is not null) { condition += " AND requestCreatedAt < :before"; values[":before"] = new(before); }
-        var page = await client.QueryAsync(new QueryRequest
-        {
-            TableName = tableName,
-            IndexName = "BuildingRequestsIndex",
-            KeyConditionExpression = condition,
-            FilterExpression = "requestStatus IN (:new, :progress)",
-            ExpressionAttributeValues = values,
-            ScanIndexForward = false,
-            Limit = 5,
-            ProjectionExpression = "pk, sk"
-        }, ct);
+        const int pageSize = 5;
+        const int maxQueries = 25;
         var items = new List<PublicRequestSummary>();
-        foreach (var candidate in page.Items ?? [])
+        Dictionary<string, AttributeValue>? startKey = null;
+        string? next = null;
+        for (var queryNumber = 0; queryNumber < maxQueries; queryNumber++)
         {
-            // The GSI can lag behind privacy/status updates and deletion. Recheck the current base item.
-            var item = await GetAsync(candidate["pk"].S, candidate["sk"].S, ct);
-            if (!item.TryGetValue("payload", out var payload)) continue;
-            var request = JsonSerializer.Deserialize<MaintenanceRequest>(payload.S);
-            if (request is null || request.BuildingId != complexId || request.Visibility != RequestVisibility.Public || request.Category == RequestCategories.KeyOrder ||
-                request.Status is not (RequestStatus.New or RequestStatus.InProgress)) continue;
-            items.Add(new(request.Id, request.Status, request.CreatedAt, request.Scope, request.BuildingNumber,
-                request.Floor, request.Category, request.Location, request.Description, request.Entrance));
+            var page = await client.QueryAsync(new QueryRequest
+            {
+                TableName = tableName,
+                IndexName = "BuildingRequestsIndex",
+                KeyConditionExpression = condition,
+                FilterExpression = "requestStatus IN (:new, :progress)",
+                ExpressionAttributeValues = values,
+                ScanIndexForward = false,
+                Limit = pageSize - items.Count,
+                ProjectionExpression = "pk, sk, requestCreatedAt",
+                ExclusiveStartKey = startKey
+            }, ct);
+            foreach (var candidate in page.Items ?? [])
+            {
+                // The GSI can lag behind privacy/status updates and deletion. Recheck the current base item.
+                var item = await GetAsync(candidate["pk"].S, candidate["sk"].S, ct);
+                if (!item.TryGetValue("payload", out var payload)) continue;
+                var request = JsonSerializer.Deserialize<MaintenanceRequest>(payload.S);
+                if (request is null || request.BuildingId != complexId || request.Visibility != RequestVisibility.Public || request.Category == RequestCategories.KeyOrder ||
+                    request.Status is not (RequestStatus.New or RequestStatus.InProgress)) continue;
+                items.Add(new(request.Id, request.Status, request.CreatedAt, request.Scope, request.BuildingNumber,
+                    request.Floor, request.Category, request.Location, request.Description, request.Entrance, candidate.GetValueOrDefault("requestCreatedAt")?.S));
+            }
+            if (page.LastEvaluatedKey is not { Count: > 0 } lastKey) return new(items, null);
+            var last = lastKey.GetValueOrDefault("requestCreatedAt")?.S;
+            if (string.IsNullOrEmpty(last) || next == last || before == last)
+                throw new InvalidOperationException("Invalid public request cursor.");
+            next = last;
+            if (items.Count == pageSize) return new(items, next);
+            startKey = lastKey;
         }
-        var next = page.LastEvaluatedKey?.GetValueOrDefault("requestCreatedAt")?.S;
         return new(items, next);
     }
 

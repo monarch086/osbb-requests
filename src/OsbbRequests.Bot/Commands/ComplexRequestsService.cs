@@ -27,7 +27,7 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
         string? NextCommand(int count)
         {
             nextBefore = count > 0 && count < page.Items.Count
-                ? page.Items[count - 1].CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + page.Items[count - 1].Id.ToString("D20", CultureInfo.InvariantCulture)
+                ? page.Items[count - 1].CursorKey ?? page.Items[count - 1].CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + page.Items[count - 1].Id.ToString("D20", CultureInfo.InvariantCulture)
                 : page.NextBefore;
             return nextBefore is null ? null : "/complex " + token;
         }

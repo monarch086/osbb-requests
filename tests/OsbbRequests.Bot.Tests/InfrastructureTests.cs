@@ -148,19 +148,19 @@ public sealed class InfrastructureTests
         client.QueryResult = new()
         {
             Items = [new() { ["pk"] = new("USER#99"), ["sk"] = new("REQUEST#00000000000000000007") }],
-            LastEvaluatedKey = new() { ["requestCreatedAt"] = new(key), ["pk"] = new("USER#99") }
+            LastEvaluatedKey = []
         };
         var request = new MaintenanceRequest(7, 99, complex, "інше", "двір", "Приватний опис", DateTimeOffset.UtcNow,
             Enum.Parse<RequestStatus>(status), Enum.Parse<RequestVisibility>(visibility), Resolution: "Приватна відповідь");
         client.Item = new() { ["payload"] = new(JsonSerializer.Serialize(request)) };
         var page = await new DynamoCommandRepository(client, "data").ListPublicRequestsAsync("building", key, default);
         Assert.Equal(visible ? 1 : 0, page.Items.Count);
-        Assert.Equal(key, page.NextBefore);
+        Assert.Null(page.NextBefore);
         Assert.Equal("BuildingRequestsIndex", client.Query!.IndexName);
         Assert.Equal("requestBuildingId = :complex AND requestCreatedAt < :before", client.Query.KeyConditionExpression);
         Assert.Equal("building", client.Query.ExpressionAttributeValues[":complex"].S);
         Assert.Equal("requestStatus IN (:new, :progress)", client.Query.FilterExpression);
-        Assert.Equal("pk, sk", client.Query.ProjectionExpression);
+        Assert.Equal("pk, sk, requestCreatedAt", client.Query.ProjectionExpression);
         Assert.Equal(5, client.Query.Limit);
         Assert.False(client.Query.ScanIndexForward);
         Assert.True(client.Get!.ConsistentRead);
@@ -173,17 +173,17 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
-    public async Task DeletedIndexEntryIsSkippedAndCursorIsPreserved()
+    public async Task DeletedIndexEntryIsSkipped()
     {
         using var client = new CapturingDynamo();
         client.QueryResult = new()
         {
             Items = [new() { ["pk"] = new("USER#99"), ["sk"] = new("REQUEST#7") }],
-            LastEvaluatedKey = new() { ["requestCreatedAt"] = new("cursor") }
+            LastEvaluatedKey = []
         };
         var page = await new DynamoCommandRepository(client, "data").ListPublicRequestsAsync("building", null, default);
         Assert.Empty(page.Items);
-        Assert.Equal("cursor", page.NextBefore);
+        Assert.Null(page.NextBefore);
     }
 
     [Fact]
