@@ -34,6 +34,7 @@ public sealed class CommandMenuTests
             Assert.Equal(!registered, commands.Contains("start"));
             Assert.Contains("new", commands);
             Assert.Contains("request", commands);
+            Assert.Equal(registered, commands.Contains("account"));
             Assert.Equal(registered, commands.Contains("edit_profile"));
             Assert.Equal(registered, commands.Contains("delete_profile"));
         }

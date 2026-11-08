@@ -1,6 +1,8 @@
+using System.Globalization;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.Bot.Commands;
 
@@ -14,8 +16,22 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         if (current is not null && current.BuildingId != complexId) throw new InvalidOperationException("Profile complex mismatch.");
         var previous = await repository.GetProfileDialogAsync(userId, ct);
         Validate(previous, userId);
-        if (previous is { Active: true, Action: ProfileAction.Edit, Draft: { } draft } && action == ProfileAction.Edit)
-            return EditPrompt(draft.Stage);
+        if (previous is { Active: true, Draft: { } draft } && previous.Action == action)
+            return action == ProfileAction.Account ? AccountPrompt(draft.Stage) : EditPrompt(draft.Stage);
+        if (action == ProfileAction.Account)
+        {
+            if (current is null || current.Stage != RegistrationStage.Approved || current.PersonalDataDeleted)
+                return new("Дані профілю недоступні. Зверніться до адміністратора ОСББ.");
+            if (TryAccount(current, out var account))
+            {
+                var result = new CommandOutcome("Ваш особовий рахунок: № " + account, Keyboard: ReplyKeyboard.Remove);
+                return previous is { Active: true } ? result with { ProfileDialog = Close(previous, "").ProfileDialog } : result;
+            }
+            var stage = ValidBuilding(current.BuildingNumber) ? RegistrationStage.AwaitingApartment : RegistrationStage.AwaitingBuilding;
+            var accountDraft = current with { Stage = stage };
+            var accountDialog = new ResidentProfileDialog(userId, complexId, action, (previous?.Version ?? 0) + 1, current.Version, accountDraft);
+            return AccountPrompt(stage) with { ProfileDialog = new(accountDialog, previous?.Version) };
+        }
         var now = clock.GetUtcNow();
         var value = new ResidentRegistration(current?.Id ?? Guid.NewGuid().ToString("N"), userId, complexId,
             RegistrationStage.AwaitingPhone, 1, current?.CreatedAt ?? now, now, PersonalDataDeletedAt: current?.PersonalDataDeletedAt, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now, ConsentAt: current?.ConsentAt, ConsentVersion: current?.ConsentVersion);
@@ -54,6 +70,8 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
             return Close(dialog, "Ваші ім’я, прізвище, телефон, email, будинок і номер квартири видалено з профілю. Заявки збережено. Доступ скасовано. Для подальшої роботи пройдіть реєстрацію заново: /start.") with
             { Profile = new(deleted, dialog.ExpectedProfileVersion) };
         }
+        if (dialog.Action == ProfileAction.Account)
+            return ContinueAccount(dialog, current, command, now);
         var outcome = RegistrationService.Advance(dialog.Draft ?? throw new InvalidOperationException("Missing profile draft."), command, now);
         if (outcome.Registration is not { } change) return outcome;
         if (change.Value.Stage == RegistrationStage.Pending)
@@ -70,6 +88,53 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         }
         return outcome with { Registration = null, ProfileDialog = new(dialog with { Draft = change.Value, Version = dialog.Version + 1 }, dialog.Version) };
     }
+    private static CommandOutcome ContinueAccount(ResidentProfileDialog dialog, ResidentRegistration? current, CommandEnvelope command, DateTimeOffset now)
+    {
+        if (current is null || current.Stage != RegistrationStage.Approved || current.PersonalDataDeleted)
+            return Close(dialog, "Дані профілю недоступні. Зверніться до адміністратора ОСББ.");
+        var draft = dialog.Draft ?? throw new InvalidOperationException("Missing account draft.");
+        if (draft.Stage == RegistrationStage.AwaitingBuilding)
+        {
+            var number = command.Text.Trim();
+            if (number.StartsWith("Будинок ", StringComparison.OrdinalIgnoreCase)) number = number[8..].Trim();
+            number = number.ToUpperInvariant();
+            if (command.Contact is not null || !ValidBuilding(number)) return AccountPrompt(draft.Stage);
+            draft = draft with { BuildingNumber = number };
+            if (!TryApartment(draft.ApartmentNumber, out _))
+                return AccountPrompt(RegistrationStage.AwaitingApartment) with
+                { ProfileDialog = new(dialog with { Draft = draft with { Stage = RegistrationStage.AwaitingApartment }, Version = dialog.Version + 1 }, dialog.Version) };
+        }
+        else if (draft.Stage == RegistrationStage.AwaitingApartment)
+        {
+            if (command.Contact is not null || !TryApartment(command.Text, out var apartment)) return AccountPrompt(draft.Stage);
+            draft = draft with { ApartmentNumber = apartment.ToString(CultureInfo.InvariantCulture) };
+        }
+        else throw new InvalidOperationException("Unknown account step.");
+        var profile = current with
+        {
+            BuildingNumber = draft.BuildingNumber,
+            ApartmentNumber = draft.ApartmentNumber,
+            Version = current.Version + 1,
+            UpdatedAt = now
+        };
+        if (!TryAccount(profile, out var account)) throw new InvalidOperationException("Invalid account address.");
+        return Close(dialog, "Ваш особовий рахунок: № " + account) with { Profile = new(profile, current.Version) };
+    }
+
+    private static bool ValidBuilding(string? value) => ComplexLayout.BuildingNumbers.Contains(value, StringComparer.Ordinal);
+    private static bool TryApartment(string? value, out int apartment) =>
+        int.TryParse(value?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out apartment) && apartment is >= 1 and <= 999;
+    private static bool TryAccount(ResidentRegistration profile, out string account)
+    {
+        account = "";
+        if (!ValidBuilding(profile.BuildingNumber) || !TryApartment(profile.ApartmentNumber, out var apartment)) return false;
+        account = "000219" + profile.BuildingNumber!.ToLowerInvariant() + apartment.ToString("D3", CultureInfo.InvariantCulture);
+        return true;
+    }
+    private static CommandOutcome AccountPrompt(RegistrationStage stage) => stage == RegistrationStage.AwaitingBuilding
+        ? new("Для визначення особового рахунку оберіть будинок проживання: 4Б, 4В, 4Г або 4Д. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RegistrationBuilding)
+        : new("Введіть номер квартири від 1 до 999. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove);
+
     private static CommandOutcome EditPrompt(RegistrationStage stage) => stage == RegistrationStage.AwaitingPhone
         ? new("Оновлення профілю. Попередні дані збережуться до завершення всіх кроків. " +
             "Доступ залишиться чинним, повторне схвалення не потрібне.\n\n" +

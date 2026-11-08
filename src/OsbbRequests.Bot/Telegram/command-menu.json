@@ -24,6 +24,11 @@
     "description": "Деталі заявки: /request номер"
   },
   {
+    "command": "account",
+    "description": "Мій особовий рахунок",
+    "registered_only": true
+  },
+  {
     "command": "edit_profile",
     "description": "Змінити інформацію про себе",
     "registered_only": true
