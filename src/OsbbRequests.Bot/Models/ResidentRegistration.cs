@@ -18,7 +18,8 @@ public enum ReplyKeyboard
     OwnerRequestCategory,
     KeyType,
     MainGuest,
-    MainResident
+    MainResident,
+    PageNavigation
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion, bool AutomaticallyApproved = false);

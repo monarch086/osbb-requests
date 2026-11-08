@@ -22,6 +22,8 @@ internal sealed class RecordingServiceNotifier(bool fail = false) : IServiceNoti
 
 internal sealed class MemoryRepository : ICommandRepository
 {
+    public Dictionary<long, PageNavigation> PageNavigations { get; } = [];
+    public Task<PageNavigation?> GetPageNavigationAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(PageNavigations.GetValueOrDefault(userId));
     public Dictionary<(long UserId, string ComplexId, string Token), string> ComplexCursors { get; } = [];
     public Task<string?> GetComplexCursorAsync(long userId, string complexId, string token, CancellationToken ct) =>
         Task.FromResult(ComplexCursors.GetValueOrDefault((userId, complexId, token)));
@@ -84,6 +86,8 @@ internal sealed class MemoryRepository : ICommandRepository
             throw new InvalidOperationException("Storage unavailable.");
         if (Replies.TryGetValue(command.UpdateId, out var existing))
             return Task.FromResult(existing);
+        if (outcome.PageNavigation is { } nav && PageNavigations.GetValueOrDefault(command.UserId)?.Version != nav.ExpectedVersion)
+            throw new InvalidOperationException("Page navigation conflict.");
         if (outcome.Pagination is { } cursor && (cursor.UserId != command.UserId ||
             ComplexCursors.ContainsKey((cursor.UserId, cursor.ComplexId, cursor.Token))))
             throw new InvalidOperationException("Pagination conflict.");
@@ -99,6 +103,7 @@ internal sealed class MemoryRepository : ICommandRepository
             throw new InvalidOperationException("Profile dialog conflict.");
         if (outcome.Profile is { } profile && (!Residents.Contains(command.UserId) || Registrations.GetValueOrDefault(command.UserId)?.Version != profile.ExpectedVersion))
             throw new InvalidOperationException("Profile update conflict.");
+        if (outcome.PageNavigation is { } navChange) PageNavigations[command.UserId] = navChange.Value;
         if (outcome.ProfileDialog is { } state) ProfileDialogs[command.UserId] = state.Value;
         if (outcome.Profile is { } changed)
         {

@@ -79,6 +79,12 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         return new(items, next);
     }
 
+    public async Task<PageNavigation?> GetPageNavigationAsync(long userId, CancellationToken cancellationToken)
+    {
+        var item = await GetAsync("USER#" + Number(userId), "PAGE_NAVIGATION", cancellationToken);
+        return item.TryGetValue("payload", out var payload) ? JsonSerializer.Deserialize<PageNavigation>(payload.S) : null;
+    }
+
     public async Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken)
     {
         var item = await GetAsync("USER#" + Number(userId), "REQUEST_LOOKUP", cancellationToken);
@@ -157,6 +163,22 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         replyItem["expiresAt"] = new AttributeValue { N = Number(clock.GetUtcNow().AddDays(30).ToUnixTimeSeconds()) };
         var writes = new List<TransactWriteItem> { Put(replyItem) };
         if (outcome.Pagination is { } pagination) writes.Add(CursorWrite(command, pagination));
+        if (outcome.PageNavigation is { } navigation)
+        {
+            if (navigation.Value.UserId != command.UserId) throw new InvalidOperationException("Page navigation owner mismatch.");
+            var item = Key("USER#" + Number(command.UserId), "PAGE_NAVIGATION");
+            item["payload"] = new(JsonSerializer.Serialize(navigation.Value));
+            item["version"] = new() { N = Number(navigation.Value.Version) };
+            item["expiresAt"] = new() { N = Number(navigation.Value.ExpiresAt) };
+            var write = Put(item);
+            if (navigation.ExpectedVersion is { } expected)
+            {
+                write.Put.ConditionExpression = "#v = :expected";
+                write.Put.ExpressionAttributeNames = new() { ["#v"] = "version" };
+                write.Put.ExpressionAttributeValues = new() { [":expected"] = new() { N = Number(expected) } };
+            }
+            writes.Add(write);
+        }
         if (outcome.NewRequest is { } request)
         {
             if (!ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor, request.Entrance))

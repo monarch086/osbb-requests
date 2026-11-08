@@ -10,6 +10,7 @@ namespace OsbbRequests.Bot.Commands;
 public sealed class CommandHandler(ICommandRepository repository, string botUsername, string buildingId,
     TimeProvider? timeProvider = null, ResidentApprovalMode residentApprovalMode = ResidentApprovalMode.Automatic)
 {
+    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     private readonly RegistrationService registrations = new(repository, buildingId, timeProvider ?? TimeProvider.System, residentApprovalMode);
     private readonly ResidentProfileService profiles = new(repository, buildingId, timeProvider ?? TimeProvider.System);
     private readonly RequestCreationService requests = new(repository, buildingId, timeProvider ?? TimeProvider.System);
@@ -31,12 +32,30 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
 
     public async Task<CommandOutcome> HandleAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
+        var navigation = await repository.GetPageNavigationAsync(envelope.UserId, cancellationToken);
+        if (navigation is not null && (navigation.UserId != envelope.UserId || navigation.ComplexId != buildingId))
+            throw new InvalidOperationException("Page navigation identity mismatch.");
+        var activeNavigation = navigation is { NextCommand: not null } && navigation.ExpiresAt > clock.GetUtcNow().ToUnixTimeSeconds();
         var command = BotCommand.Parse(envelope.Text, botUsername);
+        var navigatingNext = false;
+        if (command is null && envelope.Contact is null && activeNavigation &&
+            await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken))
+        {
+            if (envelope.Text == "Скасувати")
+                return new("Перегляд заявок завершено.", Keyboard: ReplyKeyboard.MainResident, PageNavigation: Navigation(navigation, envelope.UserId, null, returnToMenu: true));
+            if (envelope.Text == "Далі")
+            {
+                envelope = envelope with { Text = navigation!.NextCommand! };
+                command = BotCommand.Parse(envelope.Text, botUsername);
+                navigatingNext = true;
+            }
+        }
         if (command is null && envelope.Contact is null)
         {
             var registered = await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken);
             var button = CommandMenu.CommandForButton(envelope.Text, registered);
-            if (button is not null && !await MainKeyboardState.HasActiveDialogAsync(repository, envelope.UserId, buildingId, registered, cancellationToken))
+            if (button is not null && !await MainKeyboardState.HasActiveDialogAsync(repository, envelope.UserId, buildingId, registered, cancellationToken,
+                ignoreRequestDraft: navigation is { ReturnToMenu: true } && navigation.ExpiresAt > clock.GetUtcNow().ToUnixTimeSeconds()))
             {
                 envelope = envelope with { Text = "/" + button };
                 command = new BotCommand(button, "");
@@ -47,8 +66,24 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             outcome = await profiles.ClearAsync(envelope.UserId, outcome, cancellationToken);
         if (command is not null && outcome.Lookup is null)
             outcome = await lookup.ClearAsync(envelope.UserId, outcome, cancellationToken);
+        if (outcome.NextPageCommand is { } next)
+            return outcome with { Keyboard = ReplyKeyboard.PageNavigation, PageNavigation = Navigation(navigation, envelope.UserId, next) };
+        if (navigation is not null && command is not null && (navigation.NextCommand is not null || navigation.ReturnToMenu))
+        {
+            var returnToMenu = (navigatingNext || navigation.ReturnToMenu && command.Name != "new" &&
+                outcome.Draft is null && outcome.Lookup is null && outcome.ProfileDialog is null) &&
+                await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken);
+            return outcome with
+            {
+                Keyboard = returnToMenu ? ReplyKeyboard.MainResident : outcome.Keyboard,
+                PageNavigation = Navigation(navigation, envelope.UserId, null, returnToMenu: returnToMenu)
+            };
+        }
         return outcome;
     }
+
+    private PageNavigationChange Navigation(PageNavigation? previous, long userId, string? next, bool returnToMenu = false) => new(
+        new(userId, buildingId, next, (previous?.Version ?? 0) + 1, clock.GetUtcNow().AddDays(30).ToUnixTimeSeconds(), returnToMenu), previous?.Version);
 
     private async Task<CommandOutcome> HandleCoreAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -117,8 +152,10 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             var next = count > 0 && count < requests.Count ? requests[count - 1].Id : page.NextBeforeId;
             return next is null ? null : "/my " + next.Value.ToString(CultureInfo.InvariantCulture);
         }
-        var reply = RequestListText.Build("Ваші заявки:", lines, NextCommand);
-        return new CommandOutcome(reply);
+        string? nextCommand = null;
+        string? CaptureNext(int count) => nextCommand = NextCommand(count);
+        var reply = RequestListText.Build("Ваші заявки:", lines, CaptureNext);
+        return new CommandOutcome(reply, NextPageCommand: nextCommand);
     }
 
     private static bool TryId(string value, out long id) =>

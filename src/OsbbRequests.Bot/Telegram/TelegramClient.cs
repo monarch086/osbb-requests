@@ -27,6 +27,8 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
+        else if (keyboard == ReplyKeyboard.PageNavigation)
+            payload["reply_markup"] = new { keyboard = new[] { new[] { new { text = "Скасувати" }, new { text = "Далі" } } }, resize_keyboard = true, one_time_keyboard = false };
         else if (keyboard is ReplyKeyboard.MainGuest or ReplyKeyboard.MainResident)
         {
             var rows = CommandMenu.ForResident(keyboard == ReplyKeyboard.MainResident)

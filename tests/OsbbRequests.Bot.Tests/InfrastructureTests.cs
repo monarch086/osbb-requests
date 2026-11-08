@@ -312,6 +312,23 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
+    public async Task PageNavigationAndReplyAreWrittenAtomicallyWithVersionAndTtl()
+    {
+        using var client = new CapturingDynamo();
+        var repository = new DynamoCommandRepository(client, "data");
+        var navigation = new PageNavigation(42, "building", "/my 123", 2, DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds());
+        await repository.CommitAsync(new(100, 42, 42, "/my"), new("Список", Keyboard: ReplyKeyboard.PageNavigation,
+            PageNavigation: new(navigation, 1)), default);
+        var writes = client.Transaction!.TransactItems;
+        var item = Assert.Single(writes, write => write.Put?.Item.GetValueOrDefault("sk")?.S == "PAGE_NAVIGATION").Put;
+        Assert.Equal("USER#42", item.Item["pk"].S);
+        Assert.Equal("#v = :expected", item.ConditionExpression);
+        Assert.Equal("1", item.ExpressionAttributeValues[":expected"].N);
+        Assert.Equal(navigation.ExpiresAt.ToString(System.Globalization.CultureInfo.InvariantCulture), item.Item["expiresAt"].N);
+        Assert.Single(writes, write => write.Put?.Item.GetValueOrDefault("sk")?.S == "REPLY");
+    }
+
+    [Fact]
     public async Task KeyOrderTransactionChecksProfileVersionAndActiveMembership()
     {
         using var client = new CapturingDynamo();

@@ -4,7 +4,7 @@ namespace OsbbRequests.Bot.Commands;
 
 public static class MainKeyboardState
 {
-    public static async Task<bool> HasActiveDialogAsync(ICommandRepository repository, long userId, string complexId, bool registered, CancellationToken ct)
+    public static async Task<bool> HasActiveDialogAsync(ICommandRepository repository, long userId, string complexId, bool registered, CancellationToken ct, bool ignoreRequestDraft = false)
     {
         if (!registered)
         {
@@ -15,6 +15,7 @@ public static class MainKeyboardState
         if (profile is { Active: true } && profile.ComplexId == complexId) return true;
         var lookup = await repository.GetRequestLookupAsync(userId, ct);
         if (lookup is { IsActive: true } && lookup.ComplexId == complexId) return true;
+        if (ignoreRequestDraft) return false;
         var draft = await repository.GetRequestDraftAsync(userId, ct);
         return draft is not null && draft.ComplexId == complexId && RequestCreationService.IsActive(draft);
     }

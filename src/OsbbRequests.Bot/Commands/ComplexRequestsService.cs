@@ -31,10 +31,12 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
                 : page.NextBefore;
             return nextBefore is null ? null : "/complex " + token;
         }
+        string? nextCommand = null;
+        string? CaptureNext(int count) => nextCommand = NextCommand(count);
         var text = RequestListText.Build(page.Items.Count == 0
             ? "На цій сторінці немає відкритих заявок для мешканців комплексу."
-            : "Заявки комплексу - нові та в роботі:", page.Items.Select(Format).ToList(), NextCommand);
-        return new(text, Pagination: nextBefore is null ? null : new(userId, complexId, token, nextBefore));
+            : "Заявки комплексу - нові та в роботі:", page.Items.Select(Format).ToList(), CaptureNext);
+        return new(text, Pagination: nextBefore is null ? null : new(userId, complexId, token, nextBefore), NextPageCommand: nextCommand);
     }
 
     private static string Format(PublicRequestSummary request)
