@@ -16,8 +16,10 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
     private readonly ComplexRequestsService complexRequests = new(repository, buildingId);
     public const string Categories = RequestCreationService.Categories;
     public const string NewUsage = RequestCreationService.Usage;
+    public const string DispatcherContacts = "Телефони диспетчерів:\n\nСантехнік, електрик:\n0632479719\n0936631010\n\n" +
+        "Ліфтер:\n0683558674\n0634835206\n0443602845";
     public const string Help = "Бот ЖК «Зелений острів 2».\n" +
-        "/start - початок роботи та реєстрація\n/help - довідка\n" +
+        "/start - початок роботи та реєстрація\n/help - довідка\n/contacts - контакти диспетчерів\n" +
         "/account - мій особовий рахунок\n/edit_profile - змінити інформацію про себе\n/delete_profile - видалити інформацію про себе\n" +
         "/cancel - скасувати поточний діалог\n" +
         "/new - створити заявку для всіх мешканців комплексу: будинок або прибудинкова територія → поверх → категорія → опис\n" +
@@ -56,6 +58,8 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
                 return await profiles.CancelAsync(envelope.UserId, cancellationToken) ?? await lookup.CancelAsync(envelope.UserId, cancellationToken) ?? await requests.CancelAsync(envelope.UserId, cancellationToken) ?? await registrations.CancelAsync(envelope.UserId, cancellationToken);
             case "help":
                 return new CommandOutcome(Help);
+            case "contacts":
+                return new CommandOutcome(DispatcherContacts);
             case "categories":
                 return new CommandOutcome("Категорії заявок: " + Categories + ".");
             case not ("new" or "my" or "request" or "complex" or "delete" or "edit_profile" or "delete_profile" or "account"):

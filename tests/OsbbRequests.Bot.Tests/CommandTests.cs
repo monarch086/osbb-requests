@@ -33,6 +33,17 @@ public sealed class CommandTests
     public void DoesNotTreatPlainTextOrOtherBotAsACommand(string text) =>
         Assert.Null(BotCommand.Parse(text, "OsbbBot"));
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DispatcherContactsAreAvailableWithoutRegistration(bool registered)
+    {
+        var repository = new MemoryRepository();
+        if (!registered) repository.Residents.Remove(42);
+        var outcome = await new CommandHandler(repository, "OsbbBot", "building").HandleAsync(Command("/contacts"), default);
+        Assert.Equal("Телефони диспетчерів:\n\nСантехнік, електрик:\n0632479719\n0936631010\n\nЛіфтер:\n0683558674\n0634835206\n0443602845", outcome.Reply);
+    }
+
     [Fact]
     public async Task CreatesPublicNewRequest()
     {

@@ -29,7 +29,7 @@ class TelegramMenuTests(unittest.TestCase):
         writes = [payload for method, payload in calls if method == 'setMyCommands']
         self.assertEqual(['', 'uk'], [p['language_code'] for p in writes])
         self.assertTrue(all(p['scope'] == {'type': 'all_private_chats'} for p in writes))
-        self.assertEqual({'start', 'new', 'my', 'complex', 'delete', 'request', 'cancel', 'help'},
+        self.assertEqual({'start', 'new', 'my', 'complex', 'delete', 'request', 'cancel', 'help', 'contacts'},
                          {item['command'] for item in menu.COMMANDS})
         self.assertNotIn('sendMessage', [method for method, _ in calls])
 
@@ -50,6 +50,7 @@ class TelegramMenuTests(unittest.TestCase):
         for payload in writes:
             commands = {item['command'] for item in payload['commands']}
             self.assertNotIn('categories', commands)
+            self.assertIn('contacts', commands)
             self.assertEqual(payload['scope']['type'] == 'all_private_chats', 'start' in commands)
             self.assertEqual(payload['scope']['type'] == 'chat', 'edit_profile' in commands)
             self.assertEqual(payload['scope']['type'] == 'chat', 'delete_profile' in commands)

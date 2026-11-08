@@ -33,6 +33,7 @@ public sealed class CommandMenuTests
             Assert.DoesNotContain("register", commands);
             Assert.Equal(!registered, commands.Contains("start"));
             Assert.Contains("new", commands);
+            Assert.Contains("contacts", commands);
             Assert.Contains("request", commands);
             Assert.Equal(registered, commands.Contains("account"));
             Assert.Equal(registered, commands.Contains("edit_profile"));
