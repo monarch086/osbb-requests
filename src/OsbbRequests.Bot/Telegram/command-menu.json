@@ -48,6 +48,6 @@
   },
   {
     "command": "help",
-    "description": "Довідка та перелік команд"
+    "description": "Опис команд"
   }
 ]
