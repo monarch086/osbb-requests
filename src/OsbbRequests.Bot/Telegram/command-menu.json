@@ -21,7 +21,7 @@
   },
   {
     "command": "request",
-    "description": "Деталі заявки: /request номер"
+    "description": "Деталі заявки"
   },
   {
     "command": "account",
@@ -44,7 +44,7 @@
   },
   {
     "command": "contacts",
-    "description": "Довідка: контакти диспетчерів"
+    "description": "Контакти майстрів"
   },
   {
     "command": "help",

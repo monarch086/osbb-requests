@@ -32,7 +32,9 @@ public sealed class MainKeyboardTests
     [InlineData("Власні заявки", "/my")]
     [InlineData("Переглянути власні заявки", "/my")]
     [InlineData("Довідка: контакти диспетчерів", "/contacts")]
+    [InlineData("Контакти майстрів", "/contacts")]
     [InlineData("Деталі заявки: /request номер", "/request")]
+    [InlineData("Деталі заявки", "/request")]
     public async Task ButtonAndCommandProduceEquivalentResults(string button, string command)
     {
         var handler = new CommandHandler(new MemoryRepository(), "Bot", "building");

@@ -28,6 +28,8 @@ public static class CommandMenu
             "Переглянути власні заявки" => "my",
             "Відкриті заявки для мешканців комплексу" => "complex",
             "Видалити власну нову заявку" => "delete",
+            "Деталі заявки: /request номер" => "request",
+            "Довідка: контакти диспетчерів" => "contacts",
             _ => null
         };
         return ForResident(registered).Any(command => command.Command == previous) ? previous : null;
