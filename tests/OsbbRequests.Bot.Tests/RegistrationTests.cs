@@ -56,11 +56,12 @@ public sealed class RegistrationTests
     {
         var (repository, _, processor) = Create();
         repository.Registrations[99] = new("old", 99, "building", RegistrationStage.AwaitingConsent, 4,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ConsentVersion: "1");
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ConsentVersion: "2");
         await processor.ProcessAsync(Message(1, RegistrationService.ConsentButton), default);
         Assert.Null(repository.Registrations[99].ConsentAt);
         Assert.Equal(RegistrationService.ConsentVersion, repository.Registrations[99].ConsentVersion);
-        Assert.Contains("тип мешканця", repository.Replies[1].Text);
+        Assert.Equal(RegistrationService.ConsentText, repository.Replies[1].Text);
+        Assert.DoesNotContain("тип мешканця", repository.Replies[1].Text);
         await processor.ProcessAsync(Message(2, RegistrationService.ConsentButton), default);
         Assert.NotNull(repository.Registrations[99].ConsentAt);
     }
