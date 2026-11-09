@@ -29,6 +29,14 @@
     "registered_only": true
   },
   {
+    "command": "contacts",
+    "description": "Контакти майстрів"
+  },
+  {
+    "command": "help",
+    "description": "Опис команд"
+  },
+  {
     "command": "edit_profile",
     "description": "Змінити профіль",
     "registered_only": true
@@ -37,13 +45,5 @@
     "command": "delete_profile",
     "description": "Видалити профіль",
     "registered_only": true
-  },
-  {
-    "command": "contacts",
-    "description": "Контакти майстрів"
-  },
-  {
-    "command": "help",
-    "description": "Опис команд"
   }
 ]
