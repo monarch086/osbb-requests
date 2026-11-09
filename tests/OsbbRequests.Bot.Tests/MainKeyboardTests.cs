@@ -98,6 +98,21 @@ public sealed class MainKeyboardTests
     }
 
     [Fact]
+    public async Task FloorKeyboardOffersEveryFloorAndSpecialOptions()
+    {
+        using var capture = new Capture();
+        using var http = new HttpClient(capture);
+        await new TelegramClient(http, new FakeSecret("token")).SendMessageAsync(42, "Поверх", default, ReplyKeyboard.RequestFloor);
+        using var json = JsonDocument.Parse(capture.Body!);
+        var rows = json.RootElement.GetProperty("reply_markup").GetProperty("keyboard").EnumerateArray()
+            .Select(row => row.EnumerateArray().Select(button => button.GetProperty("text").GetString()).ToArray()).ToArray();
+        Assert.All(rows.Take(5), row => Assert.Equal(5, row.Length));
+        Assert.Equal(Enumerable.Range(1, 25).Select(floor => floor.ToString(System.Globalization.CultureInfo.InvariantCulture)), rows.Take(5).SelectMany(row => row));
+        Assert.Equal(new[] { "Парадне", "Без поверху" }, rows[5]);
+        Assert.Equal(new[] { "Скасувати" }, rows[6]);
+    }
+
+    [Fact]
     public async Task GuestCanCancelRegistrationWithButton()
     {
         var repo = new MemoryRepository();

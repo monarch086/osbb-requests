@@ -193,7 +193,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         RequestDraftStage.Scope => new("ЖК «Зелений острів 2».\n" +
             "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «" + ComplexLayout.ComplexLabel + "». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
         RequestDraftStage.Entrance => new($"Будинок {draft.BuildingNumber}. Оберіть під’їзд: 1, 2 або «Не зазначено». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestEntrance),
-        RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Вкажіть поверх від 1 до 25, оберіть «Парадне» або «Без поверху» " +
+        RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Оберіть поверх від 1 до 25, «Парадне» або «Без поверху» " +
             "для фасаду, підвалу чи проблеми всього будинку. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),
         RequestDraftStage.Category => new("Оберіть категорію: " + Categories + (owner ? ", " + RequestCategories.KeyOrder : "") + ". Скасувати: /cancel.", Keyboard: owner ? ReplyKeyboard.OwnerRequestCategory : ReplyKeyboard.RequestCategory),
         RequestDraftStage.KeyType => new("Оберіть тип ключа: Магніт або Перепустка. Скасувати: /cancel.", Keyboard: ReplyKeyboard.KeyType),
