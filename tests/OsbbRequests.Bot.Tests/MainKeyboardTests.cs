@@ -98,7 +98,7 @@ public sealed class MainKeyboardTests
     }
 
     [Fact]
-    public async Task FloorKeyboardOffersEveryFloorAndSpecialOptions()
+    public async Task FloorKeyboardOffersEveryFloorAndCancel()
     {
         using var capture = new Capture();
         using var http = new HttpClient(capture);
@@ -108,8 +108,8 @@ public sealed class MainKeyboardTests
             .Select(row => row.EnumerateArray().Select(button => button.GetProperty("text").GetString()).ToArray()).ToArray();
         Assert.All(rows.Take(5), row => Assert.Equal(5, row.Length));
         Assert.Equal(Enumerable.Range(1, 25).Select(floor => floor.ToString(System.Globalization.CultureInfo.InvariantCulture)), rows.Take(5).SelectMany(row => row));
-        Assert.Equal(new[] { "Парадне", "Без поверху" }, rows[5]);
-        Assert.Equal(new[] { "Скасувати" }, rows[6]);
+        Assert.Equal(6, rows.Length);
+        Assert.Equal(new[] { "Скасувати" }, rows[5]);
     }
 
     [Fact]

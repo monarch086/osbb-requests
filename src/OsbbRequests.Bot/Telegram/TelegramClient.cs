@@ -52,8 +52,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 ReplyKeyboard.RegistrationBuilding => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).ToArray(),
                 ReplyKeyboard.RequestEntrance => [["1", "2", "Не зазначено"]],
                 ReplyKeyboard.RequestFloor => Enumerable.Range(1, ComplexLayout.FloorCount)
-                    .Select(floor => floor.ToString(CultureInfo.InvariantCulture)).Chunk(5)
-                    .Append(new[] { "Парадне", "Без поверху" }).ToArray(),
+                    .Select(floor => floor.ToString(CultureInfo.InvariantCulture)).Chunk(5).ToArray(),
                 _ => RequestCreationService.Categories.Split(", ").Select(category => new[] { category }).ToArray()
             };
             payload["reply_markup"] = new { keyboard = rows.Append(new[] { "Скасувати" }).Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = true };
