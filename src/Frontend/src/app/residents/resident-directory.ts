@@ -1,4 +1,4 @@
-import type { RegisteredResident } from '../api.models';
+import type { RegisteredResident, ResidentType } from '../api.models';
 
 export type ResidentView = 'pending' | 'registered';
 
@@ -6,12 +6,18 @@ export interface ResidentFilters {
   sort: 'registeredAt' | 'lastName';
   direction: 'asc' | 'desc';
   building: string;
+  residentType: ResidentType | '';
 }
 
 const names = new Intl.Collator('uk-UA', { sensitivity: 'accent' });
 
 export class ResidentDirectory {
-  filters: ResidentFilters = { sort: 'registeredAt', direction: 'desc', building: '' };
+  filters: ResidentFilters = {
+    sort: 'registeredAt',
+    direction: 'desc',
+    building: '',
+    residentType: '',
+  };
   private residents: RegisteredResident[] = [];
   private filtered: RegisteredResident[] = [];
   private readonly pageSize = 25;
@@ -33,6 +39,11 @@ export class ResidentDirectory {
         filters.building === 'Unspecified'
           ? !resident.buildingNumber
           : !filters.building || resident.buildingNumber === filters.building,
+      )
+      .filter(
+        (resident) =>
+          !filters.residentType ||
+          (resident.residentType ?? 'FamilyMember') === filters.residentType,
       )
       .sort((a, b) => {
         let comparison: number;

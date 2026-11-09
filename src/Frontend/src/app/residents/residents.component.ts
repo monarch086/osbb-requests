@@ -18,7 +18,12 @@ export class ResidentsComponent {
   @Input() pendingCount = 0;
   protected readonly typeLabel = residentTypeLabel;
   @Input() registeredResidents: RegisteredResident[] = [];
-  @Input() filters: ResidentFilters = { sort: 'registeredAt', direction: 'desc', building: '' };
+  @Input() filters: ResidentFilters = {
+    sort: 'registeredAt',
+    direction: 'desc',
+    building: '',
+    residentType: '',
+  };
   @Output() readonly filtersChange = new EventEmitter<ResidentFilters>();
   @Output() readonly viewChange = new EventEmitter<ResidentView>();
   @Input() residents: Registration[] = [];

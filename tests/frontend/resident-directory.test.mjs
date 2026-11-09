@@ -82,3 +82,20 @@ test('refresh replaces stale profiles, retains filters and removes repeated user
   assert.deepEqual(directory.page(0), []);
   assert.equal(directory.filters.building, '4В');
 });
+
+test('filters resident types together with building across all pages, including legacy family members', () => {
+  const directory = new ResidentDirectory();
+  const types = ['Owner', 'FamilyMember', 'Tenant', undefined];
+  directory.setItems(Array.from({ length: 160 }, (_, i) => resident(i + 1, {
+    residentType: types[i % 4],
+    buildingNumber: i % 8 < 4 ? '4Б' : '4В',
+  })));
+  for (const [type, expected] of [['Owner', 20], ['FamilyMember', 40], ['Tenant', 20]]) {
+    directory.applyFilters({ ...directory.filters, building: '4Б', residentType: type });
+    assert.equal(directory.all().length, expected);
+    assert.ok(directory.all().every(r => r.buildingNumber === '4Б' && (r.residentType ?? 'FamilyMember') === type));
+    assert.deepEqual([directory.page(0), directory.page(1)].flat().map(r => r.id), directory.all().map(r => r.id));
+  }
+  directory.applyFilters({ ...directory.filters, building: '', residentType: '' });
+  assert.equal(directory.all().length, 160);
+});
