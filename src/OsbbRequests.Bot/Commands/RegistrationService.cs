@@ -31,7 +31,12 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
     public async Task<CommandOutcome> StartAsync(long userId, CancellationToken cancellationToken)
     {
         if (await repository.IsResidentAsync(userId, buildingId, cancellationToken))
-            return new CommandOutcome("Доступ до ЖК «Зелений острів 2» надано.\n\n" + CommandHandler.Help, Keyboard: ReplyKeyboard.Remove);
+            return new CommandOutcome("Доступ до ЖК «Зелений острів 2» надано.\n\n" +
+                "У боті можна:\n" +
+                "• створити заявку та відстежувати її статус;\n" +
+                "• переглянути поточні заявки комплексу;\n" +
+                "• отримувати сповіщення про зміни своєї заявки;\n" +
+                "• змінити або видалити свої персональні дані.", Keyboard: ReplyKeyboard.Remove);
         var current = await repository.GetRegistrationAsync(userId, cancellationToken);
         if (current is { Stage: RegistrationStage.Pending })
             return Status(current);
