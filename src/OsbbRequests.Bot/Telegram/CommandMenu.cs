@@ -6,7 +6,9 @@ namespace OsbbRequests.Bot.Telegram;
 public sealed record MenuCommand(
     [property: JsonPropertyName("command")] string Command,
     [property: JsonPropertyName("description")] string Description,
-    [property: JsonPropertyName("registered_only")] bool RegisteredOnly = false);
+    [property: JsonPropertyName("registered_only")] bool RegisteredOnly = false,
+    [property: JsonPropertyName("command_menu")] bool InCommandMenu = false,
+    [property: JsonPropertyName("keyboard_hidden")] bool KeyboardHidden = false);
 
 public static class CommandMenu
 {
@@ -37,5 +39,7 @@ public static class CommandMenu
         return ForResident(registered).Any(command => command.Command == previous) ? previous : null;
     }
     public static IReadOnlyList<MenuCommand> ForResident(bool registered) =>
-        Commands.Where(command => registered ? command.Command != "start" : !command.RegisteredOnly).ToArray();
+        Commands.Where(command => !command.KeyboardHidden && (registered ? command.Command != "start" : !command.RegisteredOnly)).ToArray();
+
+    public static IReadOnlyList<MenuCommand> ForCommandMenu() => Commands.Where(command => command.InCommandMenu).ToArray();
 }

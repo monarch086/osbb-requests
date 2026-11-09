@@ -29,15 +29,7 @@ public sealed class CommandMenuTests
             Assert.Equal(99, root.GetProperty("scope").GetProperty("chat_id").GetInt64());
             languages.Add(root.GetProperty("language_code").GetString()!);
             var commands = root.GetProperty("commands").EnumerateArray().Select(c => c.GetProperty("command").GetString()).ToArray();
-            Assert.DoesNotContain("categories", commands);
-            Assert.DoesNotContain("register", commands);
-            Assert.Equal(!registered, commands.Contains("start"));
-            Assert.Contains("new", commands);
-            Assert.Contains("contacts", commands);
-            Assert.Contains("request", commands);
-            Assert.Equal(registered, commands.Contains("account"));
-            Assert.Equal(registered, commands.Contains("edit_profile"));
-            Assert.Equal(registered, commands.Contains("delete_profile"));
+            Assert.Equal(new[] { "start", "help", "cancel" }, commands);
         }
         Assert.Equal(new[] { "", "uk" }, languages);
         await client.SetCommandMenuAsync(99, !registered, default);

@@ -29,11 +29,11 @@ class TelegramMenuTests(unittest.TestCase):
         writes = [payload for method, payload in calls if method == 'setMyCommands']
         self.assertEqual(['', 'uk'], [p['language_code'] for p in writes])
         self.assertTrue(all(p['scope'] == {'type': 'all_private_chats'} for p in writes))
-        self.assertEqual({'start', 'new', 'my', 'complex', 'delete', 'request', 'help', 'contacts'},
+        self.assertEqual({'start', 'help', 'cancel'},
                          {item['command'] for item in menu.COMMANDS})
         self.assertNotIn('sendMessage', [method for method, _ in calls])
 
-    def test_registered_residents_get_chat_scope_without_start_or_categories(self):
+    def test_registered_residents_get_compact_chat_menu(self):
         calls = []
         def call(token, method, payload):
             calls.append((method, payload))
@@ -49,11 +49,7 @@ class TelegramMenuTests(unittest.TestCase):
         self.assertEqual(6, len(writes))
         for payload in writes:
             commands = {item['command'] for item in payload['commands']}
-            self.assertNotIn('categories', commands)
-            self.assertIn('contacts', commands)
-            self.assertEqual(payload['scope']['type'] == 'all_private_chats', 'start' in commands)
-            self.assertEqual(payload['scope']['type'] == 'chat', 'edit_profile' in commands)
-            self.assertEqual(payload['scope']['type'] == 'chat', 'delete_profile' in commands)
+            self.assertEqual({'start', 'help', 'cancel'}, commands)
         self.assertNotIn('sendMessage', [method for method, _ in calls])
 
     def test_registered_directory_reads_all_pages_and_only_current_complex_approved_profiles(self):

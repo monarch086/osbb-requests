@@ -10,8 +10,8 @@ import urllib.request
 
 DEFINITIONS = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'OsbbRequests.Bot' /
                        'Telegram' / 'command-menu.json').read_text(encoding='utf-8'))
-COMMANDS = [{key: item[key] for key in ('command', 'description')} for item in DEFINITIONS if not item.get('registered_only')]
-RESIDENT_COMMANDS = [{key: item[key] for key in ('command', 'description')} for item in DEFINITIONS if item['command'] != 'start']
+COMMANDS = [{key: item[key] for key in ('command', 'description')} for item in DEFINITIONS if item.get('command_menu')]
+RESIDENT_COMMANDS = COMMANDS
 
 
 def call_telegram(token, method, payload):
@@ -128,7 +128,7 @@ def main():
         for command in COMMANDS:
             print('/' + command['command'] + ' - ' + command['description'])
         if args.include_residents:
-            print('Would also configure existing approved residents: a resident menu without /start and with profile actions.')
+            print('Would also configure existing resident and deleted-profile chat menus.')
         return
     chats, guests = load_resident_chats(args.stage, args.region, args.complex_id) if args.include_residents else ([], [])
     configure(load_token(args.stage, args.region), args.bot_username, registered_chat_ids=chats, unregistered_chat_ids=guests)

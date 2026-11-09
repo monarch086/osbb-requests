@@ -27,6 +27,12 @@ public sealed class MainKeyboardTests
             .Select(button => button.GetProperty("text").GetString()).ToArray();
         Assert.Equal(CommandMenu.ForResident(registered).Select(command => command.Description), labels);
         Assert.DoesNotContain("Скасувати", labels);
+        Assert.Contains("Створити заявку", labels);
+        Assert.Contains("Заявки по комплексу", labels);
+        Assert.Contains("Контакти майстрів", labels);
+        Assert.Equal(!registered, labels.Contains("Початок роботи"));
+        Assert.Equal(registered, labels.Contains("Змінити профіль"));
+        Assert.Equal(registered, labels.Contains("Видалити профіль"));
     }
 
     [Theory]

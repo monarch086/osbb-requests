@@ -1,7 +1,8 @@
 [
   {
     "command": "start",
-    "description": "Початок роботи"
+    "description": "Початок роботи",
+    "command_menu": true
   },
   {
     "command": "new",
@@ -34,7 +35,8 @@
   },
   {
     "command": "help",
-    "description": "Опис команд"
+    "description": "Опис команд",
+    "command_menu": true
   },
   {
     "command": "edit_profile",
@@ -45,5 +47,11 @@
     "command": "delete_profile",
     "description": "Видалити профіль",
     "registered_only": true
+  },
+  {
+    "command": "cancel",
+    "description": "Скасувати",
+    "command_menu": true,
+    "keyboard_hidden": true
   }
 ]
