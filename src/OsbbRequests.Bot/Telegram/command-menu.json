@@ -39,10 +39,6 @@
     "registered_only": true
   },
   {
-    "command": "cancel",
-    "description": "Скасувати поточний діалог"
-  },
-  {
     "command": "contacts",
     "description": "Контакти майстрів"
   },

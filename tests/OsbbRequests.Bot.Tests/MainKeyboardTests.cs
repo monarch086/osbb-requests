@@ -26,6 +26,7 @@ public sealed class MainKeyboardTests
         var labels = markup.GetProperty("keyboard").EnumerateArray().SelectMany(row => row.EnumerateArray())
             .Select(button => button.GetProperty("text").GetString()).ToArray();
         Assert.Equal(CommandMenu.ForResident(registered).Select(command => command.Description), labels);
+        Assert.DoesNotContain("Скасувати", labels);
     }
 
     [Theory]
@@ -64,13 +65,42 @@ public sealed class MainKeyboardTests
         await processor.ProcessAsync(new(2, 42, 42, "4Б"), default);
         await processor.ProcessAsync(new(3, 42, 42, "1"), default);
         await processor.ProcessAsync(new(4, 42, 42, "Інше"), default);
-        Assert.Equal(ReplyKeyboard.Remove, telegram.Keyboards[^1]);
+        Assert.Equal(ReplyKeyboard.Cancel, telegram.Keyboards[^1]);
         await processor.ProcessAsync(new(5, 42, 42, "Довідка: контакти диспетчерів"), default);
         Assert.Equal("Довідка: контакти диспетчерів", Assert.Single(repository.Requests).Description);
         Assert.Equal(ReplyKeyboard.MainResident, telegram.Keyboards[^1]);
         await processor.ProcessAsync(new(6, 42, 42, "/new"), default);
-        await processor.ProcessAsync(new(7, 42, 42, "/cancel"), default);
+        await processor.ProcessAsync(new(7, 42, 42, "Скасувати"), default);
         Assert.Equal(ReplyKeyboard.MainResident, telegram.Keyboards[^1]);
+    }
+
+    [Theory]
+    [InlineData(ReplyKeyboard.RequestContact)]
+    [InlineData(ReplyKeyboard.PersonalDataConsent)]
+    [InlineData(ReplyKeyboard.RequestScope)]
+    [InlineData(ReplyKeyboard.ProfileDeleteConfirmation)]
+    [InlineData(ReplyKeyboard.Cancel)]
+    public async Task DialogKeyboardsOfferCancel(ReplyKeyboard keyboard)
+    {
+        using var capture = new Capture();
+        using var http = new HttpClient(capture);
+        await new TelegramClient(http, new FakeSecret("token")).SendMessageAsync(42, "Текст", default, keyboard);
+        using var json = JsonDocument.Parse(capture.Body!);
+        var labels = json.RootElement.GetProperty("reply_markup").GetProperty("keyboard").EnumerateArray()
+            .SelectMany(row => row.EnumerateArray()).Select(button => button.GetProperty("text").GetString());
+        Assert.Single(labels, label => label == "Скасувати");
+    }
+
+    [Fact]
+    public async Task GuestCanCancelRegistrationWithButton()
+    {
+        var repo = new MemoryRepository();
+        repo.Residents.Remove(42);
+        var telegram = new FakeTelegram();
+        var processor = new CommandProcessor(repo, new CommandHandler(repo, "Bot", "building"), telegram, "building");
+        await processor.ProcessAsync(new(1, 42, 42, "/start"), default);
+        await processor.ProcessAsync(new(2, 42, 42, "Скасувати"), default);
+        Assert.Equal(ReplyKeyboard.MainGuest, telegram.Keyboards[^1]);
     }
 
     [Fact]

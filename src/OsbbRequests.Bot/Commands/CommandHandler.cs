@@ -53,6 +53,12 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         if (command is null && envelope.Contact is null)
         {
             var registered = await repository.IsResidentAsync(envelope.UserId, buildingId, cancellationToken);
+            if (envelope.Text is "Скасувати" or "Скасувати поточний діалог" &&
+                await MainKeyboardState.HasActiveDialogAsync(repository, envelope.UserId, buildingId, registered, cancellationToken))
+            {
+                envelope = envelope with { Text = "/cancel" };
+                command = new BotCommand("cancel", "");
+            }
             var button = CommandMenu.CommandForButton(envelope.Text, registered);
             if (button is not null && !await MainKeyboardState.HasActiveDialogAsync(repository, envelope.UserId, buildingId, registered, cancellationToken,
                 ignoreRequestDraft: navigation is { ReturnToMenu: true } && navigation.ExpiresAt > clock.GetUtcNow().ToUnixTimeSeconds()))

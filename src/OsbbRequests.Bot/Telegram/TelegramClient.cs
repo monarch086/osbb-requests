@@ -23,12 +23,14 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         if (keyboard == ReplyKeyboard.RequestContact)
             payload["reply_markup"] = new
             {
-                keyboard = new[] { new[] { new { text = "Поділитися номером телефону", request_contact = true } } },
+                keyboard = new[] { new[] { new { text = "Поділитися номером телефону", request_contact = true } }, new[] { new { text = "Скасувати", request_contact = false } } },
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
         else if (keyboard == ReplyKeyboard.PageNavigation)
             payload["reply_markup"] = new { keyboard = new[] { new[] { new { text = "Скасувати" }, new { text = "Далі" } } }, resize_keyboard = true, one_time_keyboard = false };
+        else if (keyboard == ReplyKeyboard.Cancel)
+            payload["reply_markup"] = new { keyboard = new[] { new[] { new { text = "Скасувати" } } }, resize_keyboard = true, one_time_keyboard = false };
         else if (keyboard is ReplyKeyboard.MainGuest or ReplyKeyboard.MainResident)
         {
             var rows = CommandMenu.ForResident(keyboard == ReplyKeyboard.MainResident)
@@ -40,7 +42,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             var rows = keyboard switch
             {
                 ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { ComplexLayout.ComplexLabel }).ToArray(),
-                ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation], ["Скасувати"]],
+                ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation]],
                 ReplyKeyboard.OwnerRequestCategory => RequestCreationService.Categories.Split(", ").Append(RequestCategories.KeyOrder).Select(category => new[] { category }).ToArray(),
                 ReplyKeyboard.KeyType => [["Магніт"], ["Перепустка"]],
                 ReplyKeyboard.ResidentType => [["Власник"], ["Член родини"], ["Орендар"]],
@@ -51,7 +53,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 ReplyKeyboard.RequestFloor => [["Парадне", "Без поверху"]],
                 _ => RequestCreationService.Categories.Split(", ").Select(category => new[] { category }).ToArray()
             };
-            payload["reply_markup"] = new { keyboard = rows.Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = true };
+            payload["reply_markup"] = new { keyboard = rows.Append(new[] { "Скасувати" }).Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = true };
         }
         else if (keyboard == ReplyKeyboard.Remove)
             payload["reply_markup"] = new { remove_keyboard = true };

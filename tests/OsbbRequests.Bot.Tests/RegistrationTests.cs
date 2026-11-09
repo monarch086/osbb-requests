@@ -401,7 +401,7 @@ public sealed class RegistrationTests
         using var json = JsonDocument.Parse(handler.Sent!);
         var buttons = json.RootElement.GetProperty("reply_markup").GetProperty("keyboard").EnumerateArray()
             .SelectMany(row => row.EnumerateArray()).Select(button => button.GetProperty("text").GetString()).ToArray();
-        Assert.Equal(new[] { "Будинок 4Б", "Будинок 4В", "Будинок 4Г", "Будинок 4Д" }, buttons);
+        Assert.Equal(new[] { "Будинок 4Б", "Будинок 4В", "Будинок 4Г", "Будинок 4Д", "Скасувати" }, buttons);
     }
 
     [Fact]

@@ -19,7 +19,8 @@ public enum ReplyKeyboard
     KeyType,
     MainGuest,
     MainResident,
-    PageNavigation
+    PageNavigation,
+    Cancel
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion, bool AutomaticallyApproved = false);
