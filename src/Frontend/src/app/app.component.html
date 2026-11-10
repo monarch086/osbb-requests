@@ -1,6 +1,7 @@
 <header class="topbar navbar bg-white border-bottom px-3 py-3">
   <a class="brand" [routerLink]="saving ? null : '/requests'"
-    ><span class="brand-mark">ЗО2</span><span>Зелений острів 2<small>Панель ОСББ</small></span></a
+    ><span class="brand-mark">ЗО2</span
+    ><span>Зелений острів 2<small>Панель керування заявками ОСББ</small></span></a
   >
   @if (auth.user$ | async; as user) {
     <div class="account d-flex align-items-center gap-3">
@@ -28,7 +29,7 @@
           [disabled]="!ready || !auth.config"
           (click)="showAuth = true"
         >
-          Увійти до панелі <span>→</span>
+          Увійти до панелі керування<span>→</span>
         </button>
         <div class="text-body-secondary small mt-4">
           Доступ для голови ОСББ та уповноважених адміністраторів.
