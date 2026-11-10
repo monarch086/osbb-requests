@@ -34,3 +34,18 @@ test('resident exports include the localized type after the name', () => {
   assert.equal(data.registeredResidentRows([resident])[0][2], 'Член родини');
   assert.equal(data.pendingResidentRows([{ ...resident, residentType: 'Tenant' }])[0][2], 'Орендар');
 });
+
+test('resident exports omit Telegram IDs while retaining aligned dates', () => {
+  const resident = { firstName: 'Ім’я', lastName: 'Прізвище', phone: '', telegramChatId: '123456789', registeredAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  assert.ok(data.residentHeadings.every(heading => !heading.includes('Telegram')));
+  const rows = [
+    data.registeredResidentRows([resident])[0],
+    data.registeredResidentRows([{ ...resident, personalDataDeleted: true }])[0],
+    data.pendingResidentRows([resident])[0],
+  ];
+  for (const row of rows) {
+    assert.equal(row.length, data.residentHeadings.length + 1);
+    assert.ok(!row.includes(resident.telegramChatId));
+    assert.ok(row.at(-1));
+  }
+});

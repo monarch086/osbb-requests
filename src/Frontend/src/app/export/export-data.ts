@@ -32,7 +32,6 @@ export const residentHeadings = [
   'Email',
   'Будинок',
   'Квартира',
-  'Telegram Chat ID',
 ];
 
 export function ticketRows(tickets: ManagedTicket[]): (string | number)[][] {
@@ -56,17 +55,7 @@ export function ticketRows(tickets: ManagedTicket[]): (string | number)[][] {
 export function registeredResidentRows(residents: RegisteredResident[]): (string | number)[][] {
   return residents.map((r) =>
     r.personalDataDeleted
-      ? [
-          'Мешканець видалив свої дані',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          r.telegramChatId,
-          formatDate(r.registeredAt),
-        ]
+      ? ['Мешканець видалив свої дані', '', '', '', '', '', '', formatDate(r.registeredAt)]
       : [
           r.lastName ?? '',
           r.firstName ?? '',
@@ -75,7 +64,6 @@ export function registeredResidentRows(residents: RegisteredResident[]): (string
           r.email ?? '',
           r.buildingNumber ?? '',
           r.apartmentNumber ?? '',
-          r.telegramChatId,
           formatDate(r.registeredAt),
         ],
   );
@@ -90,7 +78,6 @@ export function pendingResidentRows(residents: Registration[]): (string | number
     r.email ?? '',
     r.buildingNumber ?? '',
     r.apartmentNumber ?? '',
-    r.telegramChatId,
     formatDate(r.updatedAt),
   ]);
 }
