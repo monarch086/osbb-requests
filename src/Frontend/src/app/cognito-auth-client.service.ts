@@ -12,7 +12,7 @@ import {
   signUp,
 } from 'aws-amplify/auth';
 import { cognitoUserPoolsTokenProvider } from 'aws-amplify/auth/cognito';
-import { sessionStorage } from 'aws-amplify/utils';
+import { defaultStorage } from 'aws-amplify/utils';
 
 @Injectable({ providedIn: 'root' })
 export class CognitoAuthClient {
@@ -28,6 +28,6 @@ export class CognitoAuthClient {
 
   configure(userPoolId: string, userPoolClientId: string): void {
     Amplify.configure({ Auth: { Cognito: { userPoolId, userPoolClientId } } });
-    cognitoUserPoolsTokenProvider.setKeyValueStorage(sessionStorage);
+    cognitoUserPoolsTokenProvider.setKeyValueStorage(defaultStorage);
   }
 }
