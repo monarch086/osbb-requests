@@ -7,6 +7,7 @@ import { PaginationComponent } from '../pagination/pagination.component';
 import type { TicketFilters } from '../shared/ticket-presentation';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
+import { countRequests } from './request-counts';
 import { RequestsComponent } from './requests.component';
 import { RequestsList } from './requests-list';
 
@@ -32,15 +33,25 @@ export class RequestsSectionComponent extends WorkspaceSection {
     isCurrent: () => boolean,
   ): Promise<void> {
     const page = await this.api.getTickets(this.lists.appliedFilters, cursor);
+    const counts =
+      this.lists.counts ??
+      (await countRequests(
+        this.lists.appliedFilters,
+        (filters, next) => this.api.getTickets(filters, next),
+        isCurrent,
+        cursor === null ? page : undefined,
+      ));
     if (isCurrent()) {
       this.lists.tickets = page.items;
       this.lists.pagination.accept(index, cursor, page.cursor);
+      this.lists.counts = counts;
     }
   }
   protected override async load(): Promise<void> {
     if (this.loading || this.saving) {
       return;
     }
+    this.lists.counts = null;
     if (!this.assigneesReady) {
       await this.initialize();
     } else {
@@ -127,7 +138,6 @@ export class RequestsSectionComponent extends WorkspaceSection {
     if (!selected) {
       return;
     }
-    const priorityChanged = selected.request.priority !== draft.priority;
     const epoch = this.epoch;
     const writeState = { saved: false };
     await this.write(async () => {
@@ -139,7 +149,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
       this.notice = 'Зміни заявки збережено.';
       writeState.saved = true;
     });
-    if (writeState.saved && priorityChanged && epoch === this.epoch) {
+    if (writeState.saved && epoch === this.epoch) {
       this.lists.resetPagination();
       await this.load();
     }

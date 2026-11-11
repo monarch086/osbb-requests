@@ -1,8 +1,10 @@
 import type { ManagedTicket, TicketFilters } from '../api.models';
 import { WorkspaceLists } from '../workspace/workspace-lists';
+import type { RequestCounts } from './request-counts';
 
 export class RequestsList extends WorkspaceLists {
   tickets: ManagedTicket[] = [];
+  counts: RequestCounts | null = null;
   filters: TicketFilters = this.defaultFilters();
   appliedFilters: TicketFilters = this.copyFilters(this.filters);
 
@@ -12,6 +14,7 @@ export class RequestsList extends WorkspaceLists {
   override resetPagination(): void {
     this.pagination.reset();
     this.tickets = [];
+    this.counts = null;
   }
   applyTicketFilters(filters: TicketFilters): void {
     this.filters = this.copyFilters(filters);

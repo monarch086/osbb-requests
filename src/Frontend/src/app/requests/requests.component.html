@@ -1,26 +1,26 @@
-<section class="row g-3 mb-4" aria-label="Заявки на поточній сторінці">
+<section class="row g-3 mb-4" aria-label="Заявки за вибраними фільтрами">
   <div class="col-4">
     <div
       class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
     >
-      <span>На сторінці</span><strong class="fs-3">{{ tickets.length }}</strong>
+      <span>Усі</span><strong class="fs-3">{{ counts?.total ?? '—' }}</strong>
     </div>
   </div>
   <div class="col-4">
     <div
       class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
     >
-      <span>Нові</span><strong class="fs-3">{{ newCount }}</strong>
+      <span>Нові</span><strong class="fs-3">{{ counts?.newCount ?? '—' }}</strong>
     </div>
   </div>
   <div class="col-4">
     <div
       class="card card-body h-100 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2"
     >
-      <span>В роботі</span><strong class="fs-3">{{ progressCount }}</strong>
+      <span>В роботі</span><strong class="fs-3">{{ counts?.progressCount ?? '—' }}</strong>
     </div>
   </div>
-  <p class="text-body-secondary small mb-0">Показники для завантажених заявок</p>
+  <p class="text-body-secondary small mb-0">Показники за застосованими фільтрами</p>
 </section>
 <form class="card card-body mb-4" (ngSubmit)="submitFilters()">
   <div class="row g-3 align-items-end">

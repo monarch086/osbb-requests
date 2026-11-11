@@ -15,6 +15,7 @@ import {
   ticketPriorities,
   ticketStatuses,
 } from '../shared/ticket-presentation';
+import type { RequestCounts } from './request-counts';
 
 @Component({
   selector: 'app-requests',
@@ -24,6 +25,7 @@ import {
 })
 export class RequestsComponent {
   @Input() tickets: ManagedTicket[] = [];
+  @Input() counts: RequestCounts | null = null;
   @Input() loading = false;
   @Input() saving = false;
   @Output() readonly applyFilters = new EventEmitter<TicketFilters>();
@@ -53,12 +55,6 @@ export class RequestsComponent {
     Rejected: 'text-bg-danger',
   };
   protected readonly date = formatDate;
-  protected get newCount(): number {
-    return this.tickets.filter((t) => t.request.status === 'New').length;
-  }
-  protected get progressCount(): number {
-    return this.tickets.filter((t) => t.request.status === 'InProgress').length;
-  }
   protected submitFilters(): void {
     this.applyFilters.emit({ ...this.filters, status: [...this.filters.status] });
   }
