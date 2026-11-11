@@ -16,6 +16,8 @@ import { residentTypeLabel } from './resident-type';
 export class ResidentsComponent {
   @Input() view: ResidentView = 'registered';
   @Input() pendingCount = 0;
+  @Input() pendingBuilding = '';
+  @Output() readonly pendingBuildingChange = new EventEmitter<string>();
   protected readonly typeLabel = residentTypeLabel;
   @Input() registeredResidents: RegisteredResident[] = [];
   @Input() filters: ResidentFilters = {

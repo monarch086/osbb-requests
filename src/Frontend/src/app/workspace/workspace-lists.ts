@@ -6,7 +6,7 @@ export abstract class WorkspaceLists {
   abstract resetPagination(): void;
   abstract itemCount(): number;
 
-  isRegisteredView(): boolean {
+  usesLocalPagination(): boolean {
     return false;
   }
   showResidentPage(index: number): void {

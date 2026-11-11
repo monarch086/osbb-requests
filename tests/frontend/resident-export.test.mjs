@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildSync } from '../../src/Frontend/node_modules/esbuild/lib/main.js';
 import { ResidentDirectory } from '../../src/Frontend/src/app/residents/resident-directory.ts';
+import { PendingDirectory } from '../../src/Frontend/src/app/residents/pending-directory.ts';
 
 const bundled = buildSync({
   entryPoints: [fileURLToPath(new URL('../../src/Frontend/src/app/export/export-data.ts', import.meta.url))],
@@ -48,4 +49,16 @@ test('resident exports omit Telegram IDs while retaining aligned dates', () => {
     assert.ok(!row.includes(resident.telegramChatId));
     assert.ok(row.at(-1));
   }
+});
+
+test('pending export includes every registration matching the building filter', () => {
+  const directory = new PendingDirectory();
+  directory.setItems(Array.from({ length: 60 }, (_, i) => ({
+    id: String(i), firstName: 'Ім’я', lastName: 'Прізвище', phone: '',
+    updatedAt: '2026-01-01T00:00:00Z', buildingNumber: i < 35 ? '4Б' : '4В',
+  })));
+  directory.building = '4Б';
+  const rows = data.pendingResidentRows(directory.all());
+  assert.equal(rows.length, 35);
+  assert.ok(rows.every(row => row[5] === '4Б'));
 });

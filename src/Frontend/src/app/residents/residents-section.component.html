@@ -17,6 +17,8 @@
   [pendingCount]="pendingCount"
   [registeredResidents]="lists.registeredResidents"
   [filters]="lists.residentDirectory.filters"
+  [pendingBuilding]="lists.pendingDirectory.building"
+  (pendingBuildingChange)="applyPendingBuilding($event)"
   (filtersChange)="applyResidentFilters($event)"
   (viewChange)="switchResidentView($event)"
   [residents]="lists.residents"

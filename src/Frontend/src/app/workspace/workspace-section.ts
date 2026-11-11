@@ -57,7 +57,7 @@ export abstract class WorkspaceSection implements OnInit, OnDestroy {
       return;
     }
     const index = number - 1;
-    if (this.lists.isRegisteredView()) {
+    if (this.lists.usesLocalPagination()) {
       this.lists.showResidentPage(index);
       return;
     }

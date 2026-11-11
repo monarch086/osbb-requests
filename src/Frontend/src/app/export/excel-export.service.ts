@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 
 import type { TicketFilters } from '../api.models';
 import { ApiService } from '../api.service';
+import type { PendingDirectory } from '../residents/pending-directory';
 import type { ResidentDirectory, ResidentView } from '../residents/resident-directory';
 import { collectPages } from './collect-pages';
 import { resolveExcelModule } from './excel-module';
@@ -29,6 +30,7 @@ export class ExcelExportService {
   async exportResidents(
     view: ResidentView,
     directory: ResidentDirectory,
+    pendingDirectory: PendingDirectory,
     isCurrent: () => boolean,
   ): Promise<void> {
     if (view === 'registered') {
@@ -39,15 +41,12 @@ export class ExcelExportService {
         isCurrent,
       );
     } else {
-      const items = await collectPages((cursor) => this.api.getRegistrations(cursor), isCurrent);
-      if (items) {
-        await this.save(
-          'Очікують перевірки',
-          [...residentHeadings, 'Дата подання'],
-          pendingResidentRows(items),
-          isCurrent,
-        );
-      }
+      await this.save(
+        'Очікують перевірки',
+        [...residentHeadings, 'Дата подання'],
+        pendingResidentRows(pendingDirectory.all()),
+        isCurrent,
+      );
     }
   }
 

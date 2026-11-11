@@ -58,3 +58,16 @@ test('resident, message and administrator states are independent', () => {
   assert.equal(messages.itemCount(), 0);
   assert.equal(admins.itemCount(), 1);
 });
+
+test('pending resident pages update and clamp after approval', () => {
+  const residents = new ResidentsList();
+  residents.residentView = 'pending';
+  residents.pendingDirectory.setItems(Array.from({ length: 26 }, (_, i) => ({ id: String(i), buildingNumber: '4Б' })));
+  residents.pendingDirectory.building = '4Б';
+  residents.showResidentPage(1);
+  assert.equal(residents.itemCount(), 1);
+  residents.pendingDirectory.remove('25');
+  residents.showResidentPage(residents.pagination.index);
+  assert.equal(residents.pagination.index, 0);
+  assert.equal(residents.itemCount(), 25);
+});

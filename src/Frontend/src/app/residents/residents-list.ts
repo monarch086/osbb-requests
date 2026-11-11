@@ -1,5 +1,6 @@
 import type { RegisteredResident, Registration } from '../api.models';
 import { WorkspaceLists } from '../workspace/workspace-lists';
+import { PendingDirectory } from './pending-directory';
 import type { ResidentView } from './resident-directory';
 import { ResidentDirectory } from './resident-directory';
 
@@ -8,30 +9,36 @@ export class ResidentsList extends WorkspaceLists {
   registeredResidents: RegisteredResident[] = [];
   residentView: ResidentView = 'registered';
   residentDirectory = new ResidentDirectory();
-  override isRegisteredView(): boolean {
-    return this.residentView === 'registered';
+  pendingDirectory = new PendingDirectory();
+  override usesLocalPagination(): boolean {
+    return true;
   }
   override availablePages(): number {
-    return this.isRegisteredView()
+    return this.residentView === 'registered'
       ? this.residentDirectory.pageCount
-      : this.pagination.availablePages;
+      : this.pendingDirectory.pageCount;
   }
   override hasNext(): boolean {
-    return this.isRegisteredView()
-      ? this.pagination.index + 1 < this.availablePages()
-      : !!this.pagination.cursor;
+    return this.pagination.index + 1 < this.availablePages();
   }
   override itemCount(): number {
-    return this.isRegisteredView() ? this.registeredResidents.length : this.residents.length;
+    return this.residentView === 'registered'
+      ? this.registeredResidents.length
+      : this.residents.length;
   }
   override showResidentPage(index: number): void {
-    this.pagination.index = Math.min(index, this.residentDirectory.pageCount - 1);
-    this.registeredResidents = this.residentDirectory.page(this.pagination.index);
+    this.pagination.index = Math.min(index, this.availablePages() - 1);
+    if (this.residentView === 'registered') {
+      this.registeredResidents = this.residentDirectory.page(this.pagination.index);
+    } else {
+      this.residents = this.pendingDirectory.page(this.pagination.index);
+    }
   }
   override resetPagination(): void {
     this.pagination.reset();
     this.residents = [];
     this.registeredResidents = [];
     this.residentDirectory.setItems([]);
+    this.pendingDirectory.setItems([]);
   }
 }

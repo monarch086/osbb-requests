@@ -22,7 +22,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   protected pendingCount = 0;
   protected override async loadItems(
     index: number,
-    cursor: string | null,
+    _cursor: string | null,
     isCurrent: () => boolean,
   ): Promise<void> {
     const count = await this.api.getRegistrationCount();
@@ -38,10 +38,10 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       }
       return;
     }
-    const page = await this.api.getRegistrations(cursor);
-    if (isCurrent()) {
-      this.lists.residents = page.items;
-      this.lists.pagination.accept(index, cursor, page.cursor);
+    const registrations = await collectPages((next) => this.api.getRegistrations(next), isCurrent);
+    if (registrations) {
+      this.lists.pendingDirectory.setItems(registrations);
+      this.lists.showResidentPage(index);
     }
   }
   protected async switchResidentView(view: ResidentView): Promise<void> {
@@ -56,14 +56,26 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   }
   protected async exportExcel(): Promise<void> {
     await this.runExport((current) =>
-      this.excel.exportResidents(this.lists.residentView, this.lists.residentDirectory, current),
+      this.excel.exportResidents(
+        this.lists.residentView,
+        this.lists.residentDirectory,
+        this.lists.pendingDirectory,
+        current,
+      ),
     );
   }
   protected applyResidentFilters(filters: ResidentFilters): void {
-    if (this.loading || this.saving || !this.lists.isRegisteredView()) {
+    if (this.loading || this.saving || this.lists.residentView !== 'registered') {
       return;
     }
     this.lists.residentDirectory.applyFilters(filters);
+    this.lists.showResidentPage(0);
+  }
+  protected applyPendingBuilding(building: string): void {
+    if (this.loading || this.saving || this.lists.residentView !== 'pending') {
+      return;
+    }
+    this.lists.pendingDirectory.building = building;
     this.lists.showResidentPage(0);
   }
   protected async decide(
@@ -77,7 +89,8 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     }
     await this.write(async () => {
       await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
-      this.lists.residents = this.lists.residents.filter((r) => r.id !== registration.id);
+      this.lists.pendingDirectory.remove(registration.id);
+      this.lists.showResidentPage(this.lists.pagination.index);
       this.pendingCount = Math.max(0, this.pendingCount - 1);
       this.rejecting = null;
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
