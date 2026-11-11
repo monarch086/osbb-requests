@@ -38,12 +38,12 @@ public sealed class NotificationProcessor(INotificationRepository repository, IT
             catch (TelegramRecipientUnavailableException error)
             {
                 await repository.CompleteAsync(item, lease, "Undeliverable", clock.GetUtcNow(), ct);
-                log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=undeliverable");
+                log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=undeliverable" + TelegramFailureDiagnostics.For(error));
                 await notifier.ReportSafelyAsync("notification_undeliverable", error, item.Notification.Id, log);
             }
             catch (Exception error)
             {
-                log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=retry errorType={error.GetType().Name}");
+                log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=retry errorType={error.GetType().Name}" + TelegramFailureDiagnostics.For(error));
                 var delay = error is TelegramRateLimitException rate ? Math.Max(1, rate.RetryAfterSeconds) :
                     (int)Math.Min(3600, 60 * Math.Pow(2, Math.Min(item.Attempts, 6)));
                 var dueAt = clock.GetUtcNow().AddSeconds(delay);

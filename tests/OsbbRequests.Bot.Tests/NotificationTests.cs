@@ -270,6 +270,20 @@ public sealed class NotificationTests
         Assert.Equal("deliver_notification", Assert.Single(notifier.Errors).Operation);
     }
 
+    [Fact]
+    public async Task NotificationFailureLogsSafeCategoryAndStatusWhileRetrying()
+    {
+        var repository = new MemoryNotifications(Work());
+        var telegram = new NotificationTelegram { Error = new TelegramApiException(TelegramFailureCategory.HttpError, 503) };
+        var logs = new List<string>();
+        await new NotificationProcessor(repository, telegram, timeProvider: new FixedClock()).RunAsync(default, logs.Add);
+        var log = Assert.Single(logs);
+        Assert.Contains("telegramFailure=HttpError", log);
+        Assert.Contains("telegramHttpStatus=503", log);
+        Assert.Single(repository.Retries);
+        Assert.Empty(repository.Results);
+    }
+
     [Theory]
     [InlineData(400)]
     [InlineData(403)]

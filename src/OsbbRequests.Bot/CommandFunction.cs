@@ -61,7 +61,7 @@ public sealed class CommandFunction
             }
             catch (Exception ex)
             {
-                context.Logger.LogLine($"operation=process_command messageId={record.MessageId} errorType={ex.GetType().Name}");
+                context.Logger.LogLine($"operation=process_command messageId={record.MessageId} errorType={ex.GetType().Name}" + TelegramFailureDiagnostics.For(ex));
                 failures.Add(new SQSBatchResponse.BatchItemFailure { ItemIdentifier = record.MessageId });
                 if (ex is TelegramRateLimitException rateLimit && retryScheduler is not null)
                 {

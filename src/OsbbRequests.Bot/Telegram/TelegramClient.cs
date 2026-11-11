@@ -87,10 +87,12 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
     private async Task CallAsync(string method, object payload, CancellationToken cancellationToken, bool requireTrueResult = false)
     {
         var token = await tokenProvider.GetAsync(cancellationToken);
+        int? responseStatus = null;
         try
         {
             using var response = await httpClient.PostAsJsonAsync(
                 $"https://api.telegram.org/bot{token}/{method}", payload, cancellationToken);
+            responseStatus = (int)response.StatusCode;
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
                 using var error = await JsonDocument.ParseAsync(
@@ -103,18 +105,28 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
                 throw new TelegramRecipientUnavailableException((int)response.StatusCode);
             if (!response.IsSuccessStatusCode)
-                throw new InvalidOperationException($"Telegram delivery failed (HTTP {(int)response.StatusCode}).");
+                throw new TelegramApiException(TelegramFailureCategory.HttpError, (int)response.StatusCode);
             using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
                 cancellationToken: cancellationToken);
+            if (body.RootElement.ValueKind != JsonValueKind.Object)
+                throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, (int)response.StatusCode);
             if (!body.RootElement.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
-                throw new InvalidOperationException("Telegram rejected the operation.");
+                throw new TelegramApiException(TelegramFailureCategory.ApiRejected, (int)response.StatusCode);
             if (requireTrueResult && (!body.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.True))
-                throw new InvalidOperationException("Telegram did not confirm the menu update.");
+                throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode);
         }
         catch (HttpRequestException)
         {
             // Do not propagate an exception containing a URL with the bot token.
-            throw new InvalidOperationException("Telegram transport failed.");
+            throw new TelegramApiException(TelegramFailureCategory.Transport);
+        }
+        catch (JsonException)
+        {
+            throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, responseStatus);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TelegramApiException(TelegramFailureCategory.Timeout);
         }
     }
 }

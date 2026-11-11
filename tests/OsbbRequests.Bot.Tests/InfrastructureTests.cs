@@ -517,9 +517,61 @@ public sealed class InfrastructureTests
     public async Task TransportExceptionDoesNotExposeBotToken()
     {
         using var http = new HttpClient(new HttpStub(_ => throw new HttpRequestException("https://api.telegram.org/botSECRET/sendMessage")));
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var error = await Assert.ThrowsAsync<TelegramApiException>(() =>
             new TelegramClient(http, new FakeSecret("SECRET")).SendMessageAsync(42, "Текст", CancellationToken.None));
         Assert.DoesNotContain("SECRET", error.ToString());
+    }
+
+    [Theory]
+    [InlineData(500, "{\"description\":\"SECRET private text\"}", "HttpError", 500)]
+    [InlineData(200, "{\"ok\":false,\"description\":\"SECRET private text\"}", "ApiRejected", 200)]
+    [InlineData(200, "SECRET private text", "InvalidResponse", 200)]
+    [InlineData(200, "[]", "InvalidResponse", 200)]
+    [InlineData(403, "SECRET private text", "RecipientUnavailable", 403)]
+    public async Task CommandFailureLogsSafeTelegramDiagnosticsAndRetainsRetry(int status, string body, string category, int expectedStatus)
+    {
+        using var http = new HttpClient(new HttpStub(_ => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status)
+        { Content = new StringContent(body) })));
+        var repository = new MemoryRepository();
+        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
+            new TelegramClient(http, new FakeSecret("SECRET")));
+        var logs = new List<string>();
+        var response = await new CommandFunction(processor).FunctionHandler(
+            new SQSEvent { Records = [Record("failed", 100)] }, ContextProxy.Create(logs));
+        Assert.Single(response.BatchItemFailures);
+        Assert.False(repository.Replies[100].Delivered);
+        var log = Assert.Single(logs);
+        Assert.Contains("telegramFailure=" + category, log);
+        Assert.Contains("telegramHttpStatus=" + expectedStatus, log);
+        Assert.DoesNotContain("SECRET", log);
+        Assert.DoesNotContain("private text", log);
+    }
+
+    [Fact]
+    public async Task TransportFailureLogsCategoryWithoutUrlOrToken()
+    {
+        using var http = new HttpClient(new HttpStub(_ => throw new HttpRequestException("https://api.telegram.org/botSECRET/sendMessage")));
+        var repository = new MemoryRepository();
+        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
+            new TelegramClient(http, new FakeSecret("SECRET")));
+        var logs = new List<string>();
+        await new CommandFunction(processor).FunctionHandler(new SQSEvent { Records = [Record("failed", 100)] }, ContextProxy.Create(logs));
+        Assert.Contains("telegramFailure=Transport", Assert.Single(logs));
+        Assert.DoesNotContain("SECRET", string.Join('\n', logs));
+        Assert.DoesNotContain("https://", string.Join('\n', logs));
+    }
+
+    [Fact]
+    public async Task TelegramTimeoutIsClassifiedWhileCallerCancellationIsPreserved()
+    {
+        using var http = new HttpClient(new HttpStub(_ => throw new TaskCanceledException("SECRET")));
+        var client = new TelegramClient(http, new FakeSecret("SECRET"));
+        var error = await Assert.ThrowsAsync<TelegramApiException>(() => client.SendMessageAsync(42, "Текст", default));
+        Assert.Equal(TelegramFailureCategory.Timeout, error.Category);
+        Assert.DoesNotContain("SECRET", error.ToString());
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.SendMessageAsync(42, "Текст", cancellation.Token));
     }
 
     [Theory]
@@ -664,13 +716,19 @@ public sealed class InfrastructureTests
 
 public class ContextProxy : DispatchProxy
 {
-    private sealed class Logger : ILambdaLogger
+    private sealed class Logger(List<string>? messages) : ILambdaLogger
     {
-        public void Log(string message) { }
-        public void LogLine(string message) { }
+        public void Log(string message) => messages?.Add(message);
+        public void LogLine(string message) => messages?.Add(message);
     }
 
-    public static ILambdaContext Create() => Create<ILambdaContext, ContextProxy>();
+    private List<string>? logs;
+    public static ILambdaContext Create(List<string>? logs = null)
+    {
+        var context = Create<ILambdaContext, ContextProxy>();
+        ((ContextProxy)(object)context).logs = logs;
+        return context;
+    }
     protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
-        targetMethod?.Name == "get_Logger" ? new Logger() : null;
+        targetMethod?.Name == "get_Logger" ? new Logger(logs) : null;
 }

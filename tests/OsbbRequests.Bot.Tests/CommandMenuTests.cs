@@ -56,7 +56,7 @@ public sealed class CommandMenuTests
     {
         using var capture = new Capture { TransportFailure = true };
         using var http = new HttpClient(capture);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => new TelegramClient(http, new FakeSecret("SECRET"))
+        var error = await Assert.ThrowsAsync<TelegramApiException>(() => new TelegramClient(http, new FakeSecret("SECRET"))
             .SetCommandMenuAsync(99, true, default));
         Assert.DoesNotContain("SECRET", error.ToString());
     }
