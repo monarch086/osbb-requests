@@ -140,7 +140,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
                 break;
             case RegistrationStage.AwaitingFirstName:
                 if (envelope.Contact is not null || !ValidName(envelope.Text))
-                    return new CommandOutcome("Введіть своє ім’я текстом: від 1 до 80 символів, без цифр.", Keyboard: ReplyKeyboard.Remove);
+                    return new CommandOutcome("Введіть своє ім’я (без прізвища) текстом: від 1 до 80 символів, без цифр.", Keyboard: ReplyKeyboard.Remove);
                 next = current with { FirstName = envelope.Text.Trim(), Stage = RegistrationStage.AwaitingLastName };
                 break;
             case RegistrationStage.AwaitingLastName:
