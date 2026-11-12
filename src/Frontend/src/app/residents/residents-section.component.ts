@@ -203,15 +203,23 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.error = 'Вкажіть причину відхилення.';
       return;
     }
+    const epoch = this.epoch;
+    const pagination = { previousPage: null as number | null };
     await this.write(async () => {
       await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
       this.lists.residents = this.lists.residents.filter((item) => item.id !== registration.id);
       this.lists.total = Math.max(0, this.lists.total - 1);
+      if (this.lists.pagination.index >= this.lists.availablePages()) {
+        pagination.previousPage = this.lists.availablePages() - 1;
+      }
       this.pendingCount = Math.max(0, this.pendingCount - 1);
       this.rejecting = null;
       this.selectedPending = null;
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
     });
+    if (pagination.previousPage !== null && epoch === this.epoch) {
+      await this.loadPage(pagination.previousPage, null);
+    }
   }
   protected async saveResident(
     resident: Registration | RegisteredResident,

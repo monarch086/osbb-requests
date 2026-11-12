@@ -78,6 +78,11 @@
   (previousPage)="previousPage()"
   (nextPage)="nextPage()"
 />
+@if (!loading) {
+  <p class="text-body-secondary small" role="status">
+    Сторінка {{ lists.pagination.index + 1 }} із {{ lists.availablePages() }}
+  </p>
+}
 @if (rejecting; as registration) {
   <app-registration-rejection-dialog
     [registration]="registration"
