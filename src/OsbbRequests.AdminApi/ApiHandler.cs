@@ -123,6 +123,13 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 page.Cursor
             });
         }
+        if (segments is ["admin", "registrations", var residentId, "data"] && method == "PATCH")
+        {
+            if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
+            if (residentId.Length != 32 || !residentId.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");
+            await store.UpdateResidentDataAsync(actor, residentId, Body<ResidentDataChangeRequest>(request), ct);
+            return Reply(200, new { ok = true });
+        }
         if (segments is ["admin", "registrations", var registrationId, "type"] && method == "PATCH")
         {
             if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");

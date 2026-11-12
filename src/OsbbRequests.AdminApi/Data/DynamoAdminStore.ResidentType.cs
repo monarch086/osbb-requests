@@ -16,20 +16,40 @@ public sealed partial class DynamoAdminStore
         return registration.Id == reference && registration.BuildingId == building ? registration : null;
     }
 
-    public async Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct)
+    public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) =>
+        ApplyResidentChangeAsync(actor, reference, change.ResidentType, change.Version, null, null, true, ct);
+
+    public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct)
+    {
+        if (!ValidName(change.FirstName) || !ValidName(change.LastName)) throw new ApiError(400, "Вкажіть коректні ім’я та прізвище.");
+        return ApplyResidentChangeAsync(actor, reference, change.ResidentType, change.Version, change.FirstName.Trim(), change.LastName.Trim(), false, ct);
+    }
+
+    private static bool ValidName(string? value)
+    {
+        var name = value?.Trim() ?? "";
+        return name.Length is >= 1 and <= 80 && name.Any(char.IsLetter) &&
+            name.All(c => char.IsLetter(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark ||
+                c is ' ' or '-' or '\'' or '’' or 'ʼ');
+    }
+
+    private async Task ApplyResidentChangeAsync(AdminUser actor, string reference, string residentType, int version, string? firstName, string? lastName, bool pendingOnly, CancellationToken ct)
     {
         if (!actor.IsActive || !actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
-        if (!Enum.GetNames<ResidentType>().Contains(change.ResidentType, StringComparer.Ordinal)) throw new ApiError(400, "Оберіть коректний тип мешканця.");
+        if (!Enum.GetNames<ResidentType>().Contains(residentType, StringComparer.Ordinal)) throw new ApiError(400, "Оберіть коректний тип мешканця.");
         var snapshot = await Get(dataTable, Key("REGISTRATION#" + reference, "META"), ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
         var current = Payload<ResidentRegistration>(snapshot);
         if (current.Id != reference || current.BuildingId != building) throw new ApiError(404, "Реєстрацію не знайдено.");
-        if (current.Stage != RegistrationStage.Pending || current.Version != change.Version) throw new ApiError(409, "Реєстрацію змінено. Оновіть список.");
-        var type = Enum.Parse<ResidentType>(change.ResidentType);
-        if (current.ResidentType == type) throw new ApiError(400, "Оберіть інший тип мешканця.");
-        var next = current with { ResidentType = type, Version = current.Version + 1, TypeChangeCount = checked(current.TypeChangeCount + 1) };
+        if ((current.Stage != RegistrationStage.Pending && (pendingOnly || current.Stage != RegistrationStage.Approved || current.PersonalDataDeleted)) || current.Version != version)
+            throw new ApiError(409, "Дані мешканця змінено. Оновіть список.");
+        var type = Enum.Parse<ResidentType>(residentType);
+        firstName ??= current.FirstName;
+        lastName ??= current.LastName;
+        if (current.ResidentType == type && current.FirstName == firstName && current.LastName == lastName) throw new ApiError(400, "Дані не змінено.");
+        var next = current with { FirstName = firstName, LastName = lastName, ResidentType = type, Version = current.Version + 1, TypeChangeCount = checked(current.TypeChangeCount + 1) };
         var now = DateTimeOffset.UtcNow;
         var audit = Key("REGISTRATION#" + reference, "EVENT#TYPE#" + now.ToString("O", CultureInfo.InvariantCulture) + "#" + Guid.NewGuid().ToString("N"));
-        audit["payload"] = S(JsonSerializer.Serialize(new ResidentTypeChange(current.ResidentType.ToString(), type.ToString(), actor.Email, now)));
+        audit["payload"] = S(JsonSerializer.Serialize(new ResidentTypeChange(current.ResidentType.ToString(), type.ToString(), actor.Email, now, current.FirstName != firstName, current.LastName != lastName)));
         TransactWriteItem Update(Dictionary<string, AttributeValue> key) => new()
         {
             Update = new()
@@ -44,12 +64,13 @@ public sealed partial class DynamoAdminStore
                     [":next"] = S(JsonSerializer.Serialize(next)),
                     [":previous"] = snapshot["payload"],
                     [":nextVersion"] = N(next.Version),
-                    [":expected"] = N(change.Version)
+                    [":expected"] = N(version)
                 }
             }
         };
+        var listKey = current.Stage == RegistrationStage.Pending ? "REGISTRATION#" + reference : "RESIDENT#" + current.UserId.ToString("D20", CultureInfo.InvariantCulture);
         await Transact([ActorCheck(actor), Update(Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION")),
-            Update(Key("REGISTRATION#" + reference, "META")), Update(Key("BUILDING#" + building, "REGISTRATION#" + reference)), Put(dataTable, audit)], ct);
+            Update(Key("REGISTRATION#" + reference, "META")), Update(Key("BUILDING#" + building, listKey)), Put(dataTable, audit)], ct);
     }
 
     public async Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct)

@@ -93,10 +93,10 @@
           <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
             <button
               class="btn btn-outline-secondary"
-              (click)="changeType.emit(r)"
+              (click)="editResident.emit(r)"
               [disabled]="saving || loading"
             >
-              Змінити тип
+              Редагувати дані
             </button>
             @if (r.typeChangeCount) {
               <button
@@ -289,6 +289,15 @@
             </p>
           </div>
           <div class="d-flex flex-wrap align-items-center gap-2">
+            @if (permissions.pendingResidents && !resident.personalDataDeleted) {
+              <button
+                class="btn btn-outline-secondary"
+                (click)="editResident.emit(resident)"
+                [disabled]="saving || loading"
+              >
+                Редагувати дані
+              </button>
+            }
             @if (resident.typeChangeCount) {
               <button
                 class="btn btn-outline-secondary"

@@ -3,7 +3,7 @@ import { Component, inject } from '@angular/core';
 import type {
   RegisteredResident,
   Registration,
-  ResidentType,
+  ResidentDataChange,
   ResidentTypeHistory,
 } from '../api.models';
 import { errorMessage } from '../error-message';
@@ -33,7 +33,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   private readonly excel = inject(ExcelExportService);
   protected override readonly lists = new ResidentsList();
   protected rejecting: Registration | null = null;
-  protected changingType: Registration | null = null;
+  protected changingType: Registration | RegisteredResident | null = null;
   protected historyResident: Registration | RegisteredResident | null = null;
   protected history: ResidentTypeHistory[] = [];
   protected historyLoading = false;
@@ -133,17 +133,24 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
     });
   }
-  protected async saveType(registration: Registration, type: ResidentType): Promise<void> {
+  protected async saveResident(
+    resident: Registration | RegisteredResident,
+    change: ResidentDataChange,
+  ): Promise<void> {
     if (!this.me.effectivePermissions.pendingResidents || this.saving) {
       return;
     }
     await this.write(async () => {
-      await this.api.changeResidentType(registration, type);
-      registration.residentType = type;
-      registration.typeChangeCount = (registration.typeChangeCount ?? 0) + 1;
-      registration.version++;
+      await this.api.updateResidentData(resident, change);
+      resident.firstName = change.firstName;
+      resident.lastName = change.lastName;
+      resident.residentType = change.residentType;
+      resident.typeChangeCount = (resident.typeChangeCount ?? 0) + 1;
+      resident.version++;
+      this.lists.residentDirectory.applyFilters(this.lists.residentDirectory.filters);
+      this.lists.showResidentPage(this.lists.pagination.index);
       this.changingType = null;
-      this.notice = 'Тип мешканця змінено. Реєстрація залишається на перевірці.';
+      this.notice = 'Дані мешканця збережено.';
     });
   }
   protected async openHistory(resident: Registration | RegisteredResident): Promise<void> {

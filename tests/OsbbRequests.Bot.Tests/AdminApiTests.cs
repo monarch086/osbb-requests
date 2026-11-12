@@ -124,6 +124,19 @@ public sealed class AdminApiTests
     }
 
     [Theory]
+    [InlineData(true, false, 200)]
+    [InlineData(false, true, 403)]
+    public async Task EditingResidentDataRequiresPendingPermission(bool pending, bool registered, int expected)
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, false, registered, pending, false) };
+        var request = Request("/admin/registrations/" + new string('a', 32) + "/data", "PATCH", body: new { version = 1, firstName = "Олена", lastName = "Тестова", residentType = "Owner" });
+        if (expected == 200) Assert.Equal(200, (await Handler(store).HandleAsync(request, default)).StatusCode);
+        else Assert.Equal(expected, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(request, default))).Status);
+        Assert.Equal(pending ? 1 : 0, store.TypeChanges);
+    }
+
+    [Theory]
     [InlineData(RegistrationStage.Pending, true, false, 200)]
     [InlineData(RegistrationStage.Pending, false, true, 403)]
     [InlineData(RegistrationStage.Approved, false, true, 200)]
@@ -547,6 +560,7 @@ public sealed class AdminApiTests
         public RegistrationStage HistoryStage = RegistrationStage.Pending;
         public int TypeChanges;
         public Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct) => Task.FromResult<ResidentRegistration?>(new(reference, 99, "building", HistoryStage, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+        public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct) => Task.FromResult(new Page<ResidentTypeChange>([], null));
         public int PermissionWrites;

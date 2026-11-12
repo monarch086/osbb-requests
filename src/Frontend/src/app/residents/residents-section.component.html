@@ -27,7 +27,7 @@
   [saving]="saving"
   (approve)="decide($event, true)"
   (reject)="rejecting = $event"
-  (changeType)="changingType = $event"
+  (editResident)="changingType = $event"
   (showHistory)="openHistory($event)"
 />
 @if (loading) {
@@ -38,7 +38,7 @@
     [registration]="registration"
     [saving]="saving"
     [error]="error"
-    (saved)="saveType(registration, $event)"
+    (saved)="saveResident(registration, $event)"
     (closed)="changingType = null"
   />
 }

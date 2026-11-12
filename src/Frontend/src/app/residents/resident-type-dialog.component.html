@@ -10,7 +10,7 @@
   <div class="modal-dialog modal-dialog-centered">
     <section class="modal-content">
       <div class="modal-header">
-        <h2 class="modal-title fs-5" id="resident-type-title">Змінити тип мешканця</h2>
+        <h2 class="modal-title fs-5" id="resident-type-title">Редагувати дані</h2>
         <button
           type="button"
           class="btn-close"
@@ -19,11 +19,37 @@
           (click)="closed.emit()"
         ></button>
       </div>
-      <form class="modal-body" (ngSubmit)="saved.emit(type)">
-        <p>{{ registration.firstName }} {{ registration.lastName }}</p>
+      <form class="modal-body" (ngSubmit)="save()">
+        <div class="mb-3">
+          <label class="form-label" for="resident-first-name">Ім’я</label>
+          <input
+            id="resident-first-name"
+            class="form-control"
+            name="firstName"
+            [(ngModel)]="firstName"
+            maxlength="80"
+            required
+            [disabled]="saving"
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="resident-last-name">Прізвище</label>
+          <input
+            id="resident-last-name"
+            class="form-control"
+            name="lastName"
+            [(ngModel)]="lastName"
+            maxlength="80"
+            required
+            [disabled]="saving"
+          />
+        </div>
         @if (error) {
           <p class="alert alert-danger" role="alert">{{ error }}</p>
         }
+        <p class="form-text">
+          Ім’я та прізвище мають містити літери; також дозволені пробіли, дефіси й апострофи.
+        </p>
         <label class="form-label" for="change-resident-type">Тип мешканця</label>
         <ng-select
           labelForId="change-resident-type"
@@ -38,9 +64,7 @@
           ><ng-option value="Tenant">Орендар</ng-option
           ><ng-option value="Employee">Працівник ОСББ</ng-option>
         </ng-select>
-        <p class="form-text">
-          Зміна типу не надає доступ автоматично; реєстрація залишиться на перевірці.
-        </p>
+        <p class="form-text">Зміна даних не змінює стан реєстрації.</p>
         <div class="d-flex justify-content-end gap-2 mt-3">
           <button
             type="button"
@@ -49,11 +73,7 @@
             (click)="closed.emit()"
           >
             Скасувати</button
-          ><button
-            type="submit"
-            class="btn btn-primary"
-            [disabled]="saving || type === (registration.residentType || 'FamilyMember')"
-          >
+          ><button type="submit" class="btn btn-primary" [disabled]="saving || !valid">
             Зберегти
           </button>
         </div>

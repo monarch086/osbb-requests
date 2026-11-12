@@ -58,11 +58,19 @@ export interface RegisteredResident {
   apartmentNumber?: string | null;
   personalDataDeleted?: boolean;
   registeredAt: string;
+  version: number;
   consentAt?: string | null;
+}
+export interface ResidentDataChange {
+  firstName: string;
+  lastName: string;
+  residentType: ResidentType;
 }
 export interface ResidentTypeHistory {
   previousType: ResidentType;
   newType: ResidentType;
+  firstNameChanged?: boolean;
+  lastNameChanged?: boolean;
   actor: string;
   createdAt: string;
 }

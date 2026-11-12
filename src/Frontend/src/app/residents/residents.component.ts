@@ -34,7 +34,7 @@ export class ResidentsComponent {
   @Input() saving = false;
   @Output() readonly approve = new EventEmitter<Registration>();
   @Output() readonly reject = new EventEmitter<Registration>();
-  @Output() readonly changeType = new EventEmitter<Registration>();
+  @Output() readonly editResident = new EventEmitter<Registration | RegisteredResident>();
   @Output() readonly showHistory = new EventEmitter<Registration | RegisteredResident>();
   protected readonly date = formatDate;
   protected readonly buildings = buildingNumbers;

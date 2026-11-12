@@ -124,6 +124,70 @@ public sealed class ResidentDirectoryTests
     }
 
     [Theory]
+    [InlineData(RegistrationStage.Pending, "REGISTRATION#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData(RegistrationStage.Approved, "RESIDENT#00000000000000000099")]
+    public async Task ResidentDataChangeUpdatesAllProjectionsAndAuditsWithoutCopyingNames(RegistrationStage stage, string listKey)
+    {
+        var current = Registration with { Stage = stage, ResidentType = ResidentType.Owner };
+        using var db = new RecordingDynamo { Snapshot = Item(current) };
+        await new DynamoAdminStore(db, "admins", "data", "building").UpdateResidentDataAsync(Actor, current.Id, new(" Марія ", " Нова ", "Tenant", 4), default);
+        var writes = db.Transaction!.TransactItems;
+        Assert.Single(writes, w => w.ConditionCheck?.TableName == "admins");
+        var updates = writes.Where(w => w.Update is not null).Select(w => w.Update).ToArray();
+        Assert.Equal(3, updates.Length);
+        Assert.Contains(updates, u => u.Key["pk"].S == "BUILDING#building" && u.Key["sk"].S == listKey);
+        Assert.All(updates, update =>
+        {
+            Assert.Equal("4", update.ExpressionAttributeValues[":expected"].N);
+            var changed = JsonSerializer.Deserialize<ResidentRegistration>(update.ExpressionAttributeValues[":next"].S)!;
+            Assert.Equal("Марія", changed.FirstName);
+            Assert.Equal("Нова", changed.LastName);
+            Assert.Equal(ResidentType.Tenant, changed.ResidentType);
+            Assert.Equal(stage, changed.Stage);
+            Assert.Equal(current.ConsentAt, changed.ConsentAt);
+            Assert.Equal(current.ConsentVersion, changed.ConsentVersion);
+            Assert.Equal(5, changed.Version);
+            Assert.Equal(1, changed.TypeChangeCount);
+        });
+        var payload = Assert.Single(writes, w => w.Put?.Item.GetValueOrDefault("sk")?.S.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) == true).Put.Item["payload"].S;
+        var audit = JsonSerializer.Deserialize<ResidentTypeChange>(payload)!;
+        Assert.True(audit.FirstNameChanged);
+        Assert.True(audit.LastNameChanged);
+        Assert.Equal("Owner", audit.PreviousType);
+        Assert.Equal("Tenant", audit.NewType);
+        Assert.DoesNotContain("Марія", payload);
+        Assert.DoesNotContain("Нова", payload);
+        Assert.DoesNotContain(writes, w => w.Put?.Item.GetValueOrDefault("sk")?.S == "MEMBERSHIP");
+    }
+
+    [Theory]
+    [InlineData("", "Тестова", "Owner", 4, RegistrationStage.Pending, 400)]
+    [InlineData("Ім'я1", "Тестова", "Owner", 4, RegistrationStage.Pending, 400)]
+    [InlineData("Олена", "Тестова", "FamilyMember", 4, RegistrationStage.Pending, 400)]
+    [InlineData("Олена", "Тестова", "Owner", 3, RegistrationStage.Approved, 409)]
+    [InlineData("Олена", "Тестова", "Owner", 4, RegistrationStage.Deleted, 409)]
+    public async Task InvalidResidentDataChangeDoesNotWrite(string first, string last, string type, int version, RegistrationStage stage, int status)
+    {
+        using var db = new RecordingDynamo { Snapshot = Item(Registration with { Stage = stage }) };
+        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building").UpdateResidentDataAsync(Actor, Registration.Id, new(first, last, type, version), default));
+        Assert.Equal(status, error.Status);
+        Assert.Null(db.Transaction);
+    }
+
+    [Fact]
+    public async Task ResidentDataChangeRequiresPendingPermissionAndDetectsConflicts()
+    {
+        var actor = Actor with { Permissions = new PagePermissions(true, true, true, false, false) };
+        using var forbidden = new RecordingDynamo { Snapshot = Item(Registration with { Stage = RegistrationStage.Approved }) };
+        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(forbidden, "admins", "data", "building").UpdateResidentDataAsync(actor, Registration.Id, new("Олена", "Нова", "Owner", 4), default));
+        Assert.Equal(403, error.Status);
+        Assert.Null(forbidden.Transaction);
+        using var conflict = new RecordingDynamo { Snapshot = Item(Registration), Conflict = true };
+        error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(conflict, "admins", "data", "building").UpdateResidentDataAsync(Actor, Registration.Id, new("Олена", "Нова", "Owner", 4), default));
+        Assert.Equal(409, error.Status);
+    }
+
+    [Theory]
     [InlineData("Wrong", 4, RegistrationStage.Pending, "building", 400)]
     [InlineData("Owner", 3, RegistrationStage.Pending, "building", 409)]
     [InlineData("Owner", 4, RegistrationStage.Approved, "building", 409)]
@@ -191,6 +255,7 @@ public sealed class ResidentDirectoryTests
         Assert.Equal("resident@example.com", result.Items[0].Email);
         Assert.Equal(Registration.ConsentAt, result.Items[0].ConsentAt);
         Assert.Equal(2, result.Items[0].TypeChangeCount);
+        Assert.Equal(4, result.Items[0].Version);
         Assert.NotNull(result.Cursor);
         await store.ListResidentsAsync(result.Cursor, default);
         Assert.Equal("RESIDENT#00000000000000000099", db.Query.ExclusiveStartKey["sk"].S);
