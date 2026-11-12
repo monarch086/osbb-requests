@@ -150,6 +150,20 @@ functions:
           scopes:
           - aws.cognito.signin.user.admin
     - httpApi:
+        method: GET
+        path: /admin/residents/export
+        authorizer:
+          name: adminJwt
+          scopes:
+          - aws.cognito.signin.user.admin
+    - httpApi:
+        method: GET
+        path: /admin/registrations/export
+        authorizer:
+          name: adminJwt
+          scopes:
+          - aws.cognito.signin.user.admin
+    - httpApi:
         method: ANY
         path: /admin/{proxy+}
         authorizer:
@@ -877,12 +891,20 @@ resources:
     HttpApiStage:
       DependsOn:
       - HttpApiRouteGetAdminRequestsExport
+      - HttpApiRouteGetAdminResidentsExport
+      - HttpApiRouteGetAdminRegistrationsExport
       Properties:
         DefaultRouteSettings:
           ThrottlingRateLimit: 30
           ThrottlingBurstLimit: 60
         RouteSettings:
           'GET /admin/requests/export':
+            ThrottlingRateLimit: 0.2
+            ThrottlingBurstLimit: 2
+          'GET /admin/residents/export':
+            ThrottlingRateLimit: 0.2
+            ThrottlingBurstLimit: 2
+          'GET /admin/registrations/export':
             ThrottlingRateLimit: 0.2
             ThrottlingBurstLimit: 2
     HttpApi:

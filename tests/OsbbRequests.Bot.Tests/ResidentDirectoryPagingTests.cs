@@ -34,6 +34,8 @@ public sealed class ResidentDirectoryPagingTests
         Assert.Equal("Андрійчук", first.Items[0].LastName);
         Assert.Equal("Smith", second.Items[^1].LastName);
         Assert.Empty(first.Items.Select(x => x.Id).Intersect(second.Items.Select(x => x.Id)));
+        var exported = await store.ListResidentExportAsync(false, "4Б", "FamilyMember", "lastName", "asc", default);
+        Assert.Equal(first.Items.Concat(second.Items).Select(item => item.Id), exported.Select(item => item.Id));
         Assert.All(db.Queries, request => { Assert.Equal("residents", request.TableName); Assert.Equal("ResidentsByDate", request.IndexName); });
         Assert.True(db.Queries.Count >= 4);
     }
@@ -48,6 +50,18 @@ public sealed class ResidentDirectoryPagingTests
         Assert.Equal(1, Assert.Single(page.Items).UserId);
         await Assert.ThrowsAsync<ApiError>(() => store.ListResidentDirectoryAsync(false, 0, null, null, null, null, default));
         await Assert.ThrowsAsync<ApiError>(() => store.ListResidentDirectoryAsync(false, 1, "other", null, null, null, default));
+    }
+
+    [Fact]
+    public async Task PendingExportIncludesAllMatchingHousesAcrossIndexPages()
+    {
+        var residents = Enumerable.Range(1, 40).Select(i => Resident(i, "Ім’я", i <= 30 ? "4Б" : "4В") with { Stage = RegistrationStage.Pending }).ToArray();
+        using var db = new DirectoryDynamo(residents);
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
+        var result = await store.ListResidentExportAsync(true, "4Б", null, null, null, default);
+        Assert.Equal(30, result.Count);
+        Assert.All(result, r => Assert.Equal("4Б", r.BuildingNumber));
+        Assert.Equal(2, db.Queries.Count);
     }
 
     [Fact]

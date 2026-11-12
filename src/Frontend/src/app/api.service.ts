@@ -63,6 +63,22 @@ export class ApiService {
     );
   }
 
+  async exportResidents(filters: ResidentFilters): Promise<Blob> {
+    const response = await this.fetch(
+      '/residents/export?' + new URLSearchParams({ ...filters }).toString(),
+    );
+    await this.checkResponse(response);
+    return response.blob();
+  }
+
+  async exportPendingResidents(building: string): Promise<Blob> {
+    const response = await this.fetch(
+      '/registrations/export?' + new URLSearchParams({ building }).toString(),
+    );
+    await this.checkResponse(response);
+    return response.blob();
+  }
+
   getRegistrationCount(): Promise<{ count: number }> {
     return this.request('/registrations/count');
   }

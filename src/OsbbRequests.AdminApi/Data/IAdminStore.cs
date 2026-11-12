@@ -6,6 +6,7 @@ namespace OsbbRequests.AdminApi.Data;
 public interface IAdminStore
 {
     Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct);
+    Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct);
     Task<Page<BroadcastMessage>> ListMessagesAsync(string? cursor, CancellationToken ct);
     Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct);
     Task<AdminUser?> GetAdminAsync(string userId, CancellationToken ct);

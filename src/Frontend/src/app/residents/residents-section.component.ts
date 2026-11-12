@@ -171,43 +171,14 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     await this.load();
   }
   protected async exportExcel(): Promise<void> {
-    await this.runExport(async (current) => {
-      if (this.lists.residentView === 'registered') {
-        const items: RegisteredResident[] = [];
-        for (let number = 1; current(); number++) {
-          const page = await this.api.getResidentDirectory(
-            number,
-            this.lists.residentDirectory.filters,
-          );
-          items.push(...page.items);
-          if (number * page.pageSize >= page.total || page.pageNumber !== number) {
-            break;
-          }
-        }
-        this.lists.residentDirectory.setItems(items);
-      } else {
-        const items: Registration[] = [];
-        for (let number = 1; current(); number++) {
-          const page = await this.api.getPendingDirectory(
-            number,
-            this.lists.pendingDirectory.building,
-          );
-          items.push(...page.items);
-          if (number * page.pageSize >= page.total || page.pageNumber !== number) {
-            break;
-          }
-        }
-        this.lists.pendingDirectory.setItems(items);
-      }
-      if (current()) {
-        await this.excel.exportResidents(
-          this.lists.residentView,
-          this.lists.residentDirectory,
-          this.lists.pendingDirectory,
-          current,
-        );
-      }
-    });
+    await this.runExport((current) =>
+      this.excel.exportResidents(
+        this.lists.residentView,
+        this.lists.residentDirectory.filters,
+        this.lists.pendingDirectory.building,
+        current,
+      ),
+    );
   }
   protected async applyResidentFilters(filters: ResidentFilters): Promise<void> {
     if (this.loading || this.saving || this.lists.residentView !== 'registered') {

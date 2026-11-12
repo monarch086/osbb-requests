@@ -52,7 +52,7 @@ public sealed class AdminApiTests
         JsonSerializer.Deserialize<APIGatewayHttpApiV2ProxyRequest>(JsonSerializer.Serialize(new
         {
             rawPath = path,
-            routeKey = path == "/admin/requests/export" && method == "GET" ? "GET /admin/requests/export" : "ANY /admin/{proxy+}",
+            routeKey = method == "GET" && path is "/admin/requests/export" or "/admin/residents/export" or "/admin/registrations/export" ? "GET " + path : "ANY /admin/{proxy+}",
             queryStringParameters = query,
             headers = new { authorization = "Bearer example" },
             body = body is null ? null : JsonSerializer.Serialize(body),
@@ -177,8 +177,10 @@ public sealed class AdminApiTests
     [Theory]
     [InlineData("/admin/residents")]
     [InlineData("/admin/residents/directory")]
+    [InlineData("/admin/residents/export")]
     [InlineData("/admin/registrations")]
     [InlineData("/admin/registrations/directory")]
+    [InlineData("/admin/registrations/export")]
     [InlineData("/admin/registrations/count")]
     [InlineData("/admin/messages")]
     [InlineData("/admin/assignees")]
@@ -508,6 +510,58 @@ public sealed class AdminApiTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResidentExportIncludesAllRowsAndFiltersWithoutTelegramIds(bool pending)
+    {
+        var store = new FakeStore();
+        var path = pending ? "/admin/registrations/export" : "/admin/residents/export";
+        var query = new Dictionary<string, string> { ["building"] = "4Б", ["residentType"] = "Owner", ["sort"] = "lastName", ["direction"] = "asc" };
+        var response = await Handler(store).HandleAsync(Request(path, query: query), default);
+        Assert.Equal(200, response.StatusCode);
+        Assert.True(response.IsBase64Encoded);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", response.Headers["content-type"]);
+        Assert.Equal((pending, "4Б", "Owner", "lastName", "asc"), store.ResidentExportFilters);
+        using var archive = new ZipArchive(new MemoryStream(Convert.FromBase64String(response.Body)), ZipArchiveMode.Read);
+        using var sheet = archive.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+        var document = XDocument.Load(sheet);
+        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        var rows = document.Descendants(ns + "row").ToList();
+        Assert.Equal(36, rows.Count);
+        var text = document.ToString();
+        Assert.Contains("Тип мешканця", text);
+        Assert.Contains("Власник", text);
+        Assert.Contains("4Б", text);
+        Assert.Contains("=2+2", text);
+        Assert.DoesNotContain("900000000", text);
+        Assert.DoesNotContain("Telegram", text);
+        Assert.Empty(document.Descendants(ns + "f"));
+    }
+
+    [Theory]
+    [InlineData("/admin/residents/export")]
+    [InlineData("/admin/registrations/export")]
+    public async Task ResidentExportRejectsGreedyProxyRoute(string path)
+    {
+        var request = Request(path);
+        request.RouteKey = "ANY /admin/{proxy+}";
+        var store = new FakeStore();
+        Assert.Equal(404, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(request, default))).Status);
+        Assert.Equal(0, store.PrivateReads);
+    }
+
+    [Theory]
+    [InlineData("/admin/residents/export", false, true)]
+    [InlineData("/admin/registrations/export", true, false)]
+    public async Task ResidentExportRequiresPermissionForTheRequestedList(string path, bool registered, bool pending)
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, false, registered, pending, false) };
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request(path), default))).Status);
+        Assert.Equal(0, store.PrivateReads);
+    }
+
+    [Theory]
     [InlineData("Building5", "1")]
     [InlineData("Building1", "1")]
     [InlineData("Building4А", "1")]
@@ -708,6 +762,16 @@ public sealed class AdminApiTests
         public Task<int> CountRegistrationsAsync(CancellationToken ct) => Task.FromResult(0);
         public Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new ResidentDirectoryPage([], page, 25, 0)); }
+        public Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)
+        {
+            PrivateReads++;
+            ResidentExportFilters = (pending, buildingNumber, residentType, sort, direction);
+            IReadOnlyList<ResidentRegistration> entries = Enumerable.Range(0, 35).Select(i => new ResidentRegistration(i.ToString("D32"), 900000000 + i,
+                "building", pending ? RegistrationStage.Pending : RegistrationStage.Approved, 1, DateTimeOffset.UnixEpoch,
+                DateTimeOffset.UnixEpoch, "+380500000000", i == 0 ? "=2+2" : "Ім’я", "Прізвище", BuildingNumber: "4Б", ApartmentNumber: "5", ResidentType: ResidentType.Owner)).ToList();
+            return Task.FromResult(entries);
+        }
+        public (bool Pending, string? Building, string? Type, string? Sort, string? Direction) ResidentExportFilters;
         public Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new Page<ResidentRegistration>([new("reference", 99, "building", RegistrationStage.Pending, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "+380500000000", "Олена", "Ковальчук", Email: "resident@example.com")], null)); }
         public Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)

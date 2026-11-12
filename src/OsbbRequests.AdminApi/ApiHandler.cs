@@ -89,6 +89,22 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             var page = await store.ListAdminsAsync(cursor, ct);
             return Reply(200, new { items = page.Items.Where(a => a.IsActive).Select(a => new { a.UserId, a.Email }), page.Cursor });
         }
+        if (method == "GET" && (path == "/admin/residents/export" || path == "/admin/registrations/export"))
+        {
+            var pending = path == "/admin/registrations/export";
+            if (pending ? !actor.EffectivePermissions.PendingResidents : !actor.EffectivePermissions.RegisteredResidents)
+                throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
+            if (request.RawPath != path || request.RouteKey != "GET " + path) throw new ApiError(404, "Сторінку не знайдено.");
+            var file = await new ResidentExport(store).CreateAsync(pending, query.GetValueOrDefault("building"),
+                query.GetValueOrDefault("residentType"), query.GetValueOrDefault("sort"), query.GetValueOrDefault("direction"), ct);
+            return new APIGatewayHttpApiV2ProxyResponse
+            {
+                StatusCode = 200,
+                IsBase64Encoded = true,
+                Body = Convert.ToBase64String(file),
+                Headers = new Dictionary<string, string> { ["content-type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ["cache-control"] = "no-store" }
+            };
+        }
         if (method == "GET" && (path == "/admin/residents/directory" || path == "/admin/registrations/directory"))
         {
             var pending = path == "/admin/registrations/directory";

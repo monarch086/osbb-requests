@@ -10,7 +10,17 @@ public sealed partial class DynamoAdminStore
     public async Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber,
         string? residentType, string? sort, string? direction, CancellationToken ct)
     {
-        if (page < 1 || page > 1000000 || (buildingNumber is not (null or "" or "Unspecified" or "4Б" or "4В" or "4Г" or "4Д")) ||
+        if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
+        var items = await ListResidentExportAsync(pending, buildingNumber, residentType, sort, direction, ct);
+        const int pageSize = 25;
+        var actualPage = Math.Min(page, Math.Max(1, (items.Count + pageSize - 1) / pageSize));
+        return new(items.Skip((actualPage - 1) * pageSize).Take(pageSize).ToList(), actualPage, pageSize, items.Count);
+    }
+
+    public async Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber,
+        string? residentType, string? sort, string? direction, CancellationToken ct)
+    {
+        if ((buildingNumber is not (null or "" or "Unspecified" or "4Б" or "4В" or "4Г" or "4Д")) ||
             (residentType is not (null or "" or "Owner" or "FamilyMember" or "Tenant" or "Employee")) ||
             (sort is not (null or "" or "registeredAt" or "lastName")) || (direction is not (null or "" or "asc" or "desc")))
             throw new ApiError(400, "Некоректні параметри списку мешканців.");
@@ -38,6 +48,7 @@ public sealed partial class DynamoAdminStore
                     !string.IsNullOrEmpty(buildingNumber) && resident.BuildingNumber != buildingNumber) continue;
                 if (!string.IsNullOrEmpty(residentType) && resident.ResidentType.ToString() != residentType) continue;
                 items.Add(resident);
+                if (items.Count > 1_048_575) throw new ApiError(413, "Забагато мешканців. Звузьте фільтри та спробуйте ще раз.");
             }
             cursor = response.LastEvaluatedKey;
         } while (cursor is { Count: > 0 });
@@ -60,8 +71,6 @@ public sealed partial class DynamoAdminStore
             else result = DateTimeOffset.Compare(a.ApprovedAt ?? a.UpdatedAt, b.ApprovedAt ?? b.UpdatedAt) * sign;
             return result != 0 ? result : string.CompareOrdinal(a.Id, b.Id);
         });
-        const int pageSize = 25;
-        var actualPage = Math.Min(page, Math.Max(1, (items.Count + pageSize - 1) / pageSize));
-        return new(items.Skip((actualPage - 1) * pageSize).Take(pageSize).ToList(), actualPage, pageSize, items.Count);
+        return items;
     }
 }

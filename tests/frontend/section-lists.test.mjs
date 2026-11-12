@@ -38,13 +38,14 @@ test('request filters are captured independently and reset page cursors', () => 
 
 test('resident, message and administrator states are independent', () => {
   const residents = new ResidentsList();
-  residents.residentDirectory.setItems(Array.from({ length: 30 }, (_, i) => ({
+  residents.registeredResidents = Array.from({ length: 25 }, (_, i) => ({
     id: String(i), telegramChatId: String(i), firstName: 'Тест', lastName: 'Тестова',
     buildingNumber: '4Б', registeredAt: '2026-01-01T00:00:00Z',
-  })));
+  }));
+  residents.total = 30;
   assert.equal(residents.availablePages(), 2);
-  residents.showResidentPage(1);
-  assert.equal(residents.itemCount(), 5);
+  assert.equal(residents.itemCount(), 25);
+  assert.equal(residents.hasNext(), true);
   residents.residentView = 'pending';
   residents.resetPagination();
   assert.equal(residents.itemCount(), 0);
@@ -59,15 +60,13 @@ test('resident, message and administrator states are independent', () => {
   assert.equal(admins.itemCount(), 1);
 });
 
-test('pending resident pages update and clamp after approval', () => {
+test('pending pagination derives its page count from the server total', () => {
   const residents = new ResidentsList();
   residents.residentView = 'pending';
-  residents.pendingDirectory.setItems(Array.from({ length: 26 }, (_, i) => ({ id: String(i), buildingNumber: '4Б' })));
-  residents.pendingDirectory.building = '4Б';
-  residents.showResidentPage(1);
+  residents.total = 26;
+  residents.pagination.index = 1;
+  residents.residents = [{ id: '25', buildingNumber: '4Б' }];
   assert.equal(residents.itemCount(), 1);
-  residents.pendingDirectory.remove('25');
-  residents.showResidentPage(residents.pagination.index);
-  assert.equal(residents.pagination.index, 0);
-  assert.equal(residents.itemCount(), 25);
+  assert.equal(residents.availablePages(), 2);
+  assert.equal(residents.hasNext(), false);
 });
