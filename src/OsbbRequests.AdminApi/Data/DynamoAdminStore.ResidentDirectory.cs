@@ -11,13 +11,17 @@ public sealed partial class DynamoAdminStore
         string? residentType, string? sort, string? direction, CancellationToken ct)
     {
         if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
-        var items = await ListResidentExportAsync(pending, buildingNumber, residentType, sort, direction, ct);
+        var (items, counts) = await LoadResidentDirectoryAsync(pending, buildingNumber, residentType, sort, direction, ct);
         const int pageSize = 25;
         var actualPage = Math.Min(page, Math.Max(1, (items.Count + pageSize - 1) / pageSize));
-        return new(items.Skip((actualPage - 1) * pageSize).Take(pageSize).ToList(), actualPage, pageSize, items.Count);
+        return new(items.Skip((actualPage - 1) * pageSize).Take(pageSize).ToList(), actualPage, pageSize, items.Count, counts);
     }
 
     public async Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber,
+        string? residentType, string? sort, string? direction, CancellationToken ct)
+        => (await LoadResidentDirectoryAsync(pending, buildingNumber, residentType, sort, direction, ct)).Items;
+
+    private async Task<(List<ResidentRegistration> Items, ResidentCounts Counts)> LoadResidentDirectoryAsync(bool pending, string? buildingNumber,
         string? residentType, string? sort, string? direction, CancellationToken ct)
     {
         if ((buildingNumber is not (null or "" or "Unspecified" or "4Б" or "4В" or "4Г" or "4Д")) ||
@@ -29,6 +33,11 @@ public sealed partial class DynamoAdminStore
         // The index must be read in full to return an exact filtered count. Reuse those
         // records for locale-aware ordering; the existing name index is not ICU ordered.
         var items = new List<ResidentRegistration>();
+        var total = 0;
+        var owners = 0;
+        var familyMembers = 0;
+        var tenants = 0;
+        var employees = 0;
         Dictionary<string, AttributeValue>? cursor = null;
         do
         {
@@ -46,6 +55,14 @@ public sealed partial class DynamoAdminStore
                 if (resident.BuildingId != building || resident.Stage != (pending ? RegistrationStage.Pending : RegistrationStage.Approved) || resident.PersonalDataDeleted) continue;
                 if (buildingNumber == "Unspecified" ? !string.IsNullOrEmpty(resident.BuildingNumber) :
                     !string.IsNullOrEmpty(buildingNumber) && resident.BuildingNumber != buildingNumber) continue;
+                total++;
+                switch (resident.ResidentType)
+                {
+                    case ResidentType.Owner: owners++; break;
+                    case ResidentType.FamilyMember: familyMembers++; break;
+                    case ResidentType.Tenant: tenants++; break;
+                    case ResidentType.Employee: employees++; break;
+                }
                 if (!string.IsNullOrEmpty(residentType) && resident.ResidentType.ToString() != residentType) continue;
                 items.Add(resident);
                 if (items.Count > 1_048_575) throw new ApiError(413, "Забагато мешканців. Звузьте фільтри та спробуйте ще раз.");
@@ -71,6 +88,6 @@ public sealed partial class DynamoAdminStore
             else result = DateTimeOffset.Compare(a.ApprovedAt ?? a.UpdatedAt, b.ApprovedAt ?? b.UpdatedAt) * sign;
             return result != 0 ? result : string.CompareOrdinal(a.Id, b.Id);
         });
-        return items;
+        return (items, new(total, owners, familyMembers, tenants, employees));
     }
 }

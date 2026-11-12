@@ -2,7 +2,12 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
 
-import type { PagePermissions, RegisteredResident, Registration } from '../api.models';
+import type {
+  PagePermissions,
+  RegisteredResident,
+  Registration,
+  ResidentCounts,
+} from '../api.models';
 import { buildingNumbers } from '../shared/ticket-presentation';
 import type { ResidentFilters, ResidentView } from './resident-directory';
 import { residentTypeLabel } from './resident-type';
@@ -16,6 +21,7 @@ import { residentTypeLabel } from './resident-type';
 export class ResidentsComponent {
   @Input() view: ResidentView = 'registered';
   @Input() pendingCount = 0;
+  @Input() counts: ResidentCounts | null = null;
   @Input({ required: true }) permissions!: PagePermissions;
   @Input() pendingBuilding = '';
   @Output() readonly pendingBuildingChange = new EventEmitter<string>();

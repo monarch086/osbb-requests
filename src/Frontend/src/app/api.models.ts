@@ -31,11 +31,19 @@ export interface PagePermissions {
   messages: boolean;
 }
 export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant' | 'Employee';
+export interface ResidentCounts {
+  total: number;
+  owners: number;
+  familyMembers: number;
+  tenants: number;
+  employees: number;
+}
 export interface ResidentDirectoryPage<T> {
   items: T[];
   pageNumber: number;
   pageSize: number;
   total: number;
+  counts: ResidentCounts;
 }
 export interface Registration {
   telegramChatId: string;

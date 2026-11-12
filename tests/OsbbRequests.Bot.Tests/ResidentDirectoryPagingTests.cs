@@ -29,6 +29,8 @@ public sealed class ResidentDirectoryPagingTests
         var first = await store.ListResidentDirectoryAsync(false, 1, "4Б", "FamilyMember", "lastName", "asc", default);
         var second = await store.ListResidentDirectoryAsync(false, 2, "4Б", "FamilyMember", "lastName", "asc", default);
         Assert.Equal(32, first.Total);
+        Assert.Equal(new ResidentCounts(33, 1, 32, 0, 0), first.Counts);
+        Assert.Equal(first.Counts, second.Counts);
         Assert.Equal(25, first.Items.Count);
         Assert.Equal(7, second.Items.Count);
         Assert.Equal("Андрійчук", first.Items[0].LastName);
@@ -47,6 +49,7 @@ public sealed class ResidentDirectoryPagingTests
         var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
         var page = await store.ListResidentDirectoryAsync(false, 1, "Unspecified", "FamilyMember", "registeredAt", "desc", default);
         Assert.Equal(1, page.Total);
+        Assert.Equal(new ResidentCounts(1, 0, 1, 0, 0), page.Counts);
         Assert.Equal(1, Assert.Single(page.Items).UserId);
         await Assert.ThrowsAsync<ApiError>(() => store.ListResidentDirectoryAsync(false, 0, null, null, null, null, default));
         await Assert.ThrowsAsync<ApiError>(() => store.ListResidentDirectoryAsync(false, 1, "other", null, null, null, default));
@@ -62,6 +65,31 @@ public sealed class ResidentDirectoryPagingTests
         Assert.Equal(30, result.Count);
         Assert.All(result, r => Assert.Equal("4Б", r.BuildingNumber));
         Assert.Equal(2, db.Queries.Count);
+    }
+
+    [Fact]
+    public async Task PendingStatisticsRespectBuildingAndIncludeAllResidentTypesAcrossIndexPages()
+    {
+        var residents = Enumerable.Range(1, 30).Select(i => Resident(i, "Тест", i <= 28 ? "4Б" : "4В",
+            (i % 4) switch { 0 => ResidentType.Owner, 1 => ResidentType.FamilyMember, 2 => ResidentType.Tenant, _ => ResidentType.Employee })
+            with
+        { Stage = RegistrationStage.Pending }).ToArray();
+        using var db = new DirectoryDynamo(residents);
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
+        var page = await store.ListResidentDirectoryAsync(true, 1, "4Б", "Owner", null, null, default);
+        Assert.Equal(new ResidentCounts(28, 7, 7, 7, 7), page.Counts);
+        Assert.Equal(7, page.Total);
+        Assert.All(page.Items, item => Assert.Equal(ResidentType.Owner, item.ResidentType));
+        Assert.Equal(2, db.Queries.Count);
+    }
+
+    [Fact]
+    public async Task LegacyProfilesWithoutTypeCountAsFamilyMembers()
+    {
+        using var db = new DirectoryDynamo([Resident(1, "Тест")], omitResidentType: true);
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
+        var page = await store.ListResidentDirectoryAsync(false, 1, null, null, null, null, default);
+        Assert.Equal(new ResidentCounts(1, 0, 1, 0, 0), page.Counts);
     }
 
     [Fact]
@@ -113,7 +141,7 @@ public sealed class ResidentDirectoryPagingTests
         }
     }
 
-    private sealed class DirectoryDynamo(ResidentRegistration[] residents) : AmazonDynamoDBClient(new BasicAWSCredentials("test", "test"), RegionEndpoint.EUCentral1)
+    private sealed class DirectoryDynamo(ResidentRegistration[] residents, bool omitResidentType = false) : AmazonDynamoDBClient(new BasicAWSCredentials("test", "test"), RegionEndpoint.EUCentral1)
     {
         public List<QueryRequest> Queries { get; } = [];
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
@@ -121,9 +149,15 @@ public sealed class ResidentDirectoryPagingTests
             Queries.Add(request);
             var second = request.ExclusiveStartKey is { Count: > 0 };
             var subset = second ? residents.Skip(15) : residents.Take(15);
+            string Payload(ResidentRegistration resident)
+            {
+                var node = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(resident))!.AsObject();
+                if (omitResidentType) node.Remove("ResidentType");
+                return node.ToJsonString();
+            }
             return Task.FromResult(new QueryResponse
             {
-                Items = subset.Select(r => new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(r)) }).ToList(),
+                Items = subset.Select(r => new Dictionary<string, AttributeValue> { ["payload"] = new(Payload(r)) }).ToList(),
                 LastEvaluatedKey = !second && residents.Length > 15 ? new() { ["pk"] = new("next") } : null
             });
         }

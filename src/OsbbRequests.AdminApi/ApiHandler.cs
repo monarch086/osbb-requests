@@ -133,7 +133,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 }),
                 directory.PageNumber,
                 directory.PageSize,
-                directory.Total
+                directory.Total,
+                directory.Counts
             });
             return Reply(200, new
             {
@@ -142,7 +143,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     r.ApartmentNumber, r.PersonalDataDeleted, r.Email, r.ConsentAt, r.ResidentType, r.TypeChangeCount, r.Version)),
                 directory.PageNumber,
                 directory.PageSize,
-                directory.Total
+                directory.Total,
+                directory.Counts
             });
         }
         if (method == "GET" && path == "/admin/residents")

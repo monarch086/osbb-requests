@@ -1,4 +1,4 @@
-import type { RegisteredResident, Registration } from '../api.models';
+import type { RegisteredResident, Registration, ResidentCounts } from '../api.models';
 import { WorkspaceLists } from '../workspace/workspace-lists';
 import { PendingDirectory } from './pending-directory';
 import type { ResidentView } from './resident-directory';
@@ -11,6 +11,7 @@ export class ResidentsList extends WorkspaceLists {
   residentDirectory = new ResidentDirectory();
   pendingDirectory = new PendingDirectory();
   total = 0;
+  counts: ResidentCounts | null = null;
   override usesLocalPagination(): boolean {
     return true;
   }
@@ -36,6 +37,7 @@ export class ResidentsList extends WorkspaceLists {
   override resetPagination(): void {
     this.pagination.reset();
     this.total = 0;
+    this.counts = null;
     this.residents = [];
     this.registeredResidents = [];
     this.residentDirectory.setItems([]);

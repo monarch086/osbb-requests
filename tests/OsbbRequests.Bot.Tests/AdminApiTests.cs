@@ -84,6 +84,18 @@ public sealed class AdminApiTests
         Assert.Single(json.RootElement.EnumerateObject());
     }
 
+    [Theory]
+    [InlineData("/admin/residents/directory")]
+    [InlineData("/admin/registrations/directory")]
+    public async Task ResidentDirectoryReturnsStatisticsWithPage(string path)
+    {
+        var response = await Handler(new FakeStore()).HandleAsync(Request(path), default);
+        using var json = JsonDocument.Parse(response.Body);
+        var counts = json.RootElement.GetProperty("counts");
+        foreach (var field in new[] { "total", "owners", "familyMembers", "tenants", "employees" })
+            Assert.Equal(0, counts.GetProperty(field).GetInt32());
+    }
+
     [Fact]
     public async Task PagePermissionsProtectApisAndRequestDetailsIndependently()
     {
@@ -761,7 +773,7 @@ public sealed class AdminApiTests
         { AccessWrites++; Users[target.UserId] = target with { IsActive = change.IsActive }; return Task.CompletedTask; }
         public Task<int> CountRegistrationsAsync(CancellationToken ct) => Task.FromResult(0);
         public Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)
-        { PrivateReads++; return Task.FromResult(new ResidentDirectoryPage([], page, 25, 0)); }
+        { PrivateReads++; return Task.FromResult(new ResidentDirectoryPage([], page, 25, 0, new(0, 0, 0, 0, 0))); }
         public Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)
         {
             PrivateReads++;

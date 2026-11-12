@@ -13,6 +13,7 @@ import { ExcelExportService } from '../export/excel-export.service';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
+import { changeResidentCounts } from './resident-counts';
 import { ResidentDetailsDialogComponent } from './resident-details-dialog.component';
 import type { ResidentFilters, ResidentView } from './resident-directory';
 import { ResidentHistoryDialogComponent } from './resident-history-dialog.component';
@@ -79,6 +80,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       if (isCurrent()) {
         this.lists.registeredResidents = page.items;
         this.lists.total = page.total;
+        this.lists.counts = page.counts;
         this.lists.pagination.index = page.pageNumber - 1;
       }
       return;
@@ -90,6 +92,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     if (isCurrent()) {
       this.lists.residents = page.items;
       this.lists.total = page.total;
+      this.lists.counts = page.counts;
       this.lists.pagination.index = page.pageNumber - 1;
     }
   }
@@ -209,6 +212,11 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
       this.lists.residents = this.lists.residents.filter((item) => item.id !== registration.id);
       this.lists.total = Math.max(0, this.lists.total - 1);
+      this.lists.counts = changeResidentCounts(
+        this.lists.counts,
+        registration.residentType ?? 'FamilyMember',
+        null,
+      );
       if (this.lists.pagination.index >= this.lists.availablePages()) {
         pagination.previousPage = this.lists.availablePages() - 1;
       }
@@ -230,6 +238,11 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     }
     await this.write(async () => {
       await this.api.updateResidentData(resident, change);
+      this.lists.counts = changeResidentCounts(
+        this.lists.counts,
+        resident.residentType ?? 'FamilyMember',
+        change.residentType,
+      );
       resident.firstName = change.firstName;
       resident.lastName = change.lastName;
       resident.residentType = change.residentType;

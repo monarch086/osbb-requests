@@ -15,6 +15,7 @@
 <app-residents
   [view]="lists.residentView"
   [pendingCount]="pendingCount"
+  [counts]="loading ? null : lists.counts"
   [permissions]="me.effectivePermissions"
   [registeredResidents]="lists.registeredResidents"
   [filters]="lists.residentDirectory.filters"
