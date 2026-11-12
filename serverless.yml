@@ -131,6 +131,7 @@ functions:
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
   adminApi:
+    timeout: 30
     handler: OsbbRequests.AdminApi::OsbbRequests.AdminApi.Function::FunctionHandler
     description: Authenticated administration API for requests, resident registration and admin access.
     package:

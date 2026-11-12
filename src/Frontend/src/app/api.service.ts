@@ -70,6 +70,16 @@ export class ApiService {
   }
 
   getTickets(filters: TicketFilters, cursor: string | null): Promise<Page<ManagedTicket>> {
+    return this.request('/requests?' + this.ticketFilterQuery(filters, cursor));
+  }
+
+  async exportTickets(filters: TicketFilters): Promise<Blob> {
+    const response = await this.fetch('/requests/export?' + this.ticketFilterQuery(filters, null));
+    await this.checkResponse(response);
+    return response.blob();
+  }
+
+  private ticketFilterQuery(filters: TicketFilters, cursor: string | null): string {
     const params = new URLSearchParams();
     if (cursor) {
       params.set('cursor', cursor);
@@ -83,7 +93,7 @@ export class ApiService {
         params.set(key, value);
       }
     }
-    return this.request('/requests?' + params.toString());
+    return params.toString();
   }
 
   sendMessage(change: MessageChange): Promise<BroadcastMessage> {
@@ -153,8 +163,26 @@ export class ApiService {
   }
 
   private async request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+    const response = await this.fetch(path, method, body);
+    await this.checkResponse(response);
+    return (await response.json().catch(() => ({}))) as T;
+  }
+
+  private async checkResponse(response: Response): Promise<void> {
+    if (!response.ok) {
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new UserFacingError(
+        result.error ||
+          (response.status === 401
+            ? 'Сеанс завершено. Увійдіть ще раз.'
+            : 'Не вдалося виконати дію. Спробуйте ще раз.'),
+      );
+    }
+  }
+
+  private async fetch(path: string, method = 'GET', body?: unknown): Promise<Response> {
     const token = await this.auth.accessToken();
-    const response = await fetch(this.auth.config!.apiUrl.replace(/\/$/, '') + '/admin' + path, {
+    return fetch(this.auth.config!.apiUrl.replace(/\/$/, '') + '/admin' + path, {
       method,
       headers: {
         Authorization: 'Bearer ' + token,
@@ -164,15 +192,5 @@ export class ApiService {
       cache: 'no-store',
       credentials: 'omit',
     });
-    const result = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) {
-      throw new UserFacingError(
-        result.error ||
-          (response.status === 401
-            ? 'Сеанс завершено. Увійдіть ще раз.'
-            : 'Не вдалося виконати дію. Спробуйте ще раз.'),
-      );
-    }
-    return result as T;
   }
 }

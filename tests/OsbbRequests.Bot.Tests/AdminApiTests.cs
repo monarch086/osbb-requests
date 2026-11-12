@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.IO.Compression;
+using System.Xml.Linq;
 using Amazon.Lambda.APIGatewayEvents;
 using OsbbRequests.AdminApi;
 using OsbbRequests.AdminApi.Auth;
@@ -50,6 +52,7 @@ public sealed class AdminApiTests
         JsonSerializer.Deserialize<APIGatewayHttpApiV2ProxyRequest>(JsonSerializer.Serialize(new
         {
             rawPath = path,
+            routeKey = path == "/admin/requests/export" && method == "GET" ? "GET /admin/requests/export" : "ANY /admin/{proxy+}",
             queryStringParameters = query,
             headers = new { authorization = "Bearer example" },
             body = body is null ? null : JsonSerializer.Serialize(body),
@@ -534,6 +537,66 @@ public sealed class AdminApiTests
         Assert.Equal(200, result.StatusCode);
     }
 
+    [Theory]
+    [InlineData("complex", true, false, 200)]
+    [InlineData("complex", false, true, 403)]
+    [InlineData("keys", true, false, 403)]
+    [InlineData("keys", false, true, 200)]
+    public async Task TicketExportEnforcesSectionPermissions(string section, bool complex, bool keys, int expected)
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(complex, keys, false, false, false) };
+        var request = Request("/admin/requests/export", query: new() { ["section"] = section });
+        if (expected == 200) Assert.Equal(200, (await Handler(store).HandleAsync(request, default)).StatusCode);
+        else Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(request, default))).Status);
+    }
+
+    [Fact]
+    public async Task TicketExportProducesWorkbookFromAllPagesWithFiltersAndPrivateAuthorData()
+    {
+        var store = new FakeStore { ExportPages = true };
+        var query = new Dictionary<string, string> { ["section"] = "complex", ["status"] = "New,InProgress", ["category"] = "Інше", ["target"] = "Building4Б", ["floor"] = "3", ["search"] = "тест", ["from"] = "2026-01-01", ["to"] = "2026-12-31" };
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/export", query: query), default);
+        Assert.Equal(200, response.StatusCode);
+        Assert.True(response.IsBase64Encoded);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", response.Headers["content-type"]);
+        Assert.Equal(3, store.ExportReads);
+        Assert.Equal(2, store.AuthorReads);
+        Assert.Equal(new[] { "New", "InProgress" }, store.LastFilters!.Statuses);
+        Assert.Equal("Інше", store.LastFilters.Category);
+        Assert.Equal("Building4Б", store.LastFilters.Target);
+        Assert.Equal(3, store.LastFilters.Floor);
+        Assert.Equal("тест", store.LastFilters.Search);
+        Assert.Equal("2026-01-01", store.LastFilters.From);
+        Assert.Equal("2026-12-31", store.LastFilters.To);
+        using var archive = new ZipArchive(new MemoryStream(Convert.FromBase64String(response.Body)), ZipArchiveMode.Read);
+        using var sheet = archive.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+        var document = XDocument.Load(sheet);
+        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        var rows = document.Descendants(ns + "row").Select(row => row.Descendants(ns + "t").Select(t => t.Value).ToArray()).ToArray();
+        Assert.Equal(4, rows.Length);
+        Assert.Equal(new[] { "1", "2", "3", "4" }, document.Descendants(ns + "row").Select(row => (string?)row.Attribute("r")));
+        Assert.Equal("I2", (string?)document.Descendants(ns + "row").Skip(1).First().Elements(ns + "c").Skip(8).First().Attribute("r"));
+        Assert.Equal("Автор", rows[0][8]);
+        Assert.Equal("Телефон", rows[0][9]);
+        Assert.Equal("Олена Ковальчук", rows[1][8]);
+        Assert.Equal("+380500000000", rows[1][9]);
+        Assert.Equal("Мешканець видалив свої дані", rows[3][8]);
+        Assert.Equal("", rows[3][9]);
+        Assert.Equal("=2+2", rows[1][7]);
+        Assert.Empty(document.Descendants(ns + "f"));
+    }
+
+    [Fact]
+    public async Task TicketExportRejectsRepeatedCursorAndInvalidFilters()
+    {
+        var store = new FakeStore { ExportPages = true, RepeatExportCursor = true };
+        var repeated = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/export", query: new() { ["section"] = "complex" }), default));
+        Assert.Equal(503, repeated.Status);
+        var invalid = await Assert.ThrowsAsync<ApiError>(() => Handler(new FakeStore()).HandleAsync(Request("/admin/requests/export", query: new() { ["section"] = "complex", ["status"] = "wrong" }), default));
+        Assert.Equal(400, invalid.Status);
+    }
+
     [Fact]
     public async Task RequestDetailsExposeAuthorOnlyToActiveAdministrators()
     {
@@ -563,6 +626,10 @@ public sealed class AdminApiTests
         public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct) => Task.FromResult(new Page<ResidentTypeChange>([], null));
+        public bool ExportPages;
+        public bool RepeatExportCursor;
+        public int ExportReads;
+        public int AuthorReads;
         public int PermissionWrites;
         public Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct) { PermissionWrites++; return Task.CompletedTask; }
         public Exception? ReadError;
@@ -589,9 +656,22 @@ public sealed class AdminApiTests
         public Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new Page<RegisteredResident>([new("reference", "Олена", "Ковальчук", "+380500000000", DateTimeOffset.UnixEpoch, "99", Email: "resident@example.com")], "next-page")); }
         public Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct) => Task.CompletedTask;
-        public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) { LastFilters = filters; return Task.FromResult(new Page<ManagedRequest>([], null)); }
+        public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct)
+        {
+            LastFilters = filters;
+            if (!ExportPages) return Task.FromResult(new Page<ManagedRequest>([], null));
+            ExportReads++;
+            var date = DateTimeOffset.UnixEpoch;
+            if (cursor is null) return Task.FromResult(new Page<ManagedRequest>([new(new(1, 99, "building", "Інше", "", "=2+2", date), 1)], "one"));
+            if (cursor == "one") return Task.FromResult(new Page<ManagedRequest>([], RepeatExportCursor ? "one" : "two"));
+            return Task.FromResult(new Page<ManagedRequest>([new(new(2, 99, "building", "Інше", "", "Опис", date), 1), new(new(3, 100, "building", "Інше", "", "Опис", date), 1)], null));
+        }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(ForcedRequest ?? new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
-        public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<RequestAuthor?>(new("Олена", "Ковальчук", "4Д", "125", Phone: "+380500000000"));
+        public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct)
+        {
+            AuthorReads++;
+            return Task.FromResult<RequestAuthor?>(request.OwnerId == 100 ? new(null, null, null, null, true) : new("Олена", "Ковальчук", "4Д", "125", Phone: "+380500000000"));
+        }
         public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
         public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct) { LastHistoryRequest = request; return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]); }
     }

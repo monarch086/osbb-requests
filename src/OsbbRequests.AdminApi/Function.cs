@@ -32,8 +32,10 @@ public sealed class Function
     { this.handler = handler; this.notifier = notifier; }
     public async Task<APIGatewayHttpApiV2ProxyResponse> FunctionHandler(APIGatewayHttpApiV2ProxyRequest request, ILambdaContext context)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(7));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
         try { return await handler.HandleAsync(request, timeout.Token); }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        { return ApiHandler.Reply(504, new { error = "Не вдалося завершити запит вчасно. Спробуйте звузити фільтри." }); }
         catch (ApiError error)
         {
             if (error.Status >= 500) await notifier.ReportSafelyAsync("admin_api", error, context.AwsRequestId, context.Logger.LogLine);

@@ -4,34 +4,18 @@ import type { TicketFilters } from '../api.models';
 import { ApiService } from '../api.service';
 import type { PendingDirectory } from '../residents/pending-directory';
 import type { ResidentDirectory, ResidentView } from '../residents/resident-directory';
-import { collectPages } from './collect-pages';
 import { resolveExcelModule } from './excel-module';
-import {
-  pendingResidentRows,
-  registeredResidentRows,
-  residentHeadings,
-  ticketHeadings,
-  ticketRows,
-} from './export-data';
+import { pendingResidentRows, registeredResidentRows, residentHeadings } from './export-data';
 import { exportFilename } from './export-filename';
-import { loadTicketAuthors } from './load-ticket-authors';
 
 @Injectable({ providedIn: 'root' })
 export class ExcelExportService {
   private readonly api = inject(ApiService);
 
   async exportTickets(filters: TicketFilters, isCurrent: () => boolean): Promise<void> {
-    const applied = { ...filters, status: [...filters.status] };
-    const items = await collectPages((cursor) => this.api.getTickets(applied, cursor), isCurrent);
-    if (items) {
-      const withAuthors = await loadTicketAuthors(
-        items,
-        (ticket) => this.api.getTicket(ticket),
-        isCurrent,
-      );
-      if (withAuthors) {
-        await this.save('Заявки', ticketHeadings, ticketRows(withAuthors), isCurrent);
-      }
+    const blob = await this.api.exportTickets(filters);
+    if (isCurrent()) {
+      this.download('Заявки', blob);
     }
   }
 
@@ -84,6 +68,10 @@ export class ExcelExportService {
     const blob = new Blob([new Uint8Array(buffer)], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
+    this.download(name, blob);
+  }
+
+  private download(name: string, blob: Blob): void {
     const url = URL.createObjectURL(blob);
     try {
       const link = document.createElement('a');

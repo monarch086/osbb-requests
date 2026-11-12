@@ -6,6 +6,7 @@ using Amazon.Lambda.APIGatewayEvents;
 using OsbbRequests.AdminApi.Auth;
 using OsbbRequests.AdminApi.Data;
 using OsbbRequests.AdminApi.Models;
+using OsbbRequests.AdminApi.Export;
 using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.AdminApi;
@@ -155,7 +156,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             await store.DecideAsync(actor, reference, Body<RegistrationDecision>(request), ct);
             return Reply(200, new { ok = true });
         }
-        if (method == "GET" && path == "/admin/requests")
+        if (method == "GET" && path is "/admin/requests" or "/admin/requests/export")
         {
             var status = query.GetValueOrDefault("status");
             var statuses = string.IsNullOrEmpty(status) ? [] : status.Split(',').Distinct(StringComparer.Ordinal).ToArray();
@@ -179,8 +180,20 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             if (section == "complex" && !actor.EffectivePermissions.ComplexRequests || section == "keys" && !actor.EffectivePermissions.KeyOrders ||
                 section is null && !(actor.EffectivePermissions.ComplexRequests && actor.EffectivePermissions.KeyOrders))
                 throw new ApiError(403, "Недостатньо прав для перегляду заявок.");
-            return Reply(200, await store.ListRequestsAsync(new(statuses, query.GetValueOrDefault("category"),
-                query.GetValueOrDefault("search"), from, to, target, floor, section), cursor, ct));
+            var filters = new RequestFilters(statuses, query.GetValueOrDefault("category"),
+                query.GetValueOrDefault("search"), from, to, target, floor, section);
+            if (path == "/admin/requests/export")
+            {
+                var file = await new TicketExport(store).CreateAsync(filters, ct);
+                return new APIGatewayHttpApiV2ProxyResponse
+                {
+                    StatusCode = 200,
+                    IsBase64Encoded = true,
+                    Body = Convert.ToBase64String(file),
+                    Headers = new Dictionary<string, string> { ["content-type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ["cache-control"] = "no-store" }
+                };
+            }
+            return Reply(200, await store.ListRequestsAsync(filters, cursor, ct));
         }
         if (segments.Length is 4 or 5 && segments[0] == "admin" && segments[1] == "requests" &&
             long.TryParse(segments[2], NumberStyles.None, CultureInfo.InvariantCulture, out var owner) && owner > 0 &&
