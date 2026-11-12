@@ -52,6 +52,21 @@ class ResidentBackfillTests(unittest.TestCase):
         self.assertEqual('attribute_not_exists(pk)', writes[1]['Put']['ConditionExpression'])
         self.assertEqual('RESIDENT#00000000000000000099', writes[1]['Put']['Item']['sk']['S'])
 
+    def test_apply_also_preserves_directory_record_in_residents_table(self):
+        writes = []
+        def aws(service, operation, region, request):
+            if operation == 'scan':
+                return {'Items': [self.profile()]}
+            if operation == 'get-item':
+                return {}
+            writes.extend(request['TransactItems'])
+            return {}
+        self.assertEqual(1, backfill.migrate('data', 'building', 'region', True, aws, residents_table='residents'))
+        mirrored = writes[2]['Put']
+        self.assertEqual('residents', mirrored['TableName'])
+        self.assertEqual(writes[1]['Put']['Item'], mirrored['Item']['recordData']['M'])
+        self.assertEqual('attribute_not_exists(pk)', mirrored['ConditionExpression'])
+
     def test_rerun_does_not_overwrite_existing_directory_entry(self):
         operations = []
 

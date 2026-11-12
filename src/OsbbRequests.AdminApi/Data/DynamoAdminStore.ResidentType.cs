@@ -79,7 +79,25 @@ public sealed partial class DynamoAdminStore
         var listKey = current.Stage == RegistrationStage.Pending ? "REGISTRATION#" + reference : "RESIDENT#" + current.UserId.ToString("D20", CultureInfo.InvariantCulture);
         var writes = new List<TransactWriteItem> { ActorCheck(actor), Update(Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION")),
             Update(Key("REGISTRATION#" + reference, "META")), Update(Key("BUILDING#" + building, listKey)), Put(dataTable, audit) };
-        if (residentsTable is not null) writes.Add(ResidentMirrorWrite(next, current.Version));
+        if (residentsTable is not null)
+        {
+            var registrationMeta = new Dictionary<string, AttributeValue>(snapshot) { ["pk"] = S("REGISTRATION#" + reference), ["sk"] = S("META") };
+            registrationMeta["payload"] = S(JsonSerializer.Serialize(next));
+            registrationMeta["version"] = N(next.Version);
+            writes.Add(ResidentMirrorWrite(next, current.Version));
+            writes.Add(RelatedResidentPut(registrationMeta, building, current.Version));
+            var userKey = Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION");
+            var directoryKey = Key("BUILDING#" + building, listKey);
+            var originalUser = await Get(dataTable, userKey, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var originalDirectory = await Get(dataTable, directoryKey, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var userProfile = new Dictionary<string, AttributeValue>(originalUser)
+            { ["pk"] = userKey["pk"], ["sk"] = userKey["sk"], ["payload"] = registrationMeta["payload"], ["version"] = registrationMeta["version"] };
+            var directoryEntry = new Dictionary<string, AttributeValue>(originalDirectory)
+            { ["pk"] = directoryKey["pk"], ["sk"] = directoryKey["sk"], ["payload"] = registrationMeta["payload"], ["version"] = registrationMeta["version"] };
+            writes.Add(RelatedResidentPut(userProfile, building, current.Version));
+            writes.Add(RelatedResidentPut(directoryEntry, building, current.Version));
+            writes.Add(RelatedResidentPut(audit, building, immutable: true));
+        }
         await Transact(writes, ct);
     }
 

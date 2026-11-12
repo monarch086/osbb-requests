@@ -343,7 +343,7 @@ public sealed class ResidentProfileTests
         var deleted = new ResidentRegistration(Original.Id, 42, "building", RegistrationStage.Deleted, 7, Original.CreatedAt, Original.UpdatedAt, PersonalDataDeleted: true);
         await new DynamoCommandRepository(db, "data", residentsTable: "residents").CommitAsync(Message(1, "confirm"),
             new("Видалено", ProfileDialog: new(state, 1), Profile: new(deleted, 6)), default);
-        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal)).Put;
         var mirrored = System.Text.Json.JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S)!;
         Assert.Null(mirrored.FirstName);
         Assert.Null(mirrored.LastName);
@@ -352,6 +352,11 @@ public sealed class ResidentProfileTests
         Assert.False(mirror.Item.ContainsKey("directory"));
         Assert.Equal("6", mirror.ExpressionAttributeValues[":version"].N);
         Assert.Contains(db.Transaction.TransactItems, w => w.Update?.Key["sk"].S == "MEMBERSHIP");
+        var membership = Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "MEMBERSHIP").Put.Item["recordData"].M;
+        Assert.False(membership["active"].BOOL);
+        Assert.Equal("admin@example.org", membership["reviewedBy"].S);
+        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "META");
+        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "PROFILE_DIALOG");
     }
 
     [Fact]
@@ -403,6 +408,18 @@ public sealed class ResidentProfileTests
     private sealed class CaptureDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public TransactWriteItemsRequest? Transaction;
+        public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken ct = default) =>
+            Task.FromResult(new GetItemResponse
+            {
+                Item = new Dictionary<string, AttributeValue>
+                {
+                    ["pk"] = new("USER#42"),
+                    ["sk"] = new("MEMBERSHIP"),
+                    ["buildingId"] = new("building"),
+                    ["active"] = new() { BOOL = true },
+                    ["reviewedBy"] = new("admin@example.org")
+                }
+            });
         public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken ct = default)
         { Transaction = request; return Task.FromResult(new TransactWriteItemsResponse()); }
     }

@@ -34,4 +34,36 @@ public sealed partial class DynamoCommandRepository
         else put.ConditionExpression = "attribute_not_exists(pk)";
         return new TransactWriteItem { Put = put };
     }
+    private TransactWriteItem RelatedResidentPut(Dictionary<string, AttributeValue> source, string complexId, int? expectedVersion = null, bool immutable = false)
+    {
+        var sourcePk = source["pk"].S;
+        var sourceSk = source["sk"].S;
+        var key = ResidentRecordKey.Create(complexId, sourcePk, sourceSk);
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new(key.Key),
+            ["recordGroup"] = new(key.Group),
+            ["recordOrder"] = new(key.Order),
+            ["sourcePk"] = new(sourcePk),
+            ["sourceSk"] = new(sourceSk),
+            ["complexId"] = new(complexId),
+            ["recordData"] = new() { M = new Dictionary<string, AttributeValue>(source) }
+        };
+        if (source.TryGetValue("version", out var itemVersion)) item["version"] = itemVersion;
+        var put = new Put { TableName = residentsTable!, Item = item };
+        if (immutable) put.ConditionExpression = "attribute_not_exists(pk)";
+        else if (expectedVersion is { } version)
+        {
+            put.ConditionExpression = "attribute_not_exists(pk) OR (#v = :expected AND complexId = :complex)";
+            put.ExpressionAttributeNames = new() { ["#v"] = "version" };
+            put.ExpressionAttributeValues = new() { [":expected"] = new() { N = version.ToString(System.Globalization.CultureInfo.InvariantCulture) }, [":complex"] = new(complexId) };
+        }
+        else
+        {
+            put.ConditionExpression = "attribute_not_exists(pk) OR complexId = :complex";
+            put.ExpressionAttributeValues = new() { [":complex"] = new(complexId) };
+        }
+        return new TransactWriteItem { Put = put };
+    }
+
 }

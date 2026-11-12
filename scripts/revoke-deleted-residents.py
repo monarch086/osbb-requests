@@ -54,7 +54,23 @@ def migrate(table, building, region, apply=False, aws=manage.call_aws, residents
                     'ExpressionAttributeNames': {'#active': 'active'},
                     'ExpressionAttributeValues': {':no': {'BOOL': False}, ':complex': {'S': building}}}})
                 if residents_table:
+                    membership_key = manage.key('USER#' + str(user), 'MEMBERSHIP')
+                    membership = aws('dynamodb', 'get-item', region, {'TableName': table, 'Key': membership_key, 'ConsistentRead': True}).get('Item')
+                    if not membership or membership.get('buildingId', {}).get('S') != building:
+                        raise RuntimeError('Resident membership is unavailable.')
+                    membership['active'] = {'BOOL': False}
+                    meta = manage.key('REGISTRATION#' + profile['Id'], 'META')
+                    meta.update(payload={'S': json.dumps(next_profile, ensure_ascii=False, separators=(',', ':'))},
+                                version={'N': str(next_profile['Version'])})
                     writes.append(manage.resident_mirror_put(residents_table, next_profile, profile['Version']))
+                    writes.append(manage.related_resident_put(residents_table, meta, building, profile['Version']))
+                    user_profile = dict(current)
+                    user_profile.update(pk=source_key['pk'], sk=source_key['sk'], payload=meta['payload'], version=meta['version'])
+                    resident_entry = manage.key('BUILDING#' + building, 'RESIDENT#' + str(user).zfill(20))
+                    resident_entry.update(payload=meta['payload'], version=meta['version'])
+                    writes.append(manage.related_resident_put(residents_table, user_profile, building, profile['Version']))
+                    writes.append(manage.related_resident_put(residents_table, resident_entry, building, profile['Version']))
+                    writes.append(manage.related_resident_put(residents_table, membership, building))
                 aws('dynamodb', 'transact-write-items', region, {'TransactItems': writes})
             count += 1
         cursor = page.get('LastEvaluatedKey')

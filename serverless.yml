@@ -237,6 +237,10 @@ resources:
           AttributeType: S
         - AttributeName: nameOrder
           AttributeType: S
+        - AttributeName: recordGroup
+          AttributeType: S
+        - AttributeName: recordOrder
+          AttributeType: S
         KeySchema:
         - AttributeName: pk
           KeyType: HASH
@@ -258,6 +262,14 @@ resources:
           - AttributeName: directory
             KeyType: HASH
           - AttributeName: nameOrder
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: ResidentRecordsByGroup
+          KeySchema:
+          - AttributeName: recordGroup
+            KeyType: HASH
+          - AttributeName: recordOrder
             KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -685,7 +697,9 @@ resources:
               - Fn::Sub: ${CommandDataTable.Arn}/index/BuildingRequestsIndex
             - Effect: Allow
               Action:
+              - dynamodb:GetItem
               - dynamodb:PutItem
+              - dynamodb:DeleteItem
               Resource:
                 Fn::GetAtt:
                 - ResidentsTable
@@ -694,6 +708,14 @@ resources:
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${CommandDataTable.Arn}/index/BuildingPriorityRequestsIndex
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentsByDate
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
     FrontendBucket:
       Type: AWS::S3::Bucket
       DeletionPolicy: Retain

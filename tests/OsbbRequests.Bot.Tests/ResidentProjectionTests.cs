@@ -19,6 +19,15 @@ public sealed class ResidentProjectionTests
         Assert.Equal("FamilyMember", projection.ResidentType);
     }
 
+    [Fact]
+    public void RelatedRecordKeyPreservesSourceIdentityForHistoryQueries()
+    {
+        var key = ResidentRecordKey.Create("building", "REGISTRATION#reference", "EVENT#TYPE#timestamp");
+        Assert.Equal("COMPLEX#building#RECORD#REGISTRATION#reference#EVENT#TYPE#timestamp", key.Key);
+        Assert.Equal("COMPLEX#building#REGISTRATION#reference", key.Group);
+        Assert.Equal("EVENT#TYPE#timestamp", key.Order);
+    }
+
     [Theory]
     [InlineData(RegistrationStage.Deleted)]
     [InlineData(RegistrationStage.Rejected)]

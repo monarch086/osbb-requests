@@ -178,13 +178,31 @@ public sealed class AutomaticResidentApprovalTests
         var profile = Approved with { Stage = stage, ApprovedAt = stage == RegistrationStage.Approved ? Approved.ApprovedAt : null };
         await new DynamoCommandRepository(db, "data", residentsTable: "residents").CommitAsync(Message(6, "125"),
             new("ok", Registration: new(profile, 5, AutomaticallyApproved: stage == RegistrationStage.Approved)), default);
-        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal)).Put;
         Assert.Equal("COMPLEX#building#USER#99", mirror.Item["pk"].S);
         Assert.Equal("COMPLEX#building#" + stage, mirror.Item["directory"].S);
         Assert.Equal("5", mirror.ExpressionAttributeValues[":version"].N);
         Assert.Contains("attribute_not_exists(pk)", mirror.ConditionExpression);
         Assert.Equal(profile, JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S));
         Assert.False(mirror.Item.ContainsKey("expiresAt"));
+    }
+
+    [Fact]
+    public async Task AutomaticApprovalMirrorsMetadataMembershipAndDecisionInSameTransaction()
+    {
+        using var db = new Capture();
+        await new DynamoCommandRepository(db, "data", residentsTable: "residents").CommitAsync(Message(6, "125"),
+            new("ok", Registration: new(Approved, 5, AutomaticallyApproved: true)), default);
+        var related = db.Transaction!.TransactItems.Where(w => w.Put?.TableName == "residents" && w.Put.Item.ContainsKey("recordData")).Select(w => w.Put).ToArray();
+        Assert.Equal(5, related.Length);
+        var meta = Assert.Single(related, w => w.Item["sourceSk"].S == "META");
+        Assert.Equal(Approved.Id, JsonSerializer.Deserialize<ResidentRegistration>(meta.Item["recordData"].M["payload"].S)!.Id);
+        var member = Assert.Single(related, w => w.Item["sourceSk"].S == "MEMBERSHIP");
+        Assert.True(member.Item["recordData"].M["active"].BOOL);
+        Assert.Equal("system", member.Item["recordData"].M["reviewedBy"].S);
+        var audit = Assert.Single(related, w => w.Item["sourceSk"].S == "EVENT#DECIDED");
+        Assert.Equal("Approved", audit.Item["recordData"].M["decision"].S);
+        Assert.Equal("attribute_not_exists(pk)", audit.ConditionExpression);
     }
 
     [Theory]

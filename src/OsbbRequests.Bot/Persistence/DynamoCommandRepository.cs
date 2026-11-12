@@ -340,19 +340,26 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
                 };
             }
             writes.Add(write);
-            if (residentsTable is not null) writes.Add(ResidentMirrorWrite(registration, change.ExpectedVersion));
+            if (residentsTable is not null)
+            {
+                writes.Add(ResidentMirrorWrite(registration, change.ExpectedVersion));
+                writes.Add(RelatedResidentPut(item, registration.BuildingId, change.ExpectedVersion));
+            }
             if (change.AutomaticallyApproved)
                 AddAutomaticApprovalWrites(writes, registration, change.ExpectedVersion);
             else if (registration.Stage == RegistrationStage.Pending)
             {
-                writes.Add(Put(RegistrationItem("REGISTRATION#" + registration.Id, "META", registration)));
-                writes.Add(Put(RegistrationItem("BUILDING#" + registration.BuildingId,
-                    "REGISTRATION#" + registration.Id, registration)));
+                var registrationMeta = RegistrationItem("REGISTRATION#" + registration.Id, "META", registration);
+                writes.Add(Put(registrationMeta));
+                if (residentsTable is not null) writes.Add(RelatedResidentPut(registrationMeta, registration.BuildingId, immutable: true));
+                var pendingEntry = RegistrationItem("BUILDING#" + registration.BuildingId, "REGISTRATION#" + registration.Id, registration);
+                writes.Add(Put(pendingEntry));
+                if (residentsTable is not null) writes.Add(RelatedResidentPut(pendingEntry, registration.BuildingId, immutable: true));
                 writes.Add(NotificationWrite(AdministratorNotifications.NewResident(registration)));
             }
         }
 
-        AddProfileWrites(writes, command, outcome);
+        await AddProfileWritesAsync(writes, command, outcome, cancellationToken);
         try
         {
             await client.TransactWriteItemsAsync(new TransactWriteItemsRequest { TransactItems = writes }, cancellationToken);

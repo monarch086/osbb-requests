@@ -11,7 +11,7 @@ public sealed partial class DynamoCommandRepository
         var item = await GetAsync("USER#" + Number(userId), "PROFILE_DIALOG", cancellationToken);
         return item.TryGetValue("payload", out var payload) ? JsonSerializer.Deserialize<ResidentProfileDialog>(payload.S) : null;
     }
-    private void AddProfileWrites(List<TransactWriteItem> writes, CommandEnvelope command, CommandOutcome outcome)
+    private async Task AddProfileWritesAsync(List<TransactWriteItem> writes, CommandEnvelope command, CommandOutcome outcome, CancellationToken ct)
     {
         if (outcome.ProfileDialog is { } dialog)
         {
@@ -20,6 +20,7 @@ public sealed partial class DynamoCommandRepository
             item["payload"] = new(JsonSerializer.Serialize(dialog.Value));
             item["version"] = new() { N = Number(dialog.Value.Version) };
             writes.Add(VersionedProfilePut(item, dialog.ExpectedVersion));
+            if (residentsTable is not null) writes.Add(RelatedResidentPut(item, dialog.Value.ComplexId, dialog.ExpectedVersion));
         }
         if (outcome.Profile is not { } update) return;
         var profile = update.Value;
@@ -32,6 +33,14 @@ public sealed partial class DynamoCommandRepository
         {
             if (profile.Stage != OsbbRequests.Shared.Models.RegistrationStage.Deleted)
                 throw new InvalidOperationException("Deleted profile must revoke resident access.");
+            if (residentsTable is not null)
+            {
+                var membership = await GetAsync("USER#" + Number(command.UserId), "MEMBERSHIP", ct);
+                if (membership.GetValueOrDefault("buildingId")?.S != profile.BuildingId || membership.GetValueOrDefault("active")?.BOOL != true)
+                    throw new InvalidOperationException("Resident membership is unavailable.");
+                membership["active"] = new() { BOOL = false };
+                writes.Add(RelatedResidentPut(membership, profile.BuildingId));
+            }
             values[":no"] = new() { BOOL = false };
             writes.Add(new()
             {
@@ -58,10 +67,16 @@ public sealed partial class DynamoCommandRepository
             }
         });
         if (residentsTable is not null) writes.Add(ResidentMirrorWrite(profile, update.ExpectedVersion));
-        writes.Add(VersionedProfilePut(RegistrationItem("USER#" + Number(command.UserId), "REGISTRATION", profile), update.ExpectedVersion));
-        writes.Add(VersionedProfilePut(RegistrationItem("REGISTRATION#" + profile.Id, "META", profile), update.ExpectedVersion, allowMissing: true));
-        writes.Add(VersionedProfilePut(RegistrationItem("BUILDING#" + profile.BuildingId,
-            "RESIDENT#" + command.UserId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture), profile), update.ExpectedVersion, allowMissing: true));
+        var userProfile = RegistrationItem("USER#" + Number(command.UserId), "REGISTRATION", profile);
+        writes.Add(VersionedProfilePut(userProfile, update.ExpectedVersion));
+        if (residentsTable is not null) writes.Add(RelatedResidentPut(userProfile, profile.BuildingId, update.ExpectedVersion));
+        var registrationMeta = RegistrationItem("REGISTRATION#" + profile.Id, "META", profile);
+        writes.Add(VersionedProfilePut(registrationMeta, update.ExpectedVersion, allowMissing: true));
+        if (residentsTable is not null) writes.Add(RelatedResidentPut(registrationMeta, profile.BuildingId, update.ExpectedVersion));
+        var residentEntry = RegistrationItem("BUILDING#" + profile.BuildingId,
+            "RESIDENT#" + command.UserId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture), profile);
+        writes.Add(VersionedProfilePut(residentEntry, update.ExpectedVersion, allowMissing: true));
+        if (residentsTable is not null) writes.Add(RelatedResidentPut(residentEntry, profile.BuildingId, update.ExpectedVersion));
     }
     private TransactWriteItem VersionedProfilePut(Dictionary<string, AttributeValue> item, int? expected, bool allowMissing = false)
     {

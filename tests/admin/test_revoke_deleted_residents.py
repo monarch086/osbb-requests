@@ -20,6 +20,10 @@ class RevokeDeletedTests(unittest.TestCase):
             if operation == 'query':
                 return {'Items': [{'payload': {'S': json.dumps(profile)}}]}
             if operation == 'get-item':
+                if payload['Key']['sk']['S'] == 'MEMBERSHIP':
+                    return {'Item': {'pk': {'S': 'USER#99'}, 'sk': {'S': 'MEMBERSHIP'},
+                                     'buildingId': {'S': 'complex'}, 'active': {'BOOL': True},
+                                     'reviewedBy': {'S': 'operator'}}}
                 current = dict(profile, PersonalDataDeleted=False) if changed else profile
                 return {'Item': {'payload': {'S': json.dumps(current)}, 'version': {'N': '7'}}}
             return {}
@@ -44,10 +48,16 @@ class RevokeDeletedTests(unittest.TestCase):
     def test_apply_also_clears_mirror_atomically(self):
         self.assertEqual(1, self.run_migration(True, residents_table='residents'))
         writes = self.calls[-1][1]['TransactItems']
-        mirror = next(write['Put'] for write in writes if write.get('Put', {}).get('TableName') == 'residents')
+        mirror = next(write['Put'] for write in writes if write.get('Put', {}).get('TableName') == 'residents' and '#USER#' in write['Put']['Item']['pk']['S'] and '#RECORD#' not in write['Put']['Item']['pk']['S'])
         self.assertEqual('7', mirror['ExpressionAttributeValues'][':version']['N'])
         self.assertNotIn('directory', mirror['Item'])
         self.assertIsNone(json.loads(mirror['Item']['payload']['S'])['Email'])
+        related = [write['Put']['Item'] for write in writes if write.get('Put', {}).get('TableName') == 'residents' and '#RECORD#' in write['Put']['Item']['pk']['S']]
+        self.assertTrue({'META', 'MEMBERSHIP', 'REGISTRATION'}.issubset({item['sourceSk']['S'] for item in related}))
+        membership = next(item['recordData']['M'] for item in related if item['sourceSk']['S'] == 'MEMBERSHIP')
+        self.assertFalse(membership['active']['BOOL'])
+        self.assertEqual('operator', membership['reviewedBy']['S'])
+
 
     def test_restored_profile_is_never_revoked_from_stale_directory(self):
         self.assertEqual(0, self.run_migration(True, changed=True))

@@ -14,15 +14,12 @@ public sealed partial class DynamoCommandRepository
             !ComplexLayout.BuildingNumbers.Contains(profile.BuildingNumber, StringComparer.Ordinal) ||
             !int.TryParse(profile.ApartmentNumber, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var apartment) || apartment <= 0)
             throw new InvalidOperationException("Automatic approval requires a completed resident registration.");
-        writes.Add(Put(RegistrationItem("REGISTRATION#" + profile.Id, "META", profile)));
-        writes.Add(new()
-        {
-            Put = new()
-            {
-                TableName = tableName,
-                Item = RegistrationItem("BUILDING#" + profile.BuildingId, "RESIDENT#" + profile.UserId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture), profile)
-            }
-        });
+        var registrationMeta = RegistrationItem("REGISTRATION#" + profile.Id, "META", profile);
+        writes.Add(Put(registrationMeta));
+        if (residentsTable is not null) writes.Add(RelatedResidentPut(registrationMeta, profile.BuildingId, immutable: true));
+        var residentEntry = RegistrationItem("BUILDING#" + profile.BuildingId, "RESIDENT#" + profile.UserId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture), profile);
+        writes.Add(new() { Put = new() { TableName = tableName, Item = residentEntry } });
+        if (residentsTable is not null) writes.Add(RelatedResidentPut(residentEntry, profile.BuildingId));
         var membership = Key("USER#" + Number(profile.UserId), "MEMBERSHIP");
         membership["buildingId"] = new(profile.BuildingId);
         membership["active"] = new() { BOOL = true };
@@ -38,12 +35,14 @@ public sealed partial class DynamoCommandRepository
                 ExpressionAttributeValues = new() { [":complex"] = new(profile.BuildingId) }
             }
         });
+        if (residentsTable is not null) writes.Add(RelatedResidentPut(membership, profile.BuildingId));
         var audit = Key("REGISTRATION#" + profile.Id, "EVENT#DECIDED");
         audit["actor"] = new("system");
         audit["decision"] = new("Approved");
         audit["approvalMode"] = new("Automatic");
         audit["createdAt"] = new(profile.UpdatedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
         writes.Add(Put(audit));
+        if (residentsTable is not null) writes.Add(RelatedResidentPut(audit, profile.BuildingId, immutable: true));
         writes.Add(NotificationWrite(AdministratorNotifications.NewResident(profile)));
     }
 }

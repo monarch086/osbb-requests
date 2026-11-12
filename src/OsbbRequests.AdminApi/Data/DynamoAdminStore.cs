@@ -312,13 +312,29 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             new() { Put = new() { TableName = dataTable, Item = member,
                 ConditionExpression = "attribute_not_exists(pk) OR buildingId = :building",
                 ExpressionAttributeValues = new() { [":building"] = S(building) } } }, Put(dataTable, audit) };
-        if (residentsTable is not null) writes.Add(ResidentMirrorWrite(next, registration.Version));
+        if (residentsTable is not null)
+        {
+            var registrationMeta = new Dictionary<string, AttributeValue>(snapshot) { ["pk"] = S("REGISTRATION#" + reference), ["sk"] = S("META") };
+            registrationMeta["payload"] = S(JsonSerializer.Serialize(next));
+            registrationMeta["version"] = N(next.Version);
+            writes.Add(ResidentMirrorWrite(next, registration.Version));
+            writes.Add(RelatedResidentPut(registrationMeta, building, registration.Version));
+            var userKey = Key(user, "REGISTRATION");
+            var originalUser = await Get(dataTable, userKey, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var userProfile = new Dictionary<string, AttributeValue>(originalUser)
+            { ["pk"] = userKey["pk"], ["sk"] = userKey["sk"], ["payload"] = registrationMeta["payload"], ["version"] = registrationMeta["version"] };
+            writes.Add(RelatedResidentPut(userProfile, building, registration.Version));
+            writes.Add(RelatedResidentDelete(Key("BUILDING#" + building, "REGISTRATION#" + reference), building, registration.Version));
+            writes.Add(RelatedResidentPut(member, building));
+            writes.Add(RelatedResidentPut(audit, building, immutable: true));
+        }
         if (decision.Approved)
         {
             var resident = Key("BUILDING#" + building, "RESIDENT#" + registration.UserId.ToString("D20", CultureInfo.InvariantCulture));
             resident["payload"] = S(JsonSerializer.Serialize(next));
             resident["version"] = N(next.Version);
             writes.Add(new() { Put = new() { TableName = dataTable, Item = resident } });
+            if (residentsTable is not null) writes.Add(RelatedResidentPut(resident, building));
             writes.Add(NotificationWrite(ResidentNotification.RegistrationApproved(next)));
         }
         await Transact(writes, ct);

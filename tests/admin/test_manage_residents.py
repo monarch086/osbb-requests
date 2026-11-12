@@ -86,7 +86,7 @@ class ResidentAdministrationTests(unittest.TestCase):
             writes = admin.decision_transaction('data', self.registration, json.dumps(self.registration), decision,
                                                 None if decision == 'Approved' else 'Уточніть', 'operator',
                                                 '2026-10-20T11:00:00Z', 'residents')['TransactItems']
-            mirror = next(w['Put'] for w in writes if w.get('Put', {}).get('TableName') == 'residents')
+            mirror = next(w['Put'] for w in writes if w.get('Put', {}).get('TableName') == 'residents' and '#RECORD#' not in w['Put']['Item']['pk']['S'])
             self.assertEqual('COMPLEX#building#USER#99', mirror['Item']['pk']['S'])
             self.assertEqual('4', mirror['ExpressionAttributeValues'][':version']['N'])
             self.assertIn('attribute_not_exists(pk)', mirror['ConditionExpression'])
@@ -96,6 +96,13 @@ class ResidentAdministrationTests(unittest.TestCase):
                 self.assertEqual('COMPLEX#building#Approved', mirror['Item']['directory']['S'])
                 self.assertEqual('2026-10-20T11:00:00.0000000+00:00#00000000000000000099', mirror['Item']['dateOrder']['S'])
                 self.assertEqual('FamilyMember', mirror['Item']['residentType']['S'])
+            related = [w['Put']['Item'] for w in writes if w.get('Put', {}).get('TableName') == 'residents' and '#RECORD#' in w['Put']['Item']['pk']['S']]
+            self.assertTrue({'META', 'REGISTRATION', 'MEMBERSHIP', 'EVENT#DECIDED'}.issubset({r['sourceSk']['S'] for r in related}))
+            for entry in related:
+                source = entry['recordData']['M']
+                self.assertEqual(source['pk'], entry['sourcePk'])
+                self.assertEqual(source['sk'], entry['sourceSk'])
+
 
     def test_rejection_requires_reason(self):
         with self.assertRaises(ValueError):

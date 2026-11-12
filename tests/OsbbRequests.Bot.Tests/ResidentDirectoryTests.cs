@@ -193,10 +193,13 @@ public sealed class ResidentDirectoryTests
         using var db = new RecordingDynamo { Snapshot = Item(Registration with { Stage = stage }) };
         var store = new DynamoAdminStore(db, "admins", "data", "building", residentsTable: "residents");
         await store.UpdateResidentDataAsync(Actor, Registration.Id, new("Марія", "Нова", "Owner", 4), default);
-        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal)).Put;
         Assert.Equal("4", mirror.ExpressionAttributeValues[":version"].N);
         Assert.Equal("COMPLEX#building#" + stage, mirror.Item["directory"].S);
         Assert.Equal("Марія", JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S)!.FirstName);
+        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "META");
+        var audit = Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) == true).Put;
+        Assert.Equal("attribute_not_exists(pk)", audit.ConditionExpression);
     }
 
     [Theory]
@@ -207,9 +210,19 @@ public sealed class ResidentDirectoryTests
         using var db = new RecordingDynamo { Snapshot = Item(Registration) };
         var store = new DynamoAdminStore(db, "admins", "data", "building", residentsTable: "residents");
         await store.DecideAsync(Actor, Registration.Id, new(approved, approved ? null : "Причина", 4), default);
-        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal)).Put;
         Assert.Equal("4", mirror.ExpressionAttributeValues[":version"].N);
         Assert.Equal(approved, mirror.Item.ContainsKey("directory"));
+        var delete = Assert.Single(db.Transaction.TransactItems, w => w.Delete?.TableName == "residents").Delete;
+        Assert.Contains("attribute_not_exists(pk)", delete.ConditionExpression);
+        Assert.Equal("4", delete.ExpressionAttributeValues[":expected"].N);
+        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "REGISTRATION");
+        Assert.Equal(approved ? 1 : 0, db.Transaction.TransactItems.Count(w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S.StartsWith("RESIDENT#", StringComparison.Ordinal) == true));
+        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "META");
+        var membership = Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "MEMBERSHIP").Put.Item["recordData"].M;
+        Assert.Equal(approved, membership["active"].BOOL);
+        Assert.Equal(Actor.Email, membership["reviewedBy"].S);
+        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "EVENT#DECIDED");
     }
 
     [Fact]
@@ -220,7 +233,7 @@ public sealed class ResidentDirectoryTests
         var error = await Assert.ThrowsAsync<ApiError>(() => store.UpdateResidentDataAsync(Actor, Registration.Id, new("Марія", "Нова", "Owner", 4), default));
         Assert.Equal(409, error.Status);
         Assert.Equal(1, db.TransactionCalls);
-        Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents");
+        Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal));
         Assert.Equal(3, db.Transaction.TransactItems.Count(w => w.Update is not null));
     }
 

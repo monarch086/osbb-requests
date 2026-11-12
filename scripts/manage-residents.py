@@ -84,7 +84,39 @@ def resident_mirror_put(table, registration, expected_version):
                     'ExpressionAttributeValues': {':version': {'N': str(expected_version)}, ':complex': {'S': building}}}}
 
 
-def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None):
+def related_resident_put(table, source, building, expected_version=None, immutable=False):
+    source_pk, source_sk = source['pk']['S'], source['sk']['S']
+    result = {
+        'pk': {'S': f'COMPLEX#{building}#RECORD#{source_pk}#{source_sk}'},
+        'recordGroup': {'S': f'COMPLEX#{building}#{source_pk}'}, 'recordOrder': {'S': source_sk},
+        'sourcePk': {'S': source_pk}, 'sourceSk': {'S': source_sk}, 'complexId': {'S': building},
+        'recordData': {'M': copy.deepcopy(source)},
+    }
+    if 'version' in source:
+        result['version'] = copy.deepcopy(source['version'])
+    put = {'TableName': table, 'Item': result}
+    if immutable:
+        put['ConditionExpression'] = 'attribute_not_exists(pk)'
+    elif expected_version is not None:
+        put.update(ConditionExpression='attribute_not_exists(pk) OR (#v = :expected AND complexId = :complex)',
+                   ExpressionAttributeNames={'#v': 'version'},
+                   ExpressionAttributeValues={':expected': {'N': str(expected_version)}, ':complex': {'S': building}})
+    else:
+        put.update(ConditionExpression='attribute_not_exists(pk) OR complexId = :complex',
+                   ExpressionAttributeValues={':complex': {'S': building}})
+    return {'Put': put}
+
+
+def related_resident_delete(table, source, building, expected_version):
+    source_pk, source_sk = source['pk']['S'], source['sk']['S']
+    return {'Delete': {'TableName': table,
+                       'Key': {'pk': {'S': f'COMPLEX#{building}#RECORD#{source_pk}#{source_sk}'}},
+                       'ConditionExpression': 'attribute_not_exists(pk) OR (#v = :expected AND complexId = :complex)',
+                       'ExpressionAttributeNames': {'#v': 'version'},
+                       'ExpressionAttributeValues': {':expected': {'N': str(expected_version)}, ':complex': {'S': building}}}}
+
+
+def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None, user_snapshot=None, meta_snapshot=None):
     if decision not in ('Approved', 'Rejected'):
         raise ValueError('Unsupported decision.')
     if registration['Stage'] != 'Pending':
@@ -137,7 +169,20 @@ def decision_transaction(table, registration, original_payload, decision, reason
         pending.update(payload={'S': json.dumps(notification, ensure_ascii=False, separators=(',', ':'))}, attempts={'N': '0'})
         writes.append({'Put': {'TableName': table, 'Item': pending, 'ConditionExpression': 'attribute_not_exists(pk)'}})
     if residents_table:
+        meta = copy.deepcopy(meta_snapshot or key(registration_key, 'META'))
+        meta.update(payload={'S': json.dumps(updated, ensure_ascii=False, separators=(',', ':'))},
+                    version={'N': str(updated['Version'])})
+        user_profile = copy.deepcopy(user_snapshot or key(user_key, 'REGISTRATION'))
+        user_profile.update(payload=meta['payload'], version=meta['version'])
+        pending_key = key('BUILDING#' + registration['BuildingId'], registration_key)
         writes.append(resident_mirror_put(residents_table, updated, registration['Version']))
+        writes.append(related_resident_put(residents_table, meta, registration['BuildingId'], registration['Version']))
+        writes.append(related_resident_put(residents_table, user_profile, registration['BuildingId'], registration['Version']))
+        writes.append(related_resident_delete(residents_table, pending_key, registration['BuildingId'], registration['Version']))
+        writes.append(related_resident_put(residents_table, membership, registration['BuildingId']))
+        writes.append(related_resident_put(residents_table, audit, registration['BuildingId'], immutable=True))
+        if decision == 'Approved':
+            writes.append(related_resident_put(residents_table, resident, registration['BuildingId']))
     return {'TransactItems': writes}
 
 
@@ -204,9 +249,15 @@ def main():
     if registration['Stage'] == decision:
         print('This decision has already been recorded.')
         return
+    user_snapshot = call_aws('dynamodb', 'get-item', args.region, {
+        'TableName': table, 'Key': key('USER#' + str(registration['UserId']), 'REGISTRATION'), 'ConsistentRead': True
+    }).get('Item')
+    if not user_snapshot:
+        raise ValueError('Resident profile not found.')
     actor = call_aws('sts', 'get-caller-identity', args.region)['Arn']
     transaction = decision_transaction(table, registration, original_payload, decision, reason, actor,
-                                       datetime.now(timezone.utc).isoformat(), 'osbb-requests-' + args.stage + '-residents')
+                                       datetime.now(timezone.utc).isoformat(), 'osbb-requests-' + args.stage + '-residents',
+                                       user_snapshot, result['Item'])
     call_aws('dynamodb', 'transact-write-items', args.region, transaction)
     print('Access approved.' if decision == 'Approved' else 'Registration rejected.')
     print('Telegram approval notification queued for delivery.' if decision == 'Approved' else

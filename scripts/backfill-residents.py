@@ -11,7 +11,7 @@ manage = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(manage)
 
 
-def migrate(table, building, region, apply=False, aws=manage.call_aws):
+def migrate(table, building, region, apply=False, aws=manage.call_aws, residents_table=None):
     cursor = None
     count = 0
     while True:
@@ -35,7 +35,7 @@ def migrate(table, building, region, apply=False, aws=manage.call_aws):
                 continue
             if apply:
                 resident = dict(directory_key, payload=item['payload'], version=item['version'])
-                aws('dynamodb', 'transact-write-items', region, {'TransactItems': [
+                writes = [
                     {'ConditionCheck': {
                         'TableName': table, 'Key': {'pk': item['pk'], 'sk': item['sk']},
                         'ConditionExpression': '#payload = :previous AND #version = :version',
@@ -43,7 +43,10 @@ def migrate(table, building, region, apply=False, aws=manage.call_aws):
                         'ExpressionAttributeValues': {':previous': item['payload'], ':version': item['version']}
                     }},
                     {'Put': {'TableName': table, 'Item': resident, 'ConditionExpression': 'attribute_not_exists(pk)'}}
-                ]})
+                ]
+                if residents_table:
+                    writes.append(manage.related_resident_put(residents_table, resident, building, immutable=True))
+                aws('dynamodb', 'transact-write-items', region, {'TransactItems': writes})
             count += 1
         cursor = result.get('LastEvaluatedKey')
         if not cursor:
@@ -60,7 +63,8 @@ def main():
     if not re.fullmatch(r'[a-zA-Z0-9-]+', args.stage):
         parser.error('Invalid stage.')
     count = migrate('osbb-requests-' + args.stage + '-command-data',
-                    args.building_id or 'osbb-requests-' + args.stage, args.region, args.apply)
+                    args.building_id or 'osbb-requests-' + args.stage, args.region, args.apply,
+                    residents_table='osbb-requests-' + args.stage + '-residents')
     print(('Migrated' if args.apply else 'Would migrate') + ': ' + str(count) + ' residents. Personal data not displayed.')
 
 
