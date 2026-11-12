@@ -114,16 +114,46 @@ class ResidentAdministrationTests(unittest.TestCase):
             self.transaction('Approved')
 
     def test_pending_list_shows_names_phone_and_reference_without_telegram_id(self):
-        item = {'payload': {'S': json.dumps(self.registration)}}
+        item = {'pk': {'S': 'COMPLEX#building#USER#99'}, 'payload': {'S': json.dumps(self.registration)}}
         output = io.StringIO()
-        with patch.object(admin, 'call_aws', return_value={'Items': [item]}), patch('sys.stdout', output):
+        with patch.object(admin, 'call_aws', side_effect=[{'Items': [item]}, {'Item': item}]) as aws, patch('sys.stdout', output):
             admin.list_pending('data', 'building', 'eu-central-1')
+        self.assertEqual('ResidentsByDate', aws.call_args_list[0].args[3]['IndexName'])
+        self.assertTrue(aws.call_args_list[1].args[3]['ConsistentRead'])
         visible = json.loads(output.getvalue())
         self.assertEqual('Олена', visible['first_name'])
         self.assertEqual('Ковальчук', visible['last_name'])
         self.assertEqual('+380671234567', visible['phone'])
         self.assertNotIn('UserId', visible)
         self.assertNotIn('telegram_id', visible)
+
+    def test_decision_reads_new_table_and_keeps_atomic_dual_write(self):
+        payload = json.dumps(self.registration)
+        meta = dict(admin.key('REGISTRATION#' + 'a' * 32, 'META'), payload={'S': payload}, version={'N': '4'})
+        profile = dict(admin.key('USER#99', 'REGISTRATION'), payload={'S': payload}, version={'N': '4'})
+        def related(row):
+            return {'Item': {'complexId': {'S': 'building'}, 'recordData': {'M': row}}}
+        with patch.object(admin, 'call_aws', side_effect=[related(meta), related(profile), {'Arn': 'operator'}, {}]) as aws, \
+             patch('sys.argv', ['manage-residents.py', '--building-id', 'building', 'approve', 'a' * 32]), \
+             patch('sys.stdout', io.StringIO()):
+            admin.main()
+        for call in aws.call_args_list[:2]:
+            self.assertEqual('osbb-requests-dev-residents', call.args[3]['TableName'])
+            self.assertTrue(call.args[3]['ConsistentRead'])
+        writes = aws.call_args_list[-1].args[3]['TransactItems']
+        tables = {next(iter(write.values()))['TableName'] for write in writes}
+        self.assertEqual({'osbb-requests-dev-residents', 'osbb-requests-dev-command-data'}, tables)
+        self.assertTrue(any(write.get('Put', {}).get('Item', {}).get('sourceSk', {}).get('S') == 'EVENT#DECIDED' for write in writes))
+
+    def test_decision_rejects_inconsistent_profile_before_writing(self):
+        payload = json.dumps(self.registration)
+        def related(value):
+            return {'Item': {'complexId': {'S': 'building'}, 'recordData': {'M': {'payload': {'S': value}}}}}
+        with patch.object(admin, 'call_aws', side_effect=[related(payload), related('{}')]) as aws, \
+             patch('sys.argv', ['manage-residents.py', '--building-id', 'building', 'approve', 'a' * 32]):
+            with self.assertRaisesRegex(ValueError, 'inconsistent'):
+                admin.main()
+        self.assertEqual(2, aws.call_count)
 
     def test_cannot_approve_another_buildings_registration(self):
         result = {'Item': {'payload': {'S': json.dumps(self.registration)}}}

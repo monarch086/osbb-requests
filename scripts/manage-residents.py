@@ -186,20 +186,44 @@ def decision_transaction(table, registration, original_payload, decision, reason
     return {'TransactItems': writes}
 
 
+def related_key(building, pk, sk):
+    return {'pk': {'S': f'COMPLEX#{building}#RECORD#{pk}#{sk}'}}
+
+
+def get_related(table, building, pk, sk, region):
+    result = call_aws('dynamodb', 'get-item', region, {
+        'TableName': table, 'Key': related_key(building, pk, sk), 'ConsistentRead': True
+    })
+    item = result.get('Item')
+    if not item:
+        return None
+    if item.get('complexId', {}).get('S') != building:
+        raise ValueError('Invalid resident record complex.')
+    return item['recordData']['M']
+
+
 def list_pending(table, building, region):
     cursor = None
     while True:
         query = {
-            'TableName': table, 'KeyConditionExpression': 'pk = :pk AND begins_with(sk, :prefix)',
-            'ExpressionAttributeValues': {':pk': {'S': 'BUILDING#' + building}, ':prefix': {'S': 'REGISTRATION#'}},
-            'ConsistentRead': True, 'Limit': 50
+            'TableName': table, 'IndexName': 'ResidentsByDate',
+            'KeyConditionExpression': 'directory = :directory',
+            'ExpressionAttributeValues': {':directory': {'S': 'COMPLEX#' + building + '#Pending'}},
+            'Limit': 50
         }
         if cursor:
             query['ExclusiveStartKey'] = cursor
         result = call_aws('dynamodb', 'query', region, query)
-        for item in result.get('Items', []):
-            registration = json.loads(item['payload']['S'])
-            # Intentionally omit UserId from the operator-facing list.
+        for candidate in result.get('Items', []):
+            current = call_aws('dynamodb', 'get-item', region, {
+                'TableName': table, 'Key': {'pk': candidate['pk']}, 'ConsistentRead': True
+            }).get('Item')
+            if not current:
+                continue
+            registration = json.loads(current['payload']['S'])
+            if (registration['BuildingId'] != building or registration['Stage'] != 'Pending' or
+                    current['pk']['S'] != f"COMPLEX#{building}#USER#{registration['UserId']}"):
+                continue
             print(json.dumps({
                 'reference': registration['Id'], 'first_name': registration['FirstName'],
                 'last_name': registration['LastName'], 'phone': registration['Phone'],
@@ -231,33 +255,30 @@ def main():
             parser.error('Reason must contain 1 to 500 characters.')
     table = 'osbb-requests-' + args.stage + '-command-data'
     building = args.building_id or 'osbb-requests-' + args.stage
+    residents_table = 'osbb-requests-' + args.stage + '-residents'
     if args.action == 'list':
-        list_pending(table, building, args.region)
+        list_pending(residents_table, building, args.region)
         return
     if not re.fullmatch(r'[a-f0-9]{32}', args.reference):
         parser.error('Invalid registration reference.')
-    result = call_aws('dynamodb', 'get-item', args.region, {
-        'TableName': table, 'Key': key('REGISTRATION#' + args.reference, 'META'), 'ConsistentRead': True
-    })
-    if 'Item' not in result:
+    meta_snapshot = get_related(residents_table, building, 'REGISTRATION#' + args.reference, 'META', args.region)
+    if not meta_snapshot:
         raise ValueError('Registration not found.')
-    original_payload = result['Item']['payload']['S']
+    original_payload = meta_snapshot['payload']['S']
     registration = json.loads(original_payload)
-    if registration['BuildingId'] != building:
-        raise ValueError('Registration belongs to another building.')
+    if registration['BuildingId'] != building or registration['Id'] != args.reference:
+        raise ValueError('Registration belongs to another building or has an invalid reference.')
     decision = 'Approved' if args.action == 'approve' else 'Rejected'
     if registration['Stage'] == decision:
         print('This decision has already been recorded.')
         return
-    user_snapshot = call_aws('dynamodb', 'get-item', args.region, {
-        'TableName': table, 'Key': key('USER#' + str(registration['UserId']), 'REGISTRATION'), 'ConsistentRead': True
-    }).get('Item')
-    if not user_snapshot:
-        raise ValueError('Resident profile not found.')
+    user_snapshot = get_related(residents_table, building, 'USER#' + str(registration['UserId']), 'REGISTRATION', args.region)
+    if not user_snapshot or user_snapshot.get('payload', {}).get('S') != original_payload:
+        raise ValueError('Resident profile is missing or inconsistent.')
     actor = call_aws('sts', 'get-caller-identity', args.region)['Arn']
     transaction = decision_transaction(table, registration, original_payload, decision, reason, actor,
-                                       datetime.now(timezone.utc).isoformat(), 'osbb-requests-' + args.stage + '-residents',
-                                       user_snapshot, result['Item'])
+                                       datetime.now(timezone.utc).isoformat(), residents_table,
+                                       user_snapshot, meta_snapshot)
     call_aws('dynamodb', 'transact-write-items', args.region, transaction)
     print('Access approved.' if decision == 'Approved' else 'Registration rejected.')
     print('Telegram approval notification queued for delivery.' if decision == 'Approved' else

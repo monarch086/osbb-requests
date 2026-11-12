@@ -59,16 +59,19 @@ def configure(token, expected_username, call=call_telegram, registered_chat_ids=
 
 
 def load_resident_chats(stage, region, complex_id=None):
-    partition = 'BUILDING#' + (complex_id or 'osbb-requests-' + stage)
+    building = complex_id or 'osbb-requests-' + stage
+    table = 'osbb-requests-' + stage + '-residents'
+    group = 'COMPLEX#' + building + '#BUILDING#' + building
     cursor = None
     chats = set()
     deleted_chats = set()
     while True:
-        command = ['aws', 'dynamodb', 'query', '--table-name', 'osbb-requests-' + stage + '-command-data',
-                   '--key-condition-expression', 'pk = :pk AND begins_with(sk, :prefix)',
-                   '--expression-attribute-values', json.dumps({':pk': {'S': partition}, ':prefix': {'S': 'RESIDENT#'}}),
-                   '--projection-expression', '#p', '--expression-attribute-names', '{"#p":"payload"}',
-                   '--consistent-read', '--limit', '25', '--no-paginate', '--region', region, '--output', 'json', '--no-cli-pager']
+        command = ['aws', 'dynamodb', 'query', '--table-name', table,
+                   '--index-name', 'ResidentRecordsByGroup',
+                   '--key-condition-expression', 'recordGroup = :group AND begins_with(recordOrder, :prefix)',
+                   '--expression-attribute-values', json.dumps({':group': {'S': group}, ':prefix': {'S': 'RESIDENT#'}}),
+                   '--projection-expression', 'pk, recordGroup, recordOrder',
+                   '--limit', '25', '--no-paginate', '--region', region, '--output', 'json', '--no-cli-pager']
         if cursor:
             command.extend(['--exclusive-start-key', json.dumps(cursor)])
         result = subprocess.run(command, capture_output=True, text=True, check=False)
@@ -77,10 +80,23 @@ def load_resident_chats(stage, region, complex_id=None):
         try:
             page = json.loads(result.stdout)
             for item in page.get('Items', []):
-                resident = json.loads(item['payload']['S'])
+                order = item['recordOrder']['S']
+                if (not re.fullmatch(r'RESIDENT#[0-9]{20}', order) or item['recordGroup']['S'] != group or
+                        item['pk']['S'] != 'COMPLEX#' + building + '#RECORD#BUILDING#' + building + '#' + order):
+                    raise ValueError('Invalid directory key')
+                get = ['aws', 'dynamodb', 'get-item', '--table-name', table, '--key',
+                       json.dumps({'pk': item['pk']}), '--consistent-read', '--region', region,
+                       '--output', 'json', '--no-cli-pager']
+                current = subprocess.run(get, capture_output=True, text=True, check=False)
+                if current.returncode:
+                    raise RuntimeError('Cannot read the resident directory. Check AWS credentials and permissions.')
+                row = json.loads(current.stdout).get('Item')
+                if not row:
+                    continue
+                resident = json.loads(row['recordData']['M']['payload']['S'])
                 chat = resident.get('UserId')
-                if (resident.get('BuildingId') == partition[len('BUILDING#'):] and
-                        isinstance(chat, int) and not isinstance(chat, bool) and chat > 0):
+                if (resident.get('BuildingId') == building and isinstance(chat, int) and not isinstance(chat, bool)
+                        and chat > 0 and chat == int(order[len('RESIDENT#'):])):
                     if resident.get('PersonalDataDeleted') or resident.get('Stage') == 'Deleted':
                         deleted_chats.add(chat)
                     elif resident.get('Stage') == 'Approved':

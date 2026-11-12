@@ -53,19 +53,30 @@ class TelegramMenuTests(unittest.TestCase):
         self.assertNotIn('sendMessage', [method for method, _ in calls])
 
     def test_registered_directory_reads_all_pages_and_only_current_complex_approved_profiles(self):
-        def item(user, complex_id='osbb-requests-dev', stage='Approved'):
-            return {'payload': {'S': json.dumps({'UserId': user, 'BuildingId': complex_id, 'Stage': stage})}}
-        pages = [{'Items': [item(99), item(98, stage='Pending'), item(97, 'other')],
-                  'LastEvaluatedKey': {'pk': {'S': 'BUILDING#osbb-requests-dev'}, 'sk': {'S': 'RESIDENT#99'}}},
-                 {'Items': [item(100), item(99), item(-1)]}]
         from types import SimpleNamespace
-        with patch.object(menu.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0, stdout=json.dumps(page)) for page in pages]) as run:
+        building = 'osbb-requests-dev'
+        group = 'COMPLEX#' + building + '#BUILDING#' + building
+        def candidate(user):
+            order = 'RESIDENT#' + str(user).zfill(20)
+            return {'pk': {'S': 'COMPLEX#' + building + '#RECORD#BUILDING#' + building + '#' + order},
+                    'recordGroup': {'S': group}, 'recordOrder': {'S': order}}
+        def current(user, stage='Approved', complex_id=building):
+            payload = json.dumps({'UserId': user, 'BuildingId': complex_id, 'Stage': stage})
+            return {'Item': {'recordData': {'M': {'payload': {'S': payload}}}}}
+        responses = [
+            {'Items': [candidate(99), candidate(98)], 'LastEvaluatedKey': candidate(98)},
+            current(99), current(98, 'Pending'),
+            {'Items': [candidate(100), candidate(97)]}, current(100), current(97, complex_id='other')
+        ]
+        with patch.object(menu.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0, stdout=json.dumps(page)) for page in responses]) as run:
             self.assertEqual([99, 100], menu.load_registered_chats('dev', 'eu-central-1'))
-        self.assertEqual(2, run.call_count)
-        self.assertIn('--exclusive-start-key', run.call_args_list[1].args[0])
-        self.assertIn('query', run.call_args_list[0].args[0])
-        self.assertIn('--no-paginate', run.call_args_list[0].args[0])
-        self.assertNotIn('scan', run.call_args_list[0].args[0])
+        query = run.call_args_list[0].args[0]
+        self.assertIn('osbb-requests-dev-residents', query)
+        self.assertIn('ResidentRecordsByGroup', query)
+        self.assertNotIn('--consistent-read', query)
+        self.assertIn('--consistent-read', run.call_args_list[1].args[0])
+        self.assertIn('--exclusive-start-key', run.call_args_list[3].args[0])
+        self.assertNotIn('scan', query)
 
     def test_deleted_residents_get_guest_chat_menu(self):
         calls = []
