@@ -54,7 +54,7 @@ public sealed partial class DynamoAdminStore
     {
         if (!actor.IsActive || !actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
         if (!Enum.GetNames<ResidentType>().Contains(residentType, StringComparer.Ordinal)) throw new ApiError(400, "Оберіть коректний тип мешканця.");
-        var snapshot = await Get(dataTable, Key("REGISTRATION#" + reference, "META"), ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
+        var snapshot = await GetResidentRecordAsync("REGISTRATION#" + reference, "META", ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
         var current = Payload<ResidentRegistration>(snapshot);
         if (current.Id != reference || current.BuildingId != building) throw new ApiError(404, "Реєстрацію не знайдено.");
         if ((current.Stage != RegistrationStage.Pending && (pendingOnly || current.Stage != RegistrationStage.Approved || current.PersonalDataDeleted)) || current.Version != version)
@@ -97,8 +97,8 @@ public sealed partial class DynamoAdminStore
             writes.Add(RelatedResidentPut(registrationMeta, building, current.Version));
             var userKey = Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION");
             var directoryKey = Key("BUILDING#" + building, listKey);
-            var originalUser = await Get(dataTable, userKey, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
-            var originalDirectory = await Get(dataTable, directoryKey, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var originalUser = await GetResidentRecordAsync(userKey["pk"].S, userKey["sk"].S, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var originalDirectory = await GetResidentRecordAsync(directoryKey["pk"].S, directoryKey["sk"].S, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
             var userProfile = new Dictionary<string, AttributeValue>(originalUser)
             { ["pk"] = userKey["pk"], ["sk"] = userKey["sk"], ["payload"] = registrationMeta["payload"], ["version"] = registrationMeta["version"] };
             var directoryEntry = new Dictionary<string, AttributeValue>(originalDirectory)

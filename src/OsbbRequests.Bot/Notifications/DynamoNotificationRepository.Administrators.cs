@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Bot.Notifications;
 
@@ -30,15 +31,20 @@ public sealed partial class DynamoNotificationRepository
             if (notification.OwnerId <= 0 || notification.AdministratorEvent is not null) return false;
             var response = await db.GetItemAsync(new GetItemRequest
             {
-                TableName = table,
+                TableName = residentsTable ?? table,
                 ConsistentRead = true,
-                Key = new()
+                Key = residentsTable is not null ? new()
+                {
+                    ["pk"] = S(ResidentRecordKey.Create(complexId, "BUILDING#" + complexId,
+                    "RESIDENT#" + notification.OwnerId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture)).Key)
+                } : new()
                 {
                     ["pk"] = S("BUILDING#" + complexId),
                     ["sk"] = S("RESIDENT#" + notification.OwnerId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture))
                 }
             }, ct);
-            if (response.Item?.GetValueOrDefault("payload")?.S is not { } payload) return false;
+            var row = residentsTable is null ? response.Item : response.Item?.GetValueOrDefault("recordData")?.M;
+            if (row?.GetValueOrDefault("payload")?.S is not { } payload) return false;
             var resident = JsonSerializer.Deserialize<ResidentRegistration>(payload);
             return resident is not null && resident.UserId == notification.OwnerId && resident.BuildingId == complexId &&
                 resident.Stage == RegistrationStage.Approved && !resident.PersonalDataDeleted;

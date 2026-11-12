@@ -286,7 +286,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
 
     public async Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct)
     {
-        var snapshot = await Get(dataTable, Key("REGISTRATION#" + reference, "META"), ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
+        var snapshot = await GetResidentRecordAsync("REGISTRATION#" + reference, "META", ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
         var registration = Payload<ResidentRegistration>(snapshot);
         if (registration.BuildingId != building) throw new ApiError(404, "Реєстрацію не знайдено.");
         if (registration.Stage != RegistrationStage.Pending || registration.Version != decision.Version)
@@ -341,7 +341,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             writes.Add(ResidentMirrorWrite(next, registration.Version));
             writes.Add(RelatedResidentPut(registrationMeta, building, registration.Version));
             var userKey = Key(user, "REGISTRATION");
-            var originalUser = await Get(dataTable, userKey, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var originalUser = await GetResidentRecordAsync(userKey["pk"].S, userKey["sk"].S, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
             var userProfile = new Dictionary<string, AttributeValue>(originalUser)
             { ["pk"] = userKey["pk"], ["sk"] = userKey["sk"], ["payload"] = registrationMeta["payload"], ["version"] = registrationMeta["version"] };
             writes.Add(RelatedResidentPut(userProfile, building, registration.Version));
@@ -420,7 +420,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     public async Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct)
     {
         if (request.BuildingId != building) throw new ApiError(404, "Заявку не знайдено.");
-        var profile = await Get(dataTable, Key("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION"), ct);
+        var profile = await GetResidentRecordAsync("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION", ct);
         if (profile is null) return null;
         var resident = Payload<ResidentRegistration>(profile);
         if (resident.BuildingId != building || resident.UserId != request.OwnerId) return null;
@@ -478,7 +478,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var creatorName = "Мешканець";
         if (items.Any(item => item.GetValueOrDefault("sk")?.S == "EVENT#CREATED"))
         {
-            var profile = await Get(dataTable, Key("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION"), ct);
+            var profile = await GetResidentRecordAsync("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION", ct);
             if (profile is not null)
             {
                 var resident = Payload<ResidentRegistration>(profile);

@@ -21,7 +21,8 @@ public sealed class CommandFunction
     public CommandFunction()
     {
         var repository = new DynamoCommandRepository(new AmazonDynamoDBClient(),
-            RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), residentsTable: RuntimeConfiguration.Required("RESIDENTS_TABLE"));
+            RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), residentsTable: RuntimeConfiguration.Required("RESIDENTS_TABLE"),
+            complexId: RuntimeConfiguration.Required("BUILDING_ID"));
         var secrets = new SsmSecretProvider(new AmazonSimpleSystemsManagementClient(),
             RuntimeConfiguration.Required("BOT_TOKEN_PARAMETER"));
         var telegram = new TelegramClient(Http, secrets);

@@ -6,7 +6,7 @@ using OsbbRequests.Shared.Models;
 
 namespace OsbbRequests.Bot.Notifications;
 
-public sealed partial class DynamoNotificationRepository(IAmazonDynamoDB db, string table, string complexId, string? administratorsTable = null) : INotificationRepository
+public sealed partial class DynamoNotificationRepository(IAmazonDynamoDB db, string table, string complexId, string? administratorsTable = null, string? residentsTable = null) : INotificationRepository
 {
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(long value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };

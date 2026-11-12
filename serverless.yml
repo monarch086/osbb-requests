@@ -129,6 +129,8 @@ functions:
         Ref: CommandDataTable
       ADMINISTRATORS_TABLE:
         Ref: AdministratorsTable
+      RESIDENTS_TABLE:
+        Ref: ResidentsTable
       BUILDING_ID: ${self:custom.buildingId}
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
@@ -402,6 +404,12 @@ resources:
                 - AdministratorsTable
                 - Arn
             - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+            - Effect: Allow
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${AdministratorsTable.Arn}/index/DirectoryIndex
@@ -520,7 +528,9 @@ resources:
                 - Arn
             - Effect: Allow
               Action:
+              - dynamodb:GetItem
               - dynamodb:PutItem
+              - dynamodb:ConditionCheckItem
               Resource:
                 Fn::GetAtt:
                 - ResidentsTable

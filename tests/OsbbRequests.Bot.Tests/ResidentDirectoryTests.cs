@@ -408,7 +408,12 @@ public sealed class ResidentDirectoryTests
         public int TransactionCalls;
         public bool Conflict;
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
-        { Get = request; return Task.FromResult(new GetItemResponse { Item = Snapshot }); }
+        {
+            Get = request;
+            var item = request.TableName == "residents" && Snapshot is not null
+                ? new Dictionary<string, AttributeValue> { ["recordData"] = new() { M = Snapshot } } : Snapshot;
+            return Task.FromResult(new GetItemResponse { Item = item });
+        }
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
         { Query = request; return Task.FromResult(Result); }
         public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken cancellationToken = default)

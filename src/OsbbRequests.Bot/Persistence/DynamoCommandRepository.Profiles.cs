@@ -8,8 +8,11 @@ public sealed partial class DynamoCommandRepository
 {
     public async Task<ResidentProfileDialog?> GetProfileDialogAsync(long userId, CancellationToken cancellationToken)
     {
-        var item = await GetAsync("USER#" + Number(userId), "PROFILE_DIALOG", cancellationToken);
-        return item.TryGetValue("payload", out var payload) ? JsonSerializer.Deserialize<ResidentProfileDialog>(payload.S) : null;
+        var item = residentsTable is not null && complexId is not null
+            ? await GetResidentRecordAsync(complexId, "USER#" + Number(userId), "PROFILE_DIALOG", cancellationToken)
+            : await GetAsync("USER#" + Number(userId), "PROFILE_DIALOG", cancellationToken);
+        var dialog = item.TryGetValue("payload", out var payload) ? JsonSerializer.Deserialize<ResidentProfileDialog>(payload.S) : null;
+        return dialog is not null && (complexId is null || dialog.ComplexId == complexId && dialog.UserId == userId) ? dialog : null;
     }
     private async Task AddProfileWritesAsync(List<TransactWriteItem> writes, CommandEnvelope command, CommandOutcome outcome, CancellationToken ct)
     {
@@ -35,11 +38,20 @@ public sealed partial class DynamoCommandRepository
                 throw new InvalidOperationException("Deleted profile must revoke resident access.");
             if (residentsTable is not null)
             {
-                var membership = await GetAsync("USER#" + Number(command.UserId), "MEMBERSHIP", ct);
+                var membership = complexId is not null
+                    ? await GetResidentRecordAsync(profile.BuildingId, "USER#" + Number(command.UserId), "MEMBERSHIP", ct)
+                    : await GetAsync("USER#" + Number(command.UserId), "MEMBERSHIP", ct);
                 if (membership.GetValueOrDefault("buildingId")?.S != profile.BuildingId || membership.GetValueOrDefault("active")?.BOOL != true)
                     throw new InvalidOperationException("Resident membership is unavailable.");
                 membership["active"] = new() { BOOL = false };
-                writes.Add(RelatedResidentPut(membership, profile.BuildingId));
+                var mirror = RelatedResidentPut(membership, profile.BuildingId);
+                if (complexId is not null)
+                {
+                    mirror.Put.ConditionExpression = "complexId = :complex AND recordData.buildingId = :complex AND recordData.#active = :yes";
+                    mirror.Put.ExpressionAttributeNames = new() { ["#active"] = "active" };
+                    mirror.Put.ExpressionAttributeValues = new() { [":complex"] = new(profile.BuildingId), [":yes"] = new() { BOOL = true } };
+                }
+                writes.Add(mirror);
             }
             values[":no"] = new() { BOOL = false };
             writes.Add(new()
@@ -55,17 +67,7 @@ public sealed partial class DynamoCommandRepository
                 }
             });
         }
-        else writes.Add(new()
-        {
-            ConditionCheck = new()
-            {
-                TableName = tableName,
-                Key = memberKey,
-                ConditionExpression = "buildingId = :complex AND #active = :yes",
-                ExpressionAttributeNames = names,
-                ExpressionAttributeValues = values
-            }
-        });
+        else writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, profile.BuildingId) });
         if (residentsTable is not null) writes.Add(ResidentMirrorWrite(profile, update.ExpectedVersion));
         var userProfile = RegistrationItem("USER#" + Number(command.UserId), "REGISTRATION", profile);
         writes.Add(VersionedProfilePut(userProfile, update.ExpectedVersion));

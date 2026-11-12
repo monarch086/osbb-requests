@@ -6,6 +6,32 @@ namespace OsbbRequests.Bot.Persistence;
 
 public sealed partial class DynamoCommandRepository
 {
+    private async Task<Dictionary<string, AttributeValue>> GetResidentRecordAsync(string complex, string pk, string sk, CancellationToken ct)
+    {
+        if (complexId is not null && complex != complexId) throw new InvalidOperationException("Resident complex mismatch.");
+        var key = ResidentRecordKey.Create(complex, pk, sk);
+        var response = await client.GetItemAsync(new GetItemRequest
+        {
+            TableName = residentsTable,
+            Key = new() { ["pk"] = new(key.Key) },
+            ConsistentRead = true
+        }, ct);
+        return response.Item?.GetValueOrDefault("recordData")?.M ?? [];
+    }
+    private ConditionCheck MembershipCheck(long userId, string complex)
+    {
+        if (complexId is not null && complex != complexId) throw new InvalidOperationException("Resident complex mismatch.");
+        var pk = "USER#" + Number(userId);
+        var migrated = residentsTable is not null && complexId is not null;
+        return new ConditionCheck
+        {
+            TableName = migrated ? residentsTable : tableName,
+            Key = migrated ? new() { ["pk"] = new(ResidentRecordKey.Create(complex, pk, "MEMBERSHIP").Key) } : Key(pk, "MEMBERSHIP"),
+            ConditionExpression = migrated ? "recordData.buildingId = :complex AND recordData.#active = :active" : "buildingId = :complex AND #active = :active",
+            ExpressionAttributeNames = new() { ["#active"] = "active" },
+            ExpressionAttributeValues = new() { [":complex"] = new(complex), [":active"] = new() { BOOL = true } }
+        };
+    }
     private TransactWriteItem ResidentMirrorWrite(ResidentRegistration resident, int? expectedVersion)
     {
         var value = ResidentProjection.Create(resident);

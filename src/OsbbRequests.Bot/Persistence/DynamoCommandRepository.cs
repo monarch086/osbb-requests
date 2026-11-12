@@ -9,7 +9,7 @@ using OsbbRequests.Bot.Models;
 namespace OsbbRequests.Bot.Persistence;
 
 public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, string tableName,
-    TimeProvider? timeProvider = null, string? residentsTable = null) : ICommandRepository
+    TimeProvider? timeProvider = null, string? residentsTable = null, string? complexId = null) : ICommandRepository
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     private static string Number(long value) => value.ToString(CultureInfo.InvariantCulture);
@@ -117,6 +117,12 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
 
     public async Task<ResidentRegistration?> GetRegistrationAsync(long userId, CancellationToken cancellationToken)
     {
+        if (residentsTable is not null && complexId is not null)
+        {
+            var record = await GetResidentRecordAsync(complexId, "USER#" + Number(userId), "REGISTRATION", cancellationToken);
+            var resident = record.TryGetValue("payload", out var data) ? JsonSerializer.Deserialize<ResidentRegistration>(data.S) : null;
+            return resident?.UserId == userId && resident.BuildingId == complexId ? resident : null;
+        }
         var item = await GetAsync("USER#" + Number(userId), "REGISTRATION", cancellationToken);
         return item.TryGetValue("payload", out var payload)
             ? JsonSerializer.Deserialize<ResidentRegistration>(payload.S) : null;
@@ -124,7 +130,10 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
 
     public async Task<bool> IsResidentAsync(long userId, string buildingId, CancellationToken cancellationToken)
     {
-        var item = await GetAsync("USER#" + Number(userId), "MEMBERSHIP", cancellationToken);
+        if (complexId is not null && buildingId != complexId) return false;
+        var item = residentsTable is not null && complexId is not null
+            ? await GetResidentRecordAsync(buildingId, "USER#" + Number(userId), "MEMBERSHIP", cancellationToken)
+            : await GetAsync("USER#" + Number(userId), "MEMBERSHIP", cancellationToken);
         return item.TryGetValue("buildingId", out var building) && building.S == buildingId &&
             item.TryGetValue("active", out var active) && active.BOOL == true;
     }
@@ -211,24 +220,16 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
                 {
                     ConditionCheck = new()
                     {
-                        TableName = tableName,
-                        Key = Key("USER#" + Number(command.UserId), "REGISTRATION"),
+                        TableName = residentsTable is not null && complexId is not null ? residentsTable : tableName,
+                        Key = residentsTable is not null && complexId is not null
+                            ? new() { ["pk"] = new(OsbbRequests.Shared.Residents.ResidentRecordKey.Create(request.BuildingId, "USER#" + Number(command.UserId), "REGISTRATION").Key) }
+                            : Key("USER#" + Number(command.UserId), "REGISTRATION"),
                         ConditionExpression = "#v = :version",
                         ExpressionAttributeNames = new() { ["#v"] = "version" },
                         ExpressionAttributeValues = new() { [":version"] = new() { N = Number(profileVersion) } }
                     }
                 });
-                writes.Add(new()
-                {
-                    ConditionCheck = new()
-                    {
-                        TableName = tableName,
-                        Key = Key("USER#" + Number(command.UserId), "MEMBERSHIP"),
-                        ConditionExpression = "buildingId = :complex AND #active = :active",
-                        ExpressionAttributeNames = new() { ["#active"] = "active" },
-                        ExpressionAttributeValues = new() { [":complex"] = new(request.BuildingId), [":active"] = new() { BOOL = true } }
-                    }
-                });
+                writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, request.BuildingId) });
             }
             var item = Key("USER#" + Number(request.OwnerId), RequestKey(request.Id));
             item["payload"] = new AttributeValue(JsonSerializer.Serialize(request));
@@ -256,17 +257,7 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         if (outcome.Deletion is { } deletion)
         {
             if (deletion.OwnerId != command.UserId) throw new InvalidOperationException("Deletion owner mismatch.");
-            writes.Add(new()
-            {
-                ConditionCheck = new()
-                {
-                    TableName = tableName,
-                    Key = Key("USER#" + Number(command.UserId), "MEMBERSHIP"),
-                    ConditionExpression = "buildingId = :complex AND #active = :active",
-                    ExpressionAttributeNames = new() { ["#active"] = "active" },
-                    ExpressionAttributeValues = new() { [":complex"] = new(deletion.ComplexId), [":active"] = new() { BOOL = true } }
-                }
-            });
+            writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, deletion.ComplexId) });
             writes.Add(new()
             {
                 Delete = new()
