@@ -24,11 +24,21 @@ public static class AdministratorNotifications
 {
     private static string Date(DateTimeOffset date) => TimeZoneInfo.ConvertTime(date, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"))
         .ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture) + " (Київ)";
+    private static string ResidentTypeLabel(ResidentType type) => type switch
+    {
+        ResidentType.Owner => "Власник",
+        ResidentType.FamilyMember => "Член родини",
+        ResidentType.Tenant => "Орендар",
+        ResidentType.Employee => "Працівник ОСББ",
+        _ => "Не зазначено"
+    };
 
     public static ResidentNotification NewResident(ResidentRegistration resident) => new(
         "new-resident-" + resident.Id + "-v" + resident.Version.ToString(CultureInfo.InvariantCulture), resident.BuildingId, 0, null, null,
         "Нова реєстрація мешканця в ЖК «Зелений острів 2».\n" +
         string.Join(" ", new[] { resident.FirstName, resident.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))) +
+        "\nТип мешканця: " + ResidentTypeLabel(resident.ResidentType) +
+        "\nБудинок: " + (string.IsNullOrWhiteSpace(resident.BuildingNumber) ? "Не зазначено" : resident.BuildingNumber.Trim()) +
         "\nПодано: " + Date(resident.UpdatedAt) + (resident.Stage == RegistrationStage.Approved
             ? "\nРеєстрацію схвалено автоматично. Мешканцю надано доступ."
             : "\nПотребує перевірки в розділі «Мешканці» вебпанелі."), resident.UpdatedAt, AdministratorEvent.NewResident);

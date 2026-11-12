@@ -15,6 +15,27 @@ namespace OsbbRequests.Bot.Tests;
 public sealed class AdministratorNotificationTests
 {
     [Theory]
+    [InlineData(ResidentType.Owner, "Власник", "4Б", RegistrationStage.Pending)]
+    [InlineData(ResidentType.FamilyMember, "Член родини", "4В", RegistrationStage.Approved)]
+    [InlineData(ResidentType.Tenant, "Орендар", "4Г", RegistrationStage.Approved)]
+    [InlineData(ResidentType.Employee, "Працівник ОСББ", null, RegistrationStage.Pending)]
+    public void NewResidentAlertContainsTypeAndHouse(ResidentType type, string label, string? house, RegistrationStage stage)
+    {
+        var resident = new ResidentRegistration("reference", 987654321, "complex", stage, 1, Now, Now,
+            Phone: "+380500000000", FirstName: "Олена", LastName: "Тестова", BuildingNumber: house,
+            ApartmentNumber: "125", Email: "resident@example.invalid", ResidentType: type);
+        var alert = AdministratorNotifications.NewResident(resident);
+        Assert.Contains("Тип мешканця: " + label, alert.Text);
+        Assert.Contains("Будинок: " + (house ?? "Не зазначено"), alert.Text);
+        Assert.Contains(stage == RegistrationStage.Approved ? "схвалено автоматично" : "Потребує перевірки", alert.Text);
+        Assert.DoesNotContain("987654321", alert.Text);
+        Assert.DoesNotContain(resident.Phone!, alert.Text);
+        Assert.DoesNotContain(resident.Email!, alert.Text);
+        Assert.Equal(AdministratorEvent.NewResident, alert.AdministratorEvent);
+        Assert.True(alert.IsBroadcast);
+    }
+
+    [Theory]
     [InlineData(RequestVisibility.Public)]
     [InlineData(RequestVisibility.Private)]
     public void NewRequestAlertIncludesFullDescriptionButNoOtherPrivateFields(RequestVisibility visibility)
