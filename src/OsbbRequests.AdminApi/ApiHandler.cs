@@ -138,6 +138,14 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             await store.ChangeResidentTypeAsync(actor, registrationId, Body<ResidentTypeChangeRequest>(request), ct);
             return Reply(200, new { ok = true });
         }
+        if (segments is ["admin", "registrations", var approvalId, "approval"] && method == "GET")
+        {
+            if (!actor.EffectivePermissions.RegisteredResidents) throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
+            if (approvalId.Length != 32 || !approvalId.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");
+            var registration = await store.GetRegistrationAsync(approvalId, ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
+            if (registration.Stage != RegistrationStage.Approved || registration.PersonalDataDeleted) throw new ApiError(404, "Реєстрацію не знайдено.");
+            return Reply(200, await store.GetRegistrationApprovalAsync(approvalId, ct));
+        }
         if (segments is ["admin", "registrations", var historyId, "history"] && method == "GET")
         {
             if (!actor.EffectivePermissions.PendingResidents && !actor.EffectivePermissions.RegisteredResidents)
@@ -257,7 +265,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         }
         catch (Exception e) when (e is JsonException or FormatException) { throw new ApiError(400, "Некоректні дані запиту."); }
     }
-    public static APIGatewayHttpApiV2ProxyResponse Reply(int status, object body) => new()
+    public static APIGatewayHttpApiV2ProxyResponse Reply(int status, object? body) => new()
     {
         StatusCode = status,
         Body = JsonSerializer.Serialize(body, Json),

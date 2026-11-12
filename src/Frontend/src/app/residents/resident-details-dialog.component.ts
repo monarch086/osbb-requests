@@ -1,7 +1,12 @@
 import type { AfterViewInit, ElementRef } from '@angular/core';
 import { Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 
-import type { PagePermissions, RegisteredResident, Registration } from '../api.models';
+import type {
+  PagePermissions,
+  RegisteredResident,
+  Registration,
+  RegistrationApproval,
+} from '../api.models';
 import { formatDate } from '../shared/ticket-presentation';
 import { residentTypeLabel } from './resident-type';
 
@@ -15,6 +20,9 @@ export class ResidentDetailsDialogComponent implements AfterViewInit {
   @Input({ required: true }) permissions!: PagePermissions;
   @Input() saving = false;
   @Input() error = '';
+  @Input() approval: RegistrationApproval | null = null;
+  @Input() approvalLoading = false;
+  @Input() approvalError = false;
   @Output() readonly closed = new EventEmitter<void>();
   @Output() readonly edit = new EventEmitter<Registration | RegisteredResident>();
   @Output() readonly history = new EventEmitter<Registration | RegisteredResident>();

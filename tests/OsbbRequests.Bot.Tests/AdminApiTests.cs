@@ -140,6 +140,26 @@ public sealed class AdminApiTests
     }
 
     [Theory]
+    [InlineData(RegistrationStage.Approved, true, 200)]
+    [InlineData(RegistrationStage.Approved, false, 403)]
+    [InlineData(RegistrationStage.Pending, true, 404)]
+    [InlineData(RegistrationStage.Deleted, true, 404)]
+    public async Task ApprovalDetailsRequireRegisteredResidentsPermissionAndApprovedRegistration(RegistrationStage stage, bool permitted, int expected)
+    {
+        var store = new FakeStore { HistoryStage = stage };
+        store.Users["regular"] = Regular with { Permissions = new(false, false, permitted, true, false) };
+        var request = Request("/admin/registrations/" + new string('a', 32) + "/approval");
+        if (expected == 200)
+        {
+            var response = await Handler(store).HandleAsync(request, default);
+            Assert.Equal(200, response.StatusCode);
+            using var json = JsonDocument.Parse(response.Body);
+            Assert.Equal("admin@example.org", json.RootElement.GetProperty("actor").GetString());
+        }
+        else Assert.Equal(expected, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(request, default))).Status);
+    }
+
+    [Theory]
     [InlineData(RegistrationStage.Pending, true, false, 200)]
     [InlineData(RegistrationStage.Pending, false, true, 403)]
     [InlineData(RegistrationStage.Approved, false, true, 200)]
@@ -642,6 +662,7 @@ public sealed class AdminApiTests
     {
         public RegistrationStage HistoryStage = RegistrationStage.Pending;
         public int TypeChanges;
+        public Task<RegistrationApproval?> GetRegistrationApprovalAsync(string reference, CancellationToken ct) => Task.FromResult<RegistrationApproval?>(new("admin@example.org", DateTimeOffset.UnixEpoch, false));
         public Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct) => Task.FromResult<ResidentRegistration?>(new(reference, 99, "building", HistoryStage, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
         public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }

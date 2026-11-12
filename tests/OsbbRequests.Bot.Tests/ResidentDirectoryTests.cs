@@ -94,6 +94,31 @@ public sealed class ResidentDirectoryTests
         Assert.Single(db.Transaction!.TransactItems, w => w.Put?.Item.GetValueOrDefault("pk")?.S == "NOTIFICATIONS#building");
     }
 
+    [Theory]
+    [InlineData("admin@example.org", "Approved", false)]
+    [InlineData("system", "Approved", true)]
+    public async Task ApprovalReadsAuditByRegistrationWithConsistentRead(string actor, string decision, bool automatic)
+    {
+        using var db = new RecordingDynamo { Snapshot = new() { ["actor"] = new(actor), ["decision"] = new(decision), ["createdAt"] = new("2026-01-01T00:00:00+00:00") } };
+        var result = await new DynamoAdminStore(db, "admins", "data", "building").GetRegistrationApprovalAsync(Registration.Id, default);
+        Assert.Equal(actor, result!.Actor);
+        Assert.Equal(automatic, result.Automatic);
+        Assert.Equal(DateTimeOffset.Parse("2026-01-01T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture), result.CreatedAt);
+        Assert.True(db.Get!.ConsistentRead);
+        Assert.Equal("REGISTRATION#" + Registration.Id, db.Get.Key["pk"].S);
+        Assert.Equal("EVENT#DECIDED", db.Get.Key["sk"].S);
+    }
+
+    [Fact]
+    public async Task MissingOrRejectedDecisionDoesNotInventApprover()
+    {
+        using var db = new RecordingDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "building");
+        Assert.Null(await store.GetRegistrationApprovalAsync(Registration.Id, default));
+        db.Snapshot = new() { ["decision"] = new("Rejected"), ["actor"] = new("admin@example.org") };
+        Assert.Null(await store.GetRegistrationApprovalAsync(Registration.Id, default));
+    }
+
     [Fact]
     public async Task ResidentTypeChangeIsAtomicAuditedAndDoesNotGrantAccess()
     {
@@ -325,12 +350,13 @@ public sealed class ResidentDirectoryTests
     {
         public Dictionary<string, AttributeValue>? Snapshot;
         public QueryRequest? Query;
+        public GetItemRequest? Get;
         public QueryResponse Result = new() { Items = [] };
         public TransactWriteItemsRequest? Transaction;
         public int TransactionCalls;
         public bool Conflict;
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult(new GetItemResponse { Item = Snapshot });
+        { Get = request; return Task.FromResult(new GetItemResponse { Item = Snapshot }); }
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
         { Query = request; return Task.FromResult(Result); }
         public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken cancellationToken = default)

@@ -60,6 +60,20 @@
             @if (resident) {
               <dt>Реєстрацію підтверджено</dt>
               <dd>{{ date(resident.registeredAt) }}</dd>
+              <dt>Підтверджено</dt>
+              <dd>
+                @if (approvalLoading) {
+                  Завантажуємо…
+                } @else if (approvalError) {
+                  Не вдалося завантажити дані
+                } @else if (approval?.automatic) {
+                  Автоматично
+                } @else if (approval?.actor) {
+                  {{ approval?.actor }}
+                } @else {
+                  Дані відсутні
+                }
+              </dd>
             }
           </dl>
         </div>

@@ -11,6 +11,7 @@ import type {
   PagePermissions,
   RegisteredResident,
   Registration,
+  RegistrationApproval,
   ResidentDataChange,
   ResidentTypeHistory,
   Ticket,
@@ -56,6 +57,9 @@ export class ApiService {
       version: resident.version,
       ...change,
     });
+  }
+  getRegistrationApproval(id: string): Promise<RegistrationApproval | null> {
+    return this.request('/registrations/' + id + '/approval');
   }
   getResidentHistory(id: string, cursor: string | null): Promise<Page<ResidentTypeHistory>> {
     return this.request('/registrations/' + id + '/history' + this.cursorQuery(cursor));

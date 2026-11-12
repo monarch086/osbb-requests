@@ -21,6 +21,7 @@ public sealed record BroadcastMessage(string Id, string Text, string CreatedBy, 
 public sealed record AccessChange(bool IsActive, int Version);
 public sealed record RegisteredResident(string Id, string? FirstName, string? LastName, string? Phone, DateTimeOffset RegisteredAt, string? TelegramChatId = null, string? BuildingNumber = null, string? ApartmentNumber = null, bool PersonalDataDeleted = false, string? Email = null, DateTimeOffset? ConsentAt = null, ResidentType ResidentType = ResidentType.FamilyMember, int TypeChangeCount = 0, int Version = 0);
 public sealed record RegistrationDecision(bool Approved, string? Reason, int Version);
+public sealed record RegistrationApproval(string Actor, DateTimeOffset? CreatedAt, bool Automatic);
 public sealed record ResidentTypeChangeRequest(string ResidentType, int Version);
 public sealed record ResidentDataChangeRequest(string FirstName, string LastName, string ResidentType, int Version);
 public sealed record ResidentTypeChange(string PreviousType, string NewType, string Actor, DateTimeOffset CreatedAt, bool FirstNameChanged = false, bool LastNameChanged = false);

@@ -16,6 +16,14 @@ public sealed partial class DynamoAdminStore
         return registration.Id == reference && registration.BuildingId == building ? registration : null;
     }
 
+    public async Task<RegistrationApproval?> GetRegistrationApprovalAsync(string reference, CancellationToken ct)
+    {
+        var item = await Get(dataTable, Key("REGISTRATION#" + reference, "EVENT#DECIDED"), ct);
+        if (item?.GetValueOrDefault("decision")?.S != "Approved" || item.GetValueOrDefault("actor")?.S is not { Length: > 0 } actor) return null;
+        var timestamp = DateTimeOffset.TryParse(item.GetValueOrDefault("createdAt")?.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var date) ? date : (DateTimeOffset?)null;
+        return new RegistrationApproval(actor, timestamp, actor == "system");
+    }
+
     public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) =>
         ApplyResidentChangeAsync(actor, reference, change.ResidentType, change.Version, null, null, true, ct);
 

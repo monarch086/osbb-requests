@@ -17,6 +17,7 @@ public interface IAdminStore
     Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct);
     Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct);
     Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct);
+    Task<RegistrationApproval?> GetRegistrationApprovalAsync(string reference, CancellationToken ct);
     Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct);
     Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct);
     Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct);

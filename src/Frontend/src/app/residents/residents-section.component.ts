@@ -3,6 +3,7 @@ import { Component, inject } from '@angular/core';
 import type {
   RegisteredResident,
   Registration,
+  RegistrationApproval,
   ResidentDataChange,
   ResidentTypeHistory,
 } from '../api.models';
@@ -34,6 +35,10 @@ import { ResidentsList } from './residents-list';
 export class ResidentsSectionComponent extends WorkspaceSection {
   private readonly excel = inject(ExcelExportService);
   protected override readonly lists = new ResidentsList();
+  protected approval: RegistrationApproval | null = null;
+  protected approvalLoading = false;
+  protected approvalError = false;
+  private approvalSequence = 0;
   protected selectedPending: Registration | null = null;
   protected selectedRegistered: RegisteredResident | null = null;
   protected rejecting: Registration | null = null;
@@ -87,17 +92,40 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     this.selectedRegistered = null;
     this.error = '';
   }
-  protected openRegistered(resident: RegisteredResident): void {
+  protected async openRegistered(resident: RegisteredResident): Promise<void> {
     this.detailsTrigger =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.selectedRegistered = resident;
     this.selectedPending = null;
     this.error = '';
+    this.approval = null;
+    this.approvalError = false;
+    this.approvalLoading = true;
+    const sequence = ++this.approvalSequence;
+    const epoch = this.epoch;
+    const current = (): boolean => sequence === this.approvalSequence && epoch === this.epoch;
+    try {
+      const approval = await this.api.getRegistrationApproval(resident.id);
+      if (current()) {
+        this.approval = approval;
+      }
+    } catch {
+      if (current()) {
+        this.approvalError = true;
+      }
+    } finally {
+      if (current()) {
+        this.approvalLoading = false;
+      }
+    }
   }
   protected closeDetails(): void {
     if (this.saving) {
       return;
     }
+    this.approvalSequence++;
+    this.approvalLoading = false;
+    this.approval = null;
     this.selectedPending = null;
     this.selectedRegistered = null;
     this.error = '';

@@ -61,6 +61,11 @@ export interface RegisteredResident {
   version: number;
   consentAt?: string | null;
 }
+export interface RegistrationApproval {
+  actor: string;
+  createdAt: string | null;
+  automatic: boolean;
+}
 export interface ResidentDataChange {
   firstName: string;
   lastName: string;
