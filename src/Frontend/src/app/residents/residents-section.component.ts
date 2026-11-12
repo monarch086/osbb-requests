@@ -100,9 +100,10 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     if (
       this.loading ||
       this.saving ||
+      !Number.isInteger(number) ||
       number < 1 ||
       number > this.lists.availablePages() ||
-      Math.abs(number - (this.lists.pagination.index + 1)) !== 1
+      number === this.lists.pagination.index + 1
     ) {
       return;
     }
