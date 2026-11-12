@@ -52,25 +52,29 @@
       </div>
     </div>
     <nav class="nav nav-pills gap-2 my-4" aria-label="Розділи панелі">
-      <a
-        class="nav-link"
-        [class.active]="tab === 'requests'"
-        [class.disabled]="saving"
-        [attr.aria-disabled]="saving"
-        [attr.aria-current]="tab === 'requests' ? 'page' : null"
-        [routerLink]="saving ? null : '/requests'"
-        >Заявки</a
-      >
-      <a
-        class="nav-link"
-        [class.active]="tab === 'residents'"
-        [class.disabled]="saving"
-        [attr.aria-disabled]="saving"
-        [attr.aria-current]="tab === 'residents' ? 'page' : null"
-        [routerLink]="saving ? null : '/residents'"
-        >Мешканці</a
-      >
-      @if (user.isSuperAdmin) {
+      @if (allowed('requests', user)) {
+        <a
+          class="nav-link"
+          [class.active]="tab === 'requests'"
+          [class.disabled]="saving"
+          [attr.aria-disabled]="saving"
+          [attr.aria-current]="tab === 'requests' ? 'page' : null"
+          [routerLink]="saving ? null : '/requests'"
+          >Заявки</a
+        >
+      }
+      @if (allowed('residents', user)) {
+        <a
+          class="nav-link"
+          [class.active]="tab === 'residents'"
+          [class.disabled]="saving"
+          [attr.aria-disabled]="saving"
+          [attr.aria-current]="tab === 'residents' ? 'page' : null"
+          [routerLink]="saving ? null : '/residents'"
+          >Мешканці</a
+        >
+      }
+      @if (allowed('messages', user)) {
         <a
           class="nav-link"
           [class.active]="tab === 'messages'"
@@ -80,6 +84,8 @@
           [routerLink]="saving ? null : '/messages'"
           >Повідомлення</a
         >
+      }
+      @if (user.isSuperAdmin) {
         <a
           class="nav-link"
           [class.active]="tab === 'admins'"
@@ -91,17 +97,27 @@
         >
       }
     </nav>
-    @if (tab === 'requests') {
+    @if (tab === 'requests' && allowed('requests', user)) {
       <app-requests-section [me]="user" (savingChange)="setSaving($event)" />
     }
-    @if (tab === 'residents') {
+    @if (tab === 'residents' && allowed('residents', user)) {
       <app-residents-section [me]="user" (savingChange)="setSaving($event)" />
     }
-    @if (tab === 'messages' && user.isSuperAdmin) {
+    @if (tab === 'messages' && allowed('messages', user)) {
       <app-messages-section [me]="user" (savingChange)="setSaving($event)" />
     }
     @if (tab === 'admins' && user.isSuperAdmin) {
       <app-administrators-section [me]="user" (savingChange)="setSaving($event)" />
+    }
+    @if (
+      !allowed('requests', user) &&
+      !allowed('residents', user) &&
+      !allowed('messages', user) &&
+      !user.isSuperAdmin
+    ) {
+      <p class="alert alert-info">
+        Доступ до розділів ще не надано. Зверніться до супер адміністратора.
+      </p>
     }
   }
 }

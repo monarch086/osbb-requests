@@ -12,7 +12,9 @@ import type { Admin, NotificationSettings } from '../api.models';
 export class AdministratorNotificationsComponent implements OnChanges {
   @Input({ required: true }) admin!: Admin;
   @Input() saving = false;
+  @Input() error = '';
   @Output() readonly saved = new EventEmitter<NotificationSettings>();
+  @Output() readonly closed = new EventEmitter<void>();
   protected settings: NotificationSettings = {
     telegramChatId: '',
     notifyNewResidents: false,

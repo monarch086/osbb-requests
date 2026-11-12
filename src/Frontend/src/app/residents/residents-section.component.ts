@@ -20,12 +20,23 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   protected override readonly lists = new ResidentsList();
   protected rejecting: Registration | null = null;
   protected pendingCount = 0;
+  override ngOnInit(): void {
+    if (
+      !this.me.effectivePermissions.registeredResidents &&
+      this.me.effectivePermissions.pendingResidents
+    ) {
+      this.lists.residentView = 'pending';
+    }
+    super.ngOnInit();
+  }
   protected override async loadItems(
     index: number,
     _cursor: string | null,
     isCurrent: () => boolean,
   ): Promise<void> {
-    const count = await this.api.getRegistrationCount();
+    const count = this.me.effectivePermissions.pendingResidents
+      ? await this.api.getRegistrationCount()
+      : { count: 0 };
     if (!isCurrent()) {
       return;
     }
@@ -45,7 +56,13 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     }
   }
   protected async switchResidentView(view: ResidentView): Promise<void> {
-    if (this.saving || this.loading || view === this.lists.residentView) {
+    if (
+      this.saving ||
+      this.loading ||
+      view === this.lists.residentView ||
+      (view === 'registered' && !this.me.effectivePermissions.registeredResidents) ||
+      (view === 'pending' && !this.me.effectivePermissions.pendingResidents)
+    ) {
       return;
     }
     this.lists.residentView = view;

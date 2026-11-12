@@ -90,6 +90,38 @@ public sealed class AdministratorNotificationTests
     }
 
     [Fact]
+    public async Task PermissionsAreUpdatedWithSuperAdminVersionGuardAndAudit()
+    {
+        using var db = new NotificationDynamo();
+        var permissions = new PagePermissions(false, true, false, true, true);
+        await new DynamoAdminStore(db, "admins", "data", "complex")
+            .SetPermissionsAsync(Super, Regular, new(Regular.Version, permissions), default);
+        var writes = db.Transaction!.TransactItems;
+        var actor = Assert.Single(writes, w => w.ConditionCheck is not null).ConditionCheck;
+        Assert.Contains("IsSuperAdmin = :yes", actor.ConditionExpression);
+        Assert.Equal("4", actor.ExpressionAttributeValues[":version"].N);
+        var update = Assert.Single(writes, w => w.Update is not null).Update;
+        Assert.Equal("2", update.ExpressionAttributeValues[":expected"].N);
+        Assert.DoesNotContain("IsSuperAdmin", JsonSerializer.Serialize(update));
+        Assert.True(update.ExpressionAttributeValues[":messages"].BOOL);
+        Assert.False(update.ExpressionAttributeValues[":complex"].BOOL);
+        Assert.Single(writes, w => w.Put?.Item.GetValueOrDefault("action")?.S == "AdminPermissionsChanged");
+    }
+
+    [Fact]
+    public async Task MissingPermissionFieldsPreserveLegacyAccessAndSavedFieldsAreRead()
+    {
+        using var db = new NotificationDynamo();
+        db.Administrators["regular"] = Administrator();
+        db.Administrators["regular"]["UserId"] = new("regular");
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        Assert.Equal(PagePermissions.Legacy, (await store.GetAdminAsync("regular", default))!.EffectivePermissions);
+        db.Administrators["regular"]["AccessComplexRequests"] = new() { BOOL = false };
+        db.Administrators["regular"]["AccessMessages"] = new() { BOOL = true };
+        Assert.Equal(new PagePermissions(false, true, true, true, true), (await store.GetAdminAsync("regular", default))!.EffectivePermissions);
+    }
+
+    [Fact]
     public async Task OwnSettingsCheckActiveInUpdateWithoutDuplicateTransactionItem()
     {
         using var db = new NotificationDynamo();

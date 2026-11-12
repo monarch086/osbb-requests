@@ -28,7 +28,7 @@ public sealed partial class DynamoAdminStore
 
     public async Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct)
     {
-        if (!actor.IsActive || !actor.IsSuperAdmin) throw new ApiError(403, "Недостатньо прав для розсилки.");
+        if (!actor.IsActive || !actor.EffectivePermissions.Messages) throw new ApiError(403, "Недостатньо прав для розсилки.");
         if (!Guid.TryParseExact(change.Id, "D", out var id) || string.IsNullOrWhiteSpace(change.Text) || change.Text.Length > 4096)
             throw new ApiError(400, "Вкажіть текст повідомлення від 1 до 4096 символів і коректний ідентифікатор.");
         var messageId = id.ToString("D");
@@ -53,7 +53,7 @@ public sealed partial class DynamoAdminStore
         try
         {
             // The immutable history is also the audit: identity and timestamp are assigned by the server.
-            await Transact([ActorCheck(actor, super: true), Put(dataTable, identity), Put(dataTable, history), NotificationWrite(notification)], ct);
+            await Transact([ActorCheck(actor), Put(dataTable, identity), Put(dataTable, history), NotificationWrite(notification)], ct);
         }
         catch (ApiError error) when (error.Status == 409)
         {

@@ -34,11 +34,74 @@
             </button>
           }
         </div>
-        <app-administrator-notifications
-          [admin]="a"
-          [saving]="saving"
-          (saved)="saveNotifications.emit({ admin: a, settings: $event })"
-        />
+        <div class="row g-3 mt-2">
+          <div class="col-12 col-md-6">
+            <button
+              type="button"
+              class="btn btn-outline-secondary w-100 text-start h-100"
+              [disabled]="saving"
+              (click)="notifications = a"
+            >
+              <strong>Сповіщення</strong>
+              @if (a.telegramChatId) {
+                <span class="d-block small mt-2">Telegram Chat Id: {{ a.telegramChatId }}</span>
+              }
+              <span class="d-block mt-2" role="list">
+                @if (a.notifyNewResidents) {
+                  <span class="d-block" role="listitem">• Нові мешканці</span>
+                }
+                @if (a.notifyNewRequests) {
+                  <span class="d-block" role="listitem">• Нові заявки</span>
+                }
+                @if (a.notifyNewAdministrators) {
+                  <span class="d-block" role="listitem">• Нові адміністратори</span>
+                }
+                @if (!a.notifyNewResidents && !a.notifyNewRequests && !a.notifyNewAdministrators) {
+                  <span class="d-block" role="listitem">• Не налаштовано</span>
+                }
+              </span>
+            </button>
+          </div>
+          <div class="col-12 col-md-6">
+            <button
+              type="button"
+              class="btn btn-outline-secondary w-100 text-start h-100"
+              [disabled]="saving || a.isSuperAdmin"
+              (click)="permissions = a"
+            >
+              <strong>Доступи</strong>
+              @if (a.isSuperAdmin) {
+                <span class="d-block small mt-2">Супер адміністратор має повний доступ</span>
+              }
+              <span class="d-block mt-2" role="list">
+                @if (a.effectivePermissions.complexRequests) {
+                  <span class="d-block" role="listitem">• Заявки по комплексу</span>
+                }
+                @if (a.effectivePermissions.keyOrders) {
+                  <span class="d-block" role="listitem">• Заявки по ключах</span>
+                }
+                @if (a.effectivePermissions.registeredResidents) {
+                  <span class="d-block" role="listitem">• Зареєстровані мешканці</span>
+                }
+                @if (a.effectivePermissions.pendingResidents) {
+                  <span class="d-block" role="listitem">• Мешканці, що очікують перевірки</span>
+                }
+                @if (a.effectivePermissions.messages) {
+                  <span class="d-block" role="listitem">• Повідомлення</span>
+                }
+                @if (
+                  !a.effectivePermissions.complexRequests &&
+                  !a.effectivePermissions.keyOrders &&
+                  !a.effectivePermissions.registeredResidents &&
+                  !a.effectivePermissions.pendingResidents &&
+                  !a.effectivePermissions.messages
+                ) {
+                  <span class="d-block" role="listitem">• Не надано</span>
+                }
+              </span>
+            </button>
+          </div>
+        </div>
       </article>
     }
   </div>
@@ -46,3 +109,21 @@
     Новий адміністратор спочатку створює та підтверджує обліковий запис, а потім входить до панелі.
   </div>
 </section>
+@if (notifications; as admin) {
+  <app-administrator-notifications
+    [admin]="admin"
+    [saving]="saving"
+    [error]="error"
+    (closed)="notifications = null"
+    (saved)="saveNotifications.emit({ admin: admin, settings: $event })"
+  />
+}
+@if (permissions; as admin) {
+  <app-permissions-dialog
+    [admin]="admin"
+    [saving]="saving"
+    [error]="error"
+    (closed)="permissions = null"
+    (saved)="savePermissions.emit({ admin: admin, permissions: $event })"
+  />
+}

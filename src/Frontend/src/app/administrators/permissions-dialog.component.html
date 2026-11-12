@@ -1,0 +1,85 @@
+<div
+  class="modal d-block"
+  tabindex="-1"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="permissions-title"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="permissions-title">Доступи</h2>
+      </div>
+      <form class="p-3" (ngSubmit)="saved.emit(permissions)">
+        @if (error) {
+          <p class="alert alert-danger" role="alert">{{ error }}</p>
+        }
+        <div class="form-check mb-2">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="permission-complex"
+            name="complex"
+            [(ngModel)]="permissions.complexRequests"
+            [disabled]="saving"
+          /><label class="form-check-label" for="permission-complex">Заявки по комплексу</label>
+        </div>
+        <div class="form-check mb-2">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="permission-keys"
+            name="keys"
+            [(ngModel)]="permissions.keyOrders"
+            [disabled]="saving"
+          /><label class="form-check-label" for="permission-keys">Заявки по ключах</label>
+        </div>
+        <div class="form-check mb-2">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="permission-residents"
+            name="residents"
+            [(ngModel)]="permissions.registeredResidents"
+            [disabled]="saving"
+          /><label class="form-check-label" for="permission-residents"
+            >Зареєстровані мешканці</label
+          >
+        </div>
+        <div class="form-check mb-2">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="permission-pending"
+            name="pending"
+            [(ngModel)]="permissions.pendingResidents"
+            [disabled]="saving"
+          /><label class="form-check-label" for="permission-pending"
+            >Мешканці, що очікують перевірки</label
+          >
+        </div>
+        <div class="form-check mb-3">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="permission-messages"
+            name="messages"
+            [(ngModel)]="permissions.messages"
+            [disabled]="saving"
+          /><label class="form-check-label" for="permission-messages">Повідомлення</label>
+        </div>
+        <div class="d-flex justify-content-end gap-2">
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            [disabled]="saving"
+            (click)="closed.emit()"
+          >
+            Скасувати</button
+          ><button type="submit" class="btn btn-primary" [disabled]="saving">Зберегти</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop show"></div>

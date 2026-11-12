@@ -12,6 +12,7 @@ public interface IAdminStore
     Task<Page<AdminUser>> ListAdminsAsync(string? cursor, CancellationToken ct);
     Task SetNotificationSettingsAsync(AdminUser actor, AdminUser target, NotificationSettingsChange change, CancellationToken ct);
     Task SetAccessAsync(AdminUser actor, AdminUser target, AccessChange change, CancellationToken ct);
+    Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct);
     Task<int> CountRegistrationsAsync(CancellationToken ct);
     Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct);
     Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct);

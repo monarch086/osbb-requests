@@ -26,7 +26,12 @@ export class MessagesSectionComponent extends WorkspaceSection {
     }
   }
   protected async sendMessage(change: MessageChange): Promise<void> {
-    if (!this.me.isSuperAdmin || !this.me.isActive || this.loading || this.saving) {
+    if (
+      !this.me.effectivePermissions.messages ||
+      !this.me.isActive ||
+      this.loading ||
+      this.saving
+    ) {
       return;
     }
     const epoch = this.epoch;

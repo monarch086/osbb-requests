@@ -1,6 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, ViewChild } from '@angular/core';
 
-import type { Admin, NotificationSettings } from '../api.models';
+import type { Admin, NotificationSettings, PagePermissions } from '../api.models';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
 import { AdministratorsComponent } from './administrators.component';
@@ -13,6 +13,19 @@ import { AdministratorsList } from './administrators-list';
 })
 export class AdministratorsSectionComponent extends WorkspaceSection {
   protected override readonly lists = new AdministratorsList();
+  @ViewChild(AdministratorsComponent) private readonly administrators?: AdministratorsComponent;
+  protected async savePagePermissions(admin: Admin, permissions: PagePermissions): Promise<void> {
+    if (!this.me.isSuperAdmin || admin.isSuperAdmin) {
+      return;
+    }
+    await this.write(async () => {
+      await this.api.updateAdminPermissions(admin, permissions);
+      admin.effectivePermissions = { ...permissions };
+      admin.version++;
+      this.administrators?.closeDialogs();
+      this.notice = 'Доступи адміністратора збережено.';
+    });
+  }
   protected override async loadItems(
     index: number,
     cursor: string | null,
@@ -37,6 +50,7 @@ export class AdministratorsSectionComponent extends WorkspaceSection {
       if (this.me.userId === admin.userId) {
         Object.assign(this.me, settings, { version: admin.version });
       }
+      this.administrators?.closeDialogs();
       this.notice = 'Налаштування сповіщень збережено.';
     });
   }

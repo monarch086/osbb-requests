@@ -44,9 +44,19 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (path == "/admin/messages")
         {
-            if (!actor.IsSuperAdmin) throw new ApiError(403, "Надсилати й переглядати повідомлення може лише супер адміністратор.");
+            if (!actor.EffectivePermissions.Messages) throw new ApiError(403, "Недостатньо прав для роботи з повідомленнями.");
             if (method == "GET") return Reply(200, await store.ListMessagesAsync(cursor, ct));
             if (method == "POST") return Reply(200, await store.SendMessageAsync(actor, Body<MessageChange>(request), ct));
+        }
+        if (method == "PATCH" && segments is ["admin", "administrators", var permissionTarget, "permissions"])
+        {
+            if (!actor.IsSuperAdmin) throw new ApiError(403, "Недостатньо прав для зміни доступів.");
+            var change = Body<PermissionsChange>(request);
+            var target = await store.GetAdminAsync(permissionTarget, ct) ?? throw new ApiError(404, "Користувача не знайдено.");
+            if (target.IsSuperAdmin || target.UserId == actor.UserId) throw new ApiError(403, "Цей обліковий запис керується через AWS.");
+            if (change.Version != target.Version) throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            await store.SetPermissionsAsync(actor, target, change, ct);
+            return Reply(200, new { ok = true });
         }
         if (method == "PATCH" && segments is ["admin", "administrators", var targetId, "notifications"])
         {
@@ -73,13 +83,24 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         }
         if (method == "GET" && path == "/admin/assignees")
         {
+            if (!actor.EffectivePermissions.ComplexRequests && !actor.EffectivePermissions.KeyOrders)
+                throw new ApiError(403, "Недостатньо прав для роботи із заявками.");
             var page = await store.ListAdminsAsync(cursor, ct);
             return Reply(200, new { items = page.Items.Where(a => a.IsActive).Select(a => new { a.UserId, a.Email }), page.Cursor });
         }
-        if (method == "GET" && path == "/admin/residents") return Reply(200, await store.ListResidentsAsync(cursor, ct));
-        if (method == "GET" && path == "/admin/registrations/count") return Reply(200, new { count = await store.CountRegistrationsAsync(ct) });
+        if (method == "GET" && path == "/admin/residents")
+        {
+            if (!actor.EffectivePermissions.RegisteredResidents) throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
+            return Reply(200, await store.ListResidentsAsync(cursor, ct));
+        }
+        if (method == "GET" && path == "/admin/registrations/count")
+        {
+            if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
+            return Reply(200, new { count = await store.CountRegistrationsAsync(ct) });
+        }
         if (method == "GET" && path == "/admin/registrations")
         {
+            if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
             var page = await store.ListRegistrationsAsync(cursor, ct);
             return Reply(200, new
             {
@@ -103,6 +124,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         }
         if (method == "POST" && segments is ["admin", "registrations", var reference, "decision"])
         {
+            if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
             if (reference.Length != 32 || !reference.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");
             await store.DecideAsync(actor, reference, Body<RegistrationDecision>(request), ct);
             return Reply(200, new { ok = true });
@@ -128,6 +150,9 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             }
             var section = query.GetValueOrDefault("section");
             if (section is not (null or "complex" or "keys")) throw new ApiError(400, "Некоректний розділ заявок.");
+            if (section == "complex" && !actor.EffectivePermissions.ComplexRequests || section == "keys" && !actor.EffectivePermissions.KeyOrders ||
+                section is null && !(actor.EffectivePermissions.ComplexRequests && actor.EffectivePermissions.KeyOrders))
+                throw new ApiError(403, "Недостатньо прав для перегляду заявок.");
             return Reply(200, await store.ListRequestsAsync(new(statuses, query.GetValueOrDefault("category"),
                 query.GetValueOrDefault("search"), from, to, target, floor, section), cursor, ct));
         }
@@ -136,6 +161,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             long.TryParse(segments[3], NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id >= 0)
         {
             var current = await store.GetRequestAsync(owner, id, ct) ?? throw new ApiError(404, "Заявку не знайдено.");
+            if (current.Request.Category == RequestCategories.KeyOrder ? !actor.EffectivePermissions.KeyOrders : !actor.EffectivePermissions.ComplexRequests)
+                throw new ApiError(403, "Недостатньо прав для роботи із заявкою.");
             if (method == "GET" && segments.Length == 5 && segments[4] == "history") return Reply(200, new { items = await store.HistoryAsync(current.Request, ct) });
             if (method == "GET" && segments.Length == 4) return Reply(200, current with { Author = await store.GetRequestAuthorAsync(current.Request, ct) });
             if (method == "PATCH" && segments.Length == 4)

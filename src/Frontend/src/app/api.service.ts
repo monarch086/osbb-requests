@@ -8,6 +8,7 @@ import type {
   MessageChange,
   NotificationSettings,
   Page,
+  PagePermissions,
   RegisteredResident,
   Registration,
   Ticket,
@@ -20,6 +21,12 @@ import { UserFacingError } from './error-message';
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly auth = inject(AuthService);
+  updateAdminPermissions(admin: Admin, permissions: PagePermissions): Promise<{ ok: boolean }> {
+    return this.request('/administrators/' + admin.userId + '/permissions', 'PATCH', {
+      version: admin.version,
+      permissions,
+    });
+  }
   getCurrentAdmin(): Promise<Admin> {
     return this.request('/me');
   }

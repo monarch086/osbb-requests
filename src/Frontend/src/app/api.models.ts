@@ -20,6 +20,14 @@ export interface Admin extends NotificationSettings {
   isActive: boolean;
   isSuperAdmin: boolean;
   version: number;
+  effectivePermissions: PagePermissions;
+}
+export interface PagePermissions {
+  complexRequests: boolean;
+  keyOrders: boolean;
+  registeredResidents: boolean;
+  pendingResidents: boolean;
+  messages: boolean;
 }
 export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant' | 'Employee';
 export interface Registration {

@@ -27,6 +27,12 @@ export class RequestsSectionComponent extends WorkspaceSection {
   protected authorLoading = false;
   private assigneesReady = false;
   private detailSequence = 0;
+  override ngOnInit(): void {
+    if (!this.me.effectivePermissions.complexRequests && this.me.effectivePermissions.keyOrders) {
+      this.lists.applyTicketFilters({ ...this.lists.filters, section: 'keys' });
+    }
+    super.ngOnInit();
+  }
   protected override async loadItems(
     index: number,
     cursor: string | null,
@@ -89,7 +95,13 @@ export class RequestsSectionComponent extends WorkspaceSection {
     await this.runExport((current) => this.excel.exportTickets(this.lists.appliedFilters, current));
   }
   protected async switchSection(section: string): Promise<void> {
-    if (this.loading || this.saving || this.lists.filters.section === section) {
+    if (
+      this.loading ||
+      this.saving ||
+      this.lists.filters.section === section ||
+      (section === 'complex' && !this.me.effectivePermissions.complexRequests) ||
+      (section === 'keys' && !this.me.effectivePermissions.keyOrders)
+    ) {
       return;
     }
     this.lists.applyTicketFilters({ ...this.lists.filters, section, category: '' });

@@ -21,7 +21,10 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         item.GetValueOrDefault("IsActive")?.BOOL == true, item.GetValueOrDefault("IsSuperAdmin")?.BOOL == true,
         int.Parse(item.GetValueOrDefault("Version")?.N ?? "0", CultureInfo.InvariantCulture),
         item.GetValueOrDefault("TelegramChatId")?.S, item.GetValueOrDefault("NotifyNewResidents")?.BOOL == true,
-        item.GetValueOrDefault("NotifyNewRequests")?.BOOL == true, item.GetValueOrDefault("NotifyNewAdministrators")?.BOOL == true);
+        item.GetValueOrDefault("NotifyNewRequests")?.BOOL == true, item.GetValueOrDefault("NotifyNewAdministrators")?.BOOL == true,
+        new PagePermissions(item.GetValueOrDefault("AccessComplexRequests")?.BOOL ?? true,
+            item.GetValueOrDefault("AccessKeyOrders")?.BOOL ?? true, item.GetValueOrDefault("AccessRegisteredResidents")?.BOOL ?? true,
+            item.GetValueOrDefault("AccessPendingResidents")?.BOOL ?? true, item.GetValueOrDefault("AccessMessages")?.BOOL ?? false));
     private static T Payload<T>(Dictionary<string, AttributeValue> item) => JsonSerializer.Deserialize<T>(item["payload"].S)
         ?? throw new InvalidOperationException("Invalid stored payload.");
     private static ManagedRequest Managed(Dictionary<string, AttributeValue> item) => new(Payload<MaintenanceRequest>(item),
@@ -108,8 +111,9 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         {
             TableName = adminsTable,
             Key = AdminKey(actor.UserId),
-            ConditionExpression = super ? "IsActive = :yes AND IsSuperAdmin = :yes" : "IsActive = :yes",
-            ExpressionAttributeValues = new() { [":yes"] = new() { BOOL = true } }
+            ConditionExpression = (super || actor.IsSuperAdmin ? "IsActive = :yes AND IsSuperAdmin = :yes" : "IsActive = :yes") + " AND #version = :version",
+            ExpressionAttributeNames = new() { ["#version"] = "Version" },
+            ExpressionAttributeValues = new() { [":yes"] = new() { BOOL = true }, [":version"] = N(actor.Version) }
         }
     };
     private static TransactWriteItem Put(string table, Dictionary<string, AttributeValue> item) => new()
@@ -170,6 +174,30 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
                 ConditionExpression = "#v = :expected",
                 ExpressionAttributeNames = new() { ["#v"] = "Version" },
                 ExpressionAttributeValues = new() { [":active"] = new() { BOOL = change.IsActive }, [":now"] = S(now),
+                    [":next"] = N(change.Version + 1), [":expected"] = N(change.Version) }
+            } }, Put(dataTable, audit)
+        ], ct);
+    }
+
+    public async Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct)
+    {
+        if (!actor.IsActive || !actor.IsSuperAdmin || target.IsSuperAdmin || target.UserId == actor.UserId)
+            throw new ApiError(403, "Недостатньо прав для зміни доступів.");
+        if (change.Permissions is null) throw new ApiError(400, "Вкажіть доступи.");
+        var now = DateTimeOffset.UtcNow.ToString("O");
+        var audit = Key("ADMIN#" + target.UserId, "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
+        audit["actor"] = S(actor.Email); audit["action"] = S("AdminPermissionsChanged"); audit["createdAt"] = S(now);
+        audit["permissions"] = S(JsonSerializer.Serialize(change.Permissions));
+        await Transact([
+            ActorCheck(actor, super: true),
+            new() { Update = new() {
+                TableName = adminsTable, Key = AdminKey(target.UserId),
+                UpdateExpression = "SET AccessComplexRequests = :complex, AccessKeyOrders = :keys, AccessRegisteredResidents = :registered, AccessPendingResidents = :pending, AccessMessages = :messages, UpdatedAt = :now, #v = :next",
+                ConditionExpression = "#v = :expected",
+                ExpressionAttributeNames = new() { ["#v"] = "Version" },
+                ExpressionAttributeValues = new() { [":complex"] = new() { BOOL = change.Permissions.ComplexRequests }, [":keys"] = new() { BOOL = change.Permissions.KeyOrders },
+                    [":registered"] = new() { BOOL = change.Permissions.RegisteredResidents }, [":pending"] = new() { BOOL = change.Permissions.PendingResidents },
+                    [":messages"] = new() { BOOL = change.Permissions.Messages }, [":now"] = S(now),
                     [":next"] = N(change.Version + 1), [":expected"] = N(change.Version) }
             } }, Put(dataTable, audit)
         ], ct);

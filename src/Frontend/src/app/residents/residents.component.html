@@ -1,33 +1,37 @@
 <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Списки мешканців">
-  <button
-    type="button"
-    class="btn"
-    [class.btn-primary]="view === 'registered'"
-    [class.btn-outline-secondary]="view !== 'registered'"
-    [attr.aria-pressed]="view === 'registered'"
-    [disabled]="loading || saving"
-    (click)="viewChange.emit('registered')"
-  >
-    Зареєстровані мешканці
-  </button>
-  <button
-    type="button"
-    class="btn"
-    [class.btn-primary]="view === 'pending'"
-    [class.btn-outline-secondary]="view !== 'pending'"
-    [attr.aria-pressed]="view === 'pending'"
-    [disabled]="loading || saving"
-    (click)="viewChange.emit('pending')"
-  >
-    Очікують перевірки
-    @if (pendingCount > 0) {
-      <span
-        class="badge rounded-pill pending-count ms-1"
-        [attr.aria-label]="'Очікують перевірки: ' + pendingCount"
-        >{{ pendingCount }}</span
-      >
-    }
-  </button>
+  @if (permissions.registeredResidents) {
+    <button
+      type="button"
+      class="btn"
+      [class.btn-primary]="view === 'registered'"
+      [class.btn-outline-secondary]="view !== 'registered'"
+      [attr.aria-pressed]="view === 'registered'"
+      [disabled]="loading || saving"
+      (click)="viewChange.emit('registered')"
+    >
+      Зареєстровані мешканці
+    </button>
+  }
+  @if (permissions.pendingResidents) {
+    <button
+      type="button"
+      class="btn"
+      [class.btn-primary]="view === 'pending'"
+      [class.btn-outline-secondary]="view !== 'pending'"
+      [attr.aria-pressed]="view === 'pending'"
+      [disabled]="loading || saving"
+      (click)="viewChange.emit('pending')"
+    >
+      Очікують перевірки
+      @if (pendingCount > 0) {
+        <span
+          class="badge rounded-pill pending-count ms-1"
+          [attr.aria-label]="'Очікують перевірки: ' + pendingCount"
+          >{{ pendingCount }}</span
+        >
+      }
+    </button>
+  }
 </div>
 @if (view === 'pending') {
   <div class="card card-body mb-4">

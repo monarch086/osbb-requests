@@ -47,8 +47,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
           return;
         }
         this.tab = tab;
-        if (this.me && !this.me.isSuperAdmin && (tab === 'admins' || tab === 'messages')) {
-          void this.router.navigateByUrl('/requests', { replaceUrl: true });
+        if (this.me && !this.allowed(tab, this.me)) {
+          void this.redirectToAllowed(this.me);
         }
       }),
     );
@@ -79,8 +79,8 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         return;
       }
       this.me = user;
-      if (!user.isSuperAdmin && (this.tab === 'admins' || this.tab === 'messages')) {
-        await this.router.navigateByUrl('/requests', { replaceUrl: true });
+      if (!this.allowed(this.tab, user)) {
+        await this.redirectToAllowed(user);
       }
     } catch (error) {
       if (epoch === this.epoch) {
@@ -95,5 +95,30 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   protected setSaving(value: boolean): void {
     this.saving = value;
     this.savingChange.emit(value);
+  }
+  protected allowed(tab: WorkspaceTab, user: Admin): boolean {
+    const p = user.effectivePermissions;
+    switch (tab) {
+      case 'requests':
+        return p.complexRequests || p.keyOrders;
+      case 'residents':
+        return p.registeredResidents || p.pendingResidents;
+      case 'messages':
+        return p.messages;
+      case 'admins':
+        return user.isSuperAdmin;
+    }
+  }
+  private async redirectToAllowed(user: Admin): Promise<void> {
+    const tabs: { tab: WorkspaceTab; path: string }[] = [
+      { tab: 'requests', path: '/requests' },
+      { tab: 'residents', path: '/residents' },
+      { tab: 'messages', path: '/messages' },
+      { tab: 'admins', path: '/administrators' },
+    ];
+    const first = tabs.find((item) => this.allowed(item.tab, user));
+    if (first && first.tab !== this.tab) {
+      await this.router.navigateByUrl(first.path, { replaceUrl: true });
+    }
   }
 }

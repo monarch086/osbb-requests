@@ -3,7 +3,16 @@ using OsbbRequests.Shared.Models;
 namespace OsbbRequests.AdminApi.Models;
 
 public sealed record AdminUser(string UserId, string Email, string DisplayName, bool IsActive, bool IsSuperAdmin, int Version,
-    string? TelegramChatId = null, bool NotifyNewResidents = false, bool NotifyNewRequests = false, bool NotifyNewAdministrators = false);
+    string? TelegramChatId = null, bool NotifyNewResidents = false, bool NotifyNewRequests = false, bool NotifyNewAdministrators = false, PagePermissions? Permissions = null)
+{
+    public PagePermissions EffectivePermissions => IsSuperAdmin ? PagePermissions.All : Permissions ?? PagePermissions.Legacy;
+}
+public sealed record PagePermissions(bool ComplexRequests, bool KeyOrders, bool RegisteredResidents, bool PendingResidents, bool Messages)
+{
+    public static readonly PagePermissions Legacy = new(true, true, true, true, false);
+    public static readonly PagePermissions All = new(true, true, true, true, true);
+}
+public sealed record PermissionsChange(int Version, PagePermissions Permissions);
 public sealed record NotificationSettingsChange(string? TelegramChatId, bool NotifyNewResidents, bool NotifyNewRequests, bool NotifyNewAdministrators, int Version);
 public sealed record Identity(string UserId, string Email, string DisplayName);
 public sealed record Page<T>(IReadOnlyList<T> Items, string? Cursor);

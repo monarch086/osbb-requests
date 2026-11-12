@@ -82,6 +82,49 @@ public sealed class AdminApiTests
     }
 
     [Fact]
+    public async Task PagePermissionsProtectApisAndRequestDetailsIndependently()
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, true, false, true, true) };
+        var handler = Handler(store);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/residents"), default))).Status);
+        Assert.Equal(200, (await handler.HandleAsync(Request("/admin/registrations"), default)).StatusCode);
+        Assert.Equal(200, (await handler.HandleAsync(Request("/admin/messages"), default)).StatusCode);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/requests", query: new() { ["section"] = "complex" }), default))).Status);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/requests"), default))).Status);
+        Assert.Equal(200, (await handler.HandleAsync(Request("/admin/requests", query: new() { ["section"] = "keys" }), default)).StatusCode);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/requests/99/7/history"), default))).Status);
+        store.ForcedRequest = new(7, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow);
+        Assert.Equal(200, (await handler.HandleAsync(Request("/admin/requests/99/7/history"), default)).StatusCode);
+    }
+
+    [Fact]
+    public async Task OnlySuperAdminCanChangePermissionsAndStaleVersionIsRejected()
+    {
+        var store = new FakeStore();
+        var change = new { version = 1, permissions = new { complexRequests = false, keyOrders = true, registeredResidents = false, pendingResidents = true, messages = false } };
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/administrators/target/permissions", "PATCH", body: change), default))).Status);
+        Assert.Equal(200, (await Handler(store).HandleAsync(Request("/admin/administrators/target/permissions", "PATCH", user: "super", body: change), default)).StatusCode);
+        Assert.Equal(1, store.PermissionWrites);
+        Assert.Equal(409, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/administrators/target/permissions", "PATCH", user: "super", body: new { version = 0, permissions = change.permissions }), default))).Status);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/administrators/super/permissions", "PATCH", user: "super", body: change), default))).Status);
+    }
+
+    [Theory]
+    [InlineData("/admin/residents")]
+    [InlineData("/admin/registrations")]
+    [InlineData("/admin/registrations/count")]
+    [InlineData("/admin/messages")]
+    [InlineData("/admin/assignees")]
+    public async Task NoPagePermissionsDenyProtectedResources(string path)
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, false, false, false, false) };
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request(path), default));
+        Assert.Equal(403, error.Status);
+    }
+
+    [Fact]
     public async Task NewAccountIsInactiveAndCannotProcessRequests()
     {
         var store = new FakeStore();
@@ -473,6 +516,8 @@ public sealed class AdminApiTests
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
     private sealed class FakeStore : IAdminStore
     {
+        public int PermissionWrites;
+        public Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct) { PermissionWrites++; return Task.CompletedTask; }
         public Exception? ReadError;
         public Task<Page<BroadcastMessage>> ListMessagesAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<BroadcastMessage>([], null));
         public Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct) => Task.FromResult(new BroadcastMessage(change.Id, change.Text, actor.Email, actor.UserId, DateTimeOffset.UtcNow));

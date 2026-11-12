@@ -12,8 +12,10 @@
 <app-administrators
   [admins]="lists.admins"
   [saving]="saving || loading"
+  [error]="error"
   (toggleAccess)="setAccess($event)"
   (saveNotifications)="saveNotificationSettings($event.admin, $event.settings)"
+  (savePermissions)="savePagePermissions($event.admin, $event.permissions)"
 />
 @if (loading) {
   <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>

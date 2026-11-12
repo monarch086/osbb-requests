@@ -589,6 +589,11 @@ resources:
                   - NotifyNewResidents
                   - NotifyNewRequests
                   - NotifyNewAdministrators
+                  - AccessComplexRequests
+                  - AccessKeyOrders
+                  - AccessRegisteredResidents
+                  - AccessPendingResidents
+                  - AccessMessages
             - Effect: Deny
               Action:
               - dynamodb:PutItem

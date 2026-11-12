@@ -51,6 +51,19 @@ public sealed class MessageBroadcastTests
         Assert.Null(db.Transaction);
     }
 
+    [Fact]
+    public async Task AuthorizedAdministratorCanSendWithVersionGuard()
+    {
+        using var db = new FakeDynamo();
+        var admin = new AdminUser("admin", "admin@example.invalid", "Admin", true, false, 7,
+            Permissions: new PagePermissions(false, false, false, false, true));
+        await new DynamoAdminStore(db, "admins", "data", "complex").SendMessageAsync(admin, new(Id, "Текст"), default);
+        var actor = Assert.Single(db.Transaction!.TransactItems, item => item.ConditionCheck is not null).ConditionCheck;
+        Assert.Contains("#version = :version", actor.ConditionExpression);
+        Assert.Equal("7", actor.ExpressionAttributeValues[":version"].N);
+        Assert.DoesNotContain("IsSuperAdmin", actor.ConditionExpression);
+    }
+
     [Theory]
     [InlineData("", "Текст")]
     [InlineData(Id, "  \n ")]
