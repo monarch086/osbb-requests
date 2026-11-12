@@ -102,6 +102,21 @@ public sealed class ResidentProfileTests
     }
 
     [Fact]
+    public async Task EditingProfilePreservesTypeChangeHistoryMarker()
+    {
+        var (repo, processor) = Setup();
+        repo.Registrations[42] = Original with { TypeChangeCount = 2 };
+        await processor.ProcessAsync(Message(1, "/edit_profile"), default);
+        await processor.ProcessAsync(Message(2, "", new("+380671234567", 42)), default);
+        await processor.ProcessAsync(Message(3, "Іван"), default);
+        await processor.ProcessAsync(Message(4, "Новий"), default);
+        await processor.ProcessAsync(Message(5, "4Д"), default);
+        await processor.ProcessAsync(Message(6, "125"), default);
+        await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
+        Assert.Equal(2, repo.Registrations[42].TypeChangeCount);
+    }
+
+    [Fact]
     public async Task EmployeeEditsProfileWithoutAddressOrLosingApprovalAndConsent()
     {
         var (repo, processor) = Setup();

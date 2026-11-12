@@ -259,7 +259,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }, ct);
         var residents = (result.Items ?? []).Select(Payload<ResidentRegistration>)
             .Where(r => r.BuildingId == building && r.Stage == RegistrationStage.Approved)
-            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.ApprovedAt ?? r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture), r.BuildingNumber, r.ApartmentNumber, r.PersonalDataDeleted, r.Email, r.ConsentAt, r.ResidentType)).ToList();
+            .Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone, r.ApprovedAt ?? r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture), r.BuildingNumber, r.ApartmentNumber, r.PersonalDataDeleted, r.Email, r.ConsentAt, r.ResidentType, r.TypeChangeCount)).ToList();
         return new Page<RegisteredResident>(residents, Encode(result.LastEvaluatedKey));
     }
 

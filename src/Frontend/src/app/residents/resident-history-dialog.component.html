@@ -1,0 +1,53 @@
+<div class="modal-backdrop fade show"></div>
+<div
+  class="modal d-block"
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+  aria-labelledby="resident-history-title"
+  (keydown.escape)="closed.emit()"
+>
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <section class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="resident-history-title">Історія змін</h2>
+        <button
+          type="button"
+          class="btn-close"
+          aria-label="Закрити"
+          (click)="closed.emit()"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p>{{ resident.firstName }} {{ resident.lastName }}</p>
+        @if (loading) {
+          <p role="status">Завантажуємо історію…</p>
+        }
+        @if (error) {
+          <p class="alert alert-danger" role="alert">{{ error }}</p>
+        }
+        @if (!loading && !error && !history.length) {
+          <p>Змін не знайдено.</p>
+        }
+        <ul class="list-group list-group-flush">
+          @for (change of history; track $index) {
+            <li class="list-group-item px-0">
+              <strong
+                >Тип мешканця: {{ typeLabel(change.previousType) }} →
+                {{ typeLabel(change.newType) }}</strong
+              >
+              <div class="small text-body-secondary">
+                {{ date(change.createdAt) }} · {{ change.actor }}
+              </div>
+            </li>
+          }
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" (click)="closed.emit()">
+          Закрити
+        </button>
+      </div>
+    </section>
+  </div>
+</div>

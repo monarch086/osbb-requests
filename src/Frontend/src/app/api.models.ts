@@ -33,6 +33,7 @@ export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant' | 'Employee';
 export interface Registration {
   telegramChatId: string;
   residentType?: ResidentType;
+  typeChangeCount?: number;
   id: string;
   firstName: string;
   lastName: string;
@@ -47,6 +48,7 @@ export interface Registration {
 export interface RegisteredResident {
   telegramChatId: string;
   residentType?: ResidentType;
+  typeChangeCount?: number;
   id: string;
   firstName: string | null;
   lastName: string | null;
@@ -57,6 +59,12 @@ export interface RegisteredResident {
   personalDataDeleted?: boolean;
   registeredAt: string;
   consentAt?: string | null;
+}
+export interface ResidentTypeHistory {
+  previousType: ResidentType;
+  newType: ResidentType;
+  actor: string;
+  createdAt: string;
 }
 export type TicketStatus =
   'New' | 'InProgress' | 'AwaitingClarification' | 'Completed' | 'Rejected';

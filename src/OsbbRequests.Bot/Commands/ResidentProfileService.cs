@@ -90,6 +90,7 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
                 ConsentAt = current?.ConsentAt,
                 ConsentVersion = current?.ConsentVersion,
                 ResidentType = current?.ResidentType ?? ResidentType.FamilyMember,
+                TypeChangeCount = current?.TypeChangeCount ?? 0,
                 Version = (dialog.ExpectedProfileVersion ?? 0) + 1,
                 PersonalDataDeletedAt = current?.PersonalDataDeleted == true ? now : current?.PersonalDataDeletedAt
             };

@@ -11,6 +11,8 @@ import type {
   PagePermissions,
   RegisteredResident,
   Registration,
+  ResidentType,
+  ResidentTypeHistory,
   Ticket,
   TicketFilters,
   TicketHistory,
@@ -45,6 +47,18 @@ export class ApiService {
 
   getRegistrations(cursor: string | null): Promise<Page<Registration>> {
     return this.request('/registrations' + this.cursorQuery(cursor));
+  }
+  changeResidentType(
+    registration: Registration,
+    residentType: ResidentType,
+  ): Promise<{ ok: boolean }> {
+    return this.request('/registrations/' + registration.id + '/type', 'PATCH', {
+      version: registration.version,
+      residentType,
+    });
+  }
+  getResidentHistory(id: string, cursor: string | null): Promise<Page<ResidentTypeHistory>> {
+    return this.request('/registrations/' + id + '/history' + this.cursorQuery(cursor));
   }
 
   getAdministrators(cursor: string | null): Promise<Page<Admin>> {

@@ -110,6 +110,34 @@ public sealed class AdminApiTests
         Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/administrators/super/permissions", "PATCH", user: "super", body: change), default))).Status);
     }
 
+    [Fact]
+    public async Task PendingResidentTypeChangeRequiresPendingPermission()
+    {
+        var id = new string('a', 32);
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, false, false, true, false) };
+        Assert.Equal(200, (await Handler(store).HandleAsync(Request("/admin/registrations/" + id + "/type", "PATCH", body: new { version = 1, residentType = "Employee" }), default)).StatusCode);
+        Assert.Equal(1, store.TypeChanges);
+        store.Users["regular"] = Regular with { Permissions = new(false, false, true, false, false) };
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/registrations/" + id + "/type", "PATCH", body: new { version = 1, residentType = "Employee" }), default))).Status);
+        Assert.Equal(1, store.TypeChanges);
+    }
+
+    [Theory]
+    [InlineData(RegistrationStage.Pending, true, false, 200)]
+    [InlineData(RegistrationStage.Pending, false, true, 403)]
+    [InlineData(RegistrationStage.Approved, false, true, 200)]
+    [InlineData(RegistrationStage.Approved, true, false, 403)]
+    public async Task ResidentHistoryRequiresPermissionForCurrentList(RegistrationStage stage, bool pending, bool registered, int expected)
+    {
+        var id = new string('a', 32);
+        var store = new FakeStore { HistoryStage = stage };
+        store.Users["regular"] = Regular with { Permissions = new(false, false, registered, pending, false) };
+        var request = Request("/admin/registrations/" + id + "/history");
+        if (expected == 200) Assert.Equal(200, (await Handler(store).HandleAsync(request, default)).StatusCode);
+        else Assert.Equal(expected, (await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(request, default))).Status);
+    }
+
     [Theory]
     [InlineData("/admin/residents")]
     [InlineData("/admin/registrations")]
@@ -516,6 +544,11 @@ public sealed class AdminApiTests
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
     private sealed class FakeStore : IAdminStore
     {
+        public RegistrationStage HistoryStage = RegistrationStage.Pending;
+        public int TypeChanges;
+        public Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct) => Task.FromResult<ResidentRegistration?>(new(reference, 99, "building", HistoryStage, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+        public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
+        public Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct) => Task.FromResult(new Page<ResidentTypeChange>([], null));
         public int PermissionWrites;
         public Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct) { PermissionWrites++; return Task.CompletedTask; }
         public Exception? ReadError;

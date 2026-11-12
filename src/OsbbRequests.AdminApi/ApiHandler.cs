@@ -114,6 +114,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     r.BuildingNumber,
                     r.ApartmentNumber,
                     r.ResidentType,
+                    r.TypeChangeCount,
                     r.ConsentAt,
                     r.UpdatedAt,
                     r.Version,
@@ -121,6 +122,24 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 }),
                 page.Cursor
             });
+        }
+        if (segments is ["admin", "registrations", var registrationId, "type"] && method == "PATCH")
+        {
+            if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
+            if (registrationId.Length != 32 || !registrationId.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");
+            await store.ChangeResidentTypeAsync(actor, registrationId, Body<ResidentTypeChangeRequest>(request), ct);
+            return Reply(200, new { ok = true });
+        }
+        if (segments is ["admin", "registrations", var historyId, "history"] && method == "GET")
+        {
+            if (!actor.EffectivePermissions.PendingResidents && !actor.EffectivePermissions.RegisteredResidents)
+                throw new ApiError(403, "Недостатньо прав для перегляду історії.");
+            if (historyId.Length != 32 || !historyId.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");
+            var registration = await store.GetRegistrationAsync(historyId, ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
+            if (registration.Stage == RegistrationStage.Pending ? !actor.EffectivePermissions.PendingResidents :
+                registration.Stage == RegistrationStage.Approved ? !actor.EffectivePermissions.RegisteredResidents : true)
+                throw new ApiError(403, "Недостатньо прав для перегляду історії.");
+            return Reply(200, await store.RegistrationHistoryAsync(historyId, cursor, ct));
         }
         if (method == "POST" && segments is ["admin", "registrations", var reference, "decision"])
         {

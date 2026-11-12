@@ -27,9 +27,29 @@
   [saving]="saving"
   (approve)="decide($event, true)"
   (reject)="rejecting = $event"
+  (changeType)="changingType = $event"
+  (showHistory)="openHistory($event)"
 />
 @if (loading) {
   <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>
+}
+@if (changingType; as registration) {
+  <app-resident-type-dialog
+    [registration]="registration"
+    [saving]="saving"
+    [error]="error"
+    (saved)="saveType(registration, $event)"
+    (closed)="changingType = null"
+  />
+}
+@if (historyResident; as resident) {
+  <app-resident-history-dialog
+    [resident]="resident"
+    [history]="history"
+    [loading]="historyLoading"
+    [error]="historyError"
+    (closed)="closeHistory()"
+  />
 }
 <app-pagination
   [pageNumber]="lists.pagination.index + 1"

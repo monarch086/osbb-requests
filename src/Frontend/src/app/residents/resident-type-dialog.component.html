@@ -1,0 +1,63 @@
+<div class="modal-backdrop fade show"></div>
+<div
+  class="modal d-block"
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+  aria-labelledby="resident-type-title"
+  (keydown.escape)="!saving && closed.emit()"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <section class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="resident-type-title">Змінити тип мешканця</h2>
+        <button
+          type="button"
+          class="btn-close"
+          aria-label="Закрити"
+          [disabled]="saving"
+          (click)="closed.emit()"
+        ></button>
+      </div>
+      <form class="modal-body" (ngSubmit)="saved.emit(type)">
+        <p>{{ registration.firstName }} {{ registration.lastName }}</p>
+        @if (error) {
+          <p class="alert alert-danger" role="alert">{{ error }}</p>
+        }
+        <label class="form-label" for="change-resident-type">Тип мешканця</label>
+        <ng-select
+          labelForId="change-resident-type"
+          name="type"
+          [(ngModel)]="type"
+          [clearable]="false"
+          [searchable]="false"
+          [disabled]="saving"
+        >
+          <ng-option value="Owner">Власник</ng-option
+          ><ng-option value="FamilyMember">Член родини</ng-option
+          ><ng-option value="Tenant">Орендар</ng-option
+          ><ng-option value="Employee">Працівник ОСББ</ng-option>
+        </ng-select>
+        <p class="form-text">
+          Зміна типу не надає доступ автоматично; реєстрація залишиться на перевірці.
+        </p>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            [disabled]="saving"
+            (click)="closed.emit()"
+          >
+            Скасувати</button
+          ><button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="saving || type === (registration.residentType || 'FamilyMember')"
+          >
+            Зберегти
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>

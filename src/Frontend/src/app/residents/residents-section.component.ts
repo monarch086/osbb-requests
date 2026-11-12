@@ -1,24 +1,44 @@
 import { Component, inject } from '@angular/core';
 
-import type { Registration } from '../api.models';
+import type {
+  RegisteredResident,
+  Registration,
+  ResidentType,
+  ResidentTypeHistory,
+} from '../api.models';
+import { errorMessage } from '../error-message';
 import { collectPages } from '../export/collect-pages';
 import { ExcelExportService } from '../export/excel-export.service';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
 import type { ResidentFilters, ResidentView } from './resident-directory';
+import { ResidentHistoryDialogComponent } from './resident-history-dialog.component';
+import { ResidentTypeDialogComponent } from './resident-type-dialog.component';
 import { ResidentsComponent } from './residents.component';
 import { ResidentsList } from './residents-list';
 
 @Component({
   selector: 'app-residents-section',
-  imports: [ResidentsComponent, RegistrationRejectionDialogComponent, PaginationComponent],
+  imports: [
+    ResidentsComponent,
+    RegistrationRejectionDialogComponent,
+    PaginationComponent,
+    ResidentTypeDialogComponent,
+    ResidentHistoryDialogComponent,
+  ],
   templateUrl: './residents-section.component.html',
 })
 export class ResidentsSectionComponent extends WorkspaceSection {
   private readonly excel = inject(ExcelExportService);
   protected override readonly lists = new ResidentsList();
   protected rejecting: Registration | null = null;
+  protected changingType: Registration | null = null;
+  protected historyResident: Registration | RegisteredResident | null = null;
+  protected history: ResidentTypeHistory[] = [];
+  protected historyLoading = false;
+  protected historyError = '';
+  private historySequence = 0;
   protected pendingCount = 0;
   override ngOnInit(): void {
     if (
@@ -112,6 +132,53 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.rejecting = null;
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
     });
+  }
+  protected async saveType(registration: Registration, type: ResidentType): Promise<void> {
+    if (!this.me.effectivePermissions.pendingResidents || this.saving) {
+      return;
+    }
+    await this.write(async () => {
+      await this.api.changeResidentType(registration, type);
+      registration.residentType = type;
+      registration.typeChangeCount = (registration.typeChangeCount ?? 0) + 1;
+      registration.version++;
+      this.changingType = null;
+      this.notice = 'Тип мешканця змінено. Реєстрація залишається на перевірці.';
+    });
+  }
+  protected async openHistory(resident: Registration | RegisteredResident): Promise<void> {
+    if (this.loading || this.saving) {
+      return;
+    }
+    this.historyResident = resident;
+    this.history = [];
+    this.historyError = '';
+    this.historyLoading = true;
+    const sequence = ++this.historySequence;
+    const epoch = this.epoch;
+    const current = (): boolean => sequence === this.historySequence && epoch === this.epoch;
+    try {
+      const history = await collectPages(
+        (cursor) => this.api.getResidentHistory(resident.id, cursor),
+        current,
+      );
+      if (history && current()) {
+        this.history = history;
+      }
+    } catch (error) {
+      if (current()) {
+        this.historyError = errorMessage(error);
+      }
+    } finally {
+      if (current()) {
+        this.historyLoading = false;
+      }
+    }
+  }
+  protected closeHistory(): void {
+    this.historySequence++;
+    this.historyResident = null;
+    this.historyLoading = false;
   }
   protected closeDialog(): void {
     if (!this.saving) {

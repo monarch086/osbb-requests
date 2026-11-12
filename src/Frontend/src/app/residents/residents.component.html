@@ -92,6 +92,22 @@
           </div>
           <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
             <button
+              class="btn btn-outline-secondary"
+              (click)="changeType.emit(r)"
+              [disabled]="saving || loading"
+            >
+              Змінити тип
+            </button>
+            @if (r.typeChangeCount) {
+              <button
+                class="btn btn-outline-secondary"
+                (click)="showHistory.emit(r)"
+                [disabled]="saving || loading"
+              >
+                Історія змін
+              </button>
+            }
+            <button
               class="btn btn-primary"
               (click)="approve.emit(r)"
               [disabled]="saving || loading"
@@ -272,7 +288,18 @@
               Реєстрацію підтверджено {{ date(resident.registeredAt) }}
             </p>
           </div>
-          <span class="badge rounded-pill text-bg-success align-self-start">Зареєстровано</span>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            @if (resident.typeChangeCount) {
+              <button
+                class="btn btn-outline-secondary"
+                (click)="showHistory.emit(resident)"
+                [disabled]="saving || loading"
+              >
+                Історія змін
+              </button>
+            }
+            <span class="badge rounded-pill text-bg-success align-self-start">Зареєстровано</span>
+          </div>
         </article>
       }
     </div>
