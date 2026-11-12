@@ -7,6 +7,7 @@ using OsbbRequests.AdminApi.Data;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -187,6 +188,97 @@ public sealed class MessageBroadcastTests
         Assert.Single(db.Transaction.TransactItems, w => w.Put?.Item.GetValueOrDefault("disposition")?.S == "Expanded");
         await repository.RetryAsync(next, "lease2", Now.AddMinutes(1), default);
         Assert.Equal(cursor, JsonSerializer.Deserialize<Dictionary<string, string>>(Assert.Single(db.Transaction!.TransactItems, w => w.Put is not null).Put.Item["audienceCursor"].S));
+    }
+
+    [Fact]
+    public async Task NewAudienceIndexUsesStrongReadsAndContinuesWithScopedCursor()
+    {
+        using var db = new AudienceDynamo();
+        var active = new ResidentRegistration("r1", 1, "complex", RegistrationStage.Approved, 1, Now.AddDays(-2), Now.AddDays(-1));
+        var deleted = active with { Id = "r2", UserId = 2, PersonalDataDeleted = true };
+        var later = active with { Id = "r3", UserId = 3, ApprovedAt = Now.AddSeconds(1) };
+        db.Add(active); db.Add(deleted); db.Add(later);
+        db.Next = true;
+        var repository = new DynamoNotificationRepository(db, "data", "complex", "admins", "residents");
+        await repository.ExpandAsync(Broadcast(), "lease", Now, default);
+        Assert.Equal("ResidentRecordsByGroup", db.Query!.IndexName);
+        Assert.Equal("residents", db.Query.TableName);
+        Assert.NotEqual(true, db.Query.ConsistentRead);
+        Assert.All(db.Reads, request => { Assert.Equal("residents", request.TableName); Assert.True(request.ConsistentRead); });
+        var job = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.Item.ContainsKey("attempts") == true).Put.Item;
+        Assert.Equal(1, JsonSerializer.Deserialize<ResidentNotification>(job["payload"].S)!.OwnerId);
+        var continuation = Assert.Single(db.Transaction.TransactItems, w => w.Update is not null).Update;
+        var cursor = JsonSerializer.Deserialize<Dictionary<string, string>>(continuation.ExpressionAttributeValues[":cursor"].S)!;
+        Assert.Equal("COMPLEX#complex#BUILDING#complex", cursor["recordGroup"]);
+        db.Rows.Clear(); db.Next = false;
+        await repository.ExpandAsync(Broadcast() with { AudienceCursor = cursor }, "lease2", Now, default);
+        Assert.Equal(cursor["pk"], db.Query!.ExclusiveStartKey["pk"].S);
+        Assert.Contains(db.Transaction!.TransactItems, w => w.Delete is not null);
+    }
+
+    [Fact]
+    public async Task LegacyInProgressBroadcastContinuesUsingOldCursor()
+    {
+        using var db = new FakeDynamo();
+        var cursor = new Dictionary<string, string> { ["pk"] = "BUILDING#complex", ["sk"] = "RESIDENT#25" };
+        await new DynamoNotificationRepository(db, "data", "complex", "admins", "residents")
+            .ExpandAsync(Broadcast() with { AudienceCursor = cursor }, "lease", Now, default);
+        Assert.Equal("data", db.Query!.TableName);
+        Assert.True(db.Query.ConsistentRead);
+        Assert.Equal("RESIDENT#25", db.Query.ExclusiveStartKey["sk"].S);
+    }
+
+    [Fact]
+    public async Task NewAudienceRejectsForeignAndMalformedCursors()
+    {
+        using var db = new AudienceDynamo();
+        var repository = new DynamoNotificationRepository(db, "data", "complex", "admins", "residents");
+        var invalid = new Dictionary<string, string> { ["pk"] = "other", ["recordGroup"] = "COMPLEX#other#BUILDING#other", ["recordOrder"] = "RESIDENT#00000000000000000001" };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.ExpandAsync(Broadcast() with { AudienceCursor = invalid }, "lease", Now, default));
+        Assert.Null(db.Query);
+    }
+
+    [Fact]
+    public async Task StaleIndexCandidateWithMissingCurrentRecordIsNotQueued()
+    {
+        using var db = new AudienceDynamo();
+        db.Add(new ResidentRegistration("r1", 1, "complex", RegistrationStage.Approved, 1, Now.AddDays(-1), Now.AddDays(-1)));
+        db.MissingCurrent = true;
+        await new DynamoNotificationRepository(db, "data", "complex", "admins", "residents").ExpandAsync(Broadcast(), "lease", Now, default);
+        Assert.DoesNotContain(db.Transaction!.TransactItems, w => w.Put?.Item.ContainsKey("attempts") == true);
+        Assert.Single(db.Reads);
+    }
+
+    private sealed class AudienceDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
+    {
+        public Dictionary<string, Dictionary<string, AttributeValue>> Rows { get; } = [];
+        public List<GetItemRequest> Reads { get; } = [];
+        public QueryRequest? Query;
+        public TransactWriteItemsRequest? Transaction;
+        public bool Next;
+        public bool MissingCurrent;
+        public void Add(ResidentRegistration resident)
+        {
+            var order = "RESIDENT#" + resident.UserId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture);
+            var key = ResidentRecordKey.Create("complex", "BUILDING#complex", order);
+            Rows.Add(key.Key, new()
+            {
+                ["pk"] = new(key.Key),
+                ["recordGroup"] = new(key.Group),
+                ["recordOrder"] = new(key.Order),
+                ["recordData"] = new() { M = Row(resident) }
+            });
+        }
+        public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken ct = default)
+        {
+            Query = request;
+            var rows = Rows.Values.Select(item => item.Where(pair => pair.Key is "pk" or "recordGroup" or "recordOrder").ToDictionary()).ToList();
+            return Task.FromResult(new QueryResponse { Items = rows, LastEvaluatedKey = Next ? rows[^1] : [] });
+        }
+        public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken ct = default)
+        { Reads.Add(request); return Task.FromResult(new GetItemResponse { Item = MissingCurrent ? [] : Rows.GetValueOrDefault(request.Key["pk"].S) ?? [] }); }
+        public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken ct = default)
+        { Transaction = request; return Task.FromResult(new TransactWriteItemsResponse()); }
     }
 
     [Fact]

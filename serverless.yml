@@ -412,6 +412,14 @@ resources:
             - Effect: Allow
               Action: dynamodb:Query
               Resource:
+                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#BUILDING#${self:custom.buildingId}
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
                 Fn::Sub: ${AdministratorsTable.Arn}/index/DirectoryIndex
             - Effect: Allow
               Action: ssm:GetParameter
