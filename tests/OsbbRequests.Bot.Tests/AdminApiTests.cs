@@ -679,12 +679,29 @@ public sealed class AdminApiTests
         Assert.Equal("I2", (string?)document.Descendants(ns + "row").Skip(1).First().Elements(ns + "c").Skip(8).First().Attribute("r"));
         Assert.Equal("Автор", rows[0][8]);
         Assert.Equal("Телефон", rows[0][9]);
+        Assert.Equal("Квартира автора", rows[0][10]);
+        Assert.Equal("Пріоритет", rows[0][11]);
         Assert.Equal("Олена Ковальчук", rows[1][8]);
         Assert.Equal("+380500000000", rows[1][9]);
+        Assert.Equal("125", rows[1][10]);
         Assert.Equal("Мешканець видалив свої дані", rows[3][8]);
         Assert.Equal("", rows[3][9]);
+        Assert.Equal("", rows[3][10]);
         Assert.Equal("=2+2", rows[1][7]);
         Assert.Empty(document.Descendants(ns + "f"));
+    }
+
+    [Fact]
+    public async Task TicketExportLeavesApartmentEmptyWhenAuthorHasNoApartment()
+    {
+        var store = new FakeStore { ExportPages = true, MissingAuthorApartment = true };
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/export", query: new() { ["section"] = "complex" }), default);
+        using var archive = new ZipArchive(new MemoryStream(Convert.FromBase64String(response.Body)), ZipArchiveMode.Read);
+        using var sheet = archive.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        var rows = XDocument.Load(sheet).Descendants(ns + "row").Select(row => row.Descendants(ns + "t").Select(t => t.Value).ToArray()).ToArray();
+        Assert.Equal("Квартира автора", rows[0][10]);
+        Assert.Equal("", rows[1][10]);
     }
 
     [Theory]
@@ -808,8 +825,9 @@ public sealed class AdminApiTests
         public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct)
         {
             AuthorReads++;
-            return Task.FromResult<RequestAuthor?>(request.OwnerId == 100 ? new(null, null, null, null, true) : new("Олена", "Ковальчук", "4Д", "125", Phone: "+380500000000"));
+            return Task.FromResult<RequestAuthor?>(request.OwnerId == 100 ? new(null, null, null, "999", true) : new("Олена", "Ковальчук", "4Д", MissingAuthorApartment ? null : "125", Phone: "+380500000000"));
         }
+        public bool MissingAuthorApartment;
         public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
         public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct) { LastHistoryRequest = request; return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]); }
     }

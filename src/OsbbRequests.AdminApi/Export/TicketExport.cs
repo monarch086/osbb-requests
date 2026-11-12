@@ -10,7 +10,7 @@ public sealed class TicketExport(IAdminStore store)
 {
     private const int MaxFileBytes = 4 * 1024 * 1024;
     private static readonly TimeZoneInfo Kyiv = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");
-    private static readonly string[] Headings = ["Номер", "Дата створення", "Статус", "Категорія", "Місце", "Поверх", "Уточнення місця", "Опис", "Автор", "Телефон", "Пріоритет", "Видимість", "Відповідальний", "Планова дата", "Пояснення"];
+    private static readonly string[] Headings = ["Номер", "Дата створення", "Статус", "Категорія", "Місце", "Поверх", "Уточнення місця", "Опис", "Автор", "Телефон", "Квартира автора", "Пріоритет", "Видимість", "Відповідальний", "Планова дата", "Пояснення"];
 
     public async Task<byte[]> CreateAsync(RequestFilters filters, CancellationToken ct)
     {
@@ -53,7 +53,8 @@ public sealed class TicketExport(IAdminStore store)
         var name = author?.PersonalDataDeleted == true ? "Мешканець видалив свої дані" : string.Join(" ", new[] { author?.FirstName, author?.LastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return [r.Id.ToString(CultureInfo.InvariantCulture), TimeZoneInfo.ConvertTime(r.CreatedAt, Kyiv).ToString("dd.MM.yyyy, HH:mm", CultureInfo.InvariantCulture), status, r.Category, location,
             r.Floor is null ? "" : r.Floor == 0 ? "Парадне" : r.Floor.Value.ToString(CultureInfo.InvariantCulture), r.Location ?? "", r.Description, name,
-            author?.PersonalDataDeleted == true ? "" : author?.Phone ?? "", priority, r.Visibility == RequestVisibility.Public ? "Для мешканців комплексу" : "Приватна",
+            author?.PersonalDataDeleted == true ? "" : author?.Phone ?? "", author?.PersonalDataDeleted == true ? "" : author?.ApartmentNumber ?? "",
+            priority, r.Visibility == RequestVisibility.Public ? "Для мешканців комплексу" : "Приватна",
             r.AssignedTo ?? "", r.PlannedDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "", r.Resolution ?? ""];
     }
 }
