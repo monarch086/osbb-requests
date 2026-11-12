@@ -116,7 +116,7 @@ def related_resident_delete(table, source, building, expected_version):
                        'ExpressionAttributeValues': {':expected': {'N': str(expected_version)}, ':complex': {'S': building}}}}
 
 
-def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None, user_snapshot=None, meta_snapshot=None):
+def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None, user_snapshot=None, meta_snapshot=None, residents_only=False):
     if decision not in ('Approved', 'Rejected'):
         raise ValueError('Unsupported decision.')
     if registration['Stage'] != 'Pending':
@@ -183,6 +183,17 @@ def decision_transaction(table, registration, original_payload, decision, reason
         writes.append(related_resident_put(residents_table, audit, registration['BuildingId'], immutable=True))
         if decision == 'Approved':
             writes.append(related_resident_put(residents_table, resident, registration['BuildingId']))
+    if residents_only:
+        if not residents_table:
+            raise ValueError('Residents table is required.')
+        writes = [w for w in writes if next(iter(w.values()))['TableName'] == residents_table or
+                  next(iter(w.values())).get('Item', {}).get('pk', {}).get('S', '').startswith('NOTIFICATIONS#')]
+        for write in writes:
+            action = next(iter(write.values()))
+            if action['TableName'] == residents_table and ':expected' in action.get('ExpressionAttributeValues', {}):
+                action['ConditionExpression'] = action['ConditionExpression'].replace('attribute_not_exists(pk) OR ', '')
+            if action['TableName'] == residents_table and ':version' in action.get('ExpressionAttributeValues', {}):
+                action['ConditionExpression'] = action['ConditionExpression'].replace('attribute_not_exists(pk) OR ', '')
     return {'TransactItems': writes}
 
 
@@ -278,7 +289,7 @@ def main():
     actor = call_aws('sts', 'get-caller-identity', args.region)['Arn']
     transaction = decision_transaction(table, registration, original_payload, decision, reason, actor,
                                        datetime.now(timezone.utc).isoformat(), residents_table,
-                                       user_snapshot, meta_snapshot)
+                                       user_snapshot, meta_snapshot, residents_only=True)
     call_aws('dynamodb', 'transact-write-items', args.region, transaction)
     print('Access approved.' if decision == 'Approved' else 'Registration rejected.')
     print('Telegram approval notification queued for delivery.' if decision == 'Approved' else

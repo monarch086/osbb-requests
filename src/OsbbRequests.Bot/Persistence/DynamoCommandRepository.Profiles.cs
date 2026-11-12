@@ -22,7 +22,7 @@ public sealed partial class DynamoCommandRepository
             var item = Key("USER#" + Number(command.UserId), "PROFILE_DIALOG");
             item["payload"] = new(JsonSerializer.Serialize(dialog.Value));
             item["version"] = new() { N = Number(dialog.Value.Version) };
-            writes.Add(VersionedProfilePut(item, dialog.ExpectedVersion));
+            if (residentsTable is null || complexId is null) writes.Add(VersionedProfilePut(item, dialog.ExpectedVersion));
             if (residentsTable is not null) writes.Add(RelatedResidentPut(item, dialog.Value.ComplexId, dialog.ExpectedVersion));
         }
         if (outcome.Profile is not { } update) return;
@@ -54,7 +54,7 @@ public sealed partial class DynamoCommandRepository
                 writes.Add(mirror);
             }
             values[":no"] = new() { BOOL = false };
-            writes.Add(new()
+            if (residentsTable is null || complexId is null) writes.Add(new()
             {
                 Update = new()
                 {
@@ -70,14 +70,14 @@ public sealed partial class DynamoCommandRepository
         else writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, profile.BuildingId) });
         if (residentsTable is not null) writes.Add(ResidentMirrorWrite(profile, update.ExpectedVersion));
         var userProfile = RegistrationItem("USER#" + Number(command.UserId), "REGISTRATION", profile);
-        writes.Add(VersionedProfilePut(userProfile, update.ExpectedVersion));
+        if (residentsTable is null || complexId is null) writes.Add(VersionedProfilePut(userProfile, update.ExpectedVersion));
         if (residentsTable is not null) writes.Add(RelatedResidentPut(userProfile, profile.BuildingId, update.ExpectedVersion));
         var registrationMeta = RegistrationItem("REGISTRATION#" + profile.Id, "META", profile);
-        writes.Add(VersionedProfilePut(registrationMeta, update.ExpectedVersion, allowMissing: true));
+        if (residentsTable is null || complexId is null) writes.Add(VersionedProfilePut(registrationMeta, update.ExpectedVersion, allowMissing: true));
         if (residentsTable is not null) writes.Add(RelatedResidentPut(registrationMeta, profile.BuildingId, update.ExpectedVersion));
         var residentEntry = RegistrationItem("BUILDING#" + profile.BuildingId,
             "RESIDENT#" + command.UserId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture), profile);
-        writes.Add(VersionedProfilePut(residentEntry, update.ExpectedVersion, allowMissing: true));
+        if (residentsTable is null || complexId is null) writes.Add(VersionedProfilePut(residentEntry, update.ExpectedVersion, allowMissing: true));
         if (residentsTable is not null) writes.Add(RelatedResidentPut(residentEntry, profile.BuildingId, update.ExpectedVersion));
     }
     private TransactWriteItem VersionedProfilePut(Dictionary<string, AttributeValue> item, int? expected, bool allowMissing = false)

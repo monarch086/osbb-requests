@@ -46,6 +46,33 @@ public sealed class ResidentReadCutoverTests
     }
 
     [Fact]
+    public async Task DeletingProfileUsesOnlyNewResidentRecordsAndKeepsMembershipGuard()
+    {
+        using var db = new ReadDynamo();
+        db.Rows["COMPLEX#complex#RECORD#USER#42#MEMBERSHIP"] = new()
+        {
+            ["pk"] = new("USER#42"),
+            ["sk"] = new("MEMBERSHIP"),
+            ["buildingId"] = new("complex"),
+            ["active"] = new() { BOOL = true }
+        };
+        var store = new DynamoCommandRepository(db, "old", residentsTable: "residents", complexId: "complex");
+        var dialog = new ResidentProfileDialog(42, "complex", ProfileAction.Delete, 2, 1, null, false);
+        var profile = new ResidentRegistration("ref", 42, "complex", RegistrationStage.Deleted, 2,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, PersonalDataDeleted: true);
+        await store.CommitAsync(new CommandEnvelope(1, 42, 42, "confirm"),
+            new CommandOutcome("ok", ProfileDialog: new(dialog, 1), Profile: new(profile, 1)), default);
+        var writes = db.Transaction!.TransactItems;
+        Assert.DoesNotContain(writes, w => w.Update?.TableName == "old");
+        Assert.DoesNotContain(writes, w => w.Put?.TableName == "old" && w.Put.Item.GetValueOrDefault("sk")?.S is "REGISTRATION" or "META" or "PROFILE_DIALOG");
+        var member = Assert.Single(writes, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "MEMBERSHIP").Put;
+        Assert.Contains("recordData.#active = :yes", member.ConditionExpression);
+        Assert.False(member.Item["recordData"].M["active"].BOOL);
+        Assert.All(writes.Where(w => w.Put?.TableName == "residents" && w.Put.ExpressionAttributeValues?.ContainsKey(":expected") == true),
+            w => Assert.DoesNotContain("attribute_not_exists(pk)", w.Put.ConditionExpression));
+    }
+
+    [Fact]
     public async Task NotificationDeliveryChecksCurrentResidentInNewTable()
     {
         using var db = new ReadDynamo();

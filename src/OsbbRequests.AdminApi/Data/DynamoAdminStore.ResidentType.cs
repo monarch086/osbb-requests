@@ -86,8 +86,9 @@ public sealed partial class DynamoAdminStore
             }
         };
         var listKey = current.Stage == RegistrationStage.Pending ? "REGISTRATION#" + reference : "RESIDENT#" + current.UserId.ToString("D20", CultureInfo.InvariantCulture);
-        var writes = new List<TransactWriteItem> { ActorCheck(actor), Update(Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION")),
-            Update(Key("REGISTRATION#" + reference, "META")), Update(Key("BUILDING#" + building, listKey)), Put(dataTable, audit) };
+        var writes = new List<TransactWriteItem> { ActorCheck(actor) };
+        if (residentsTable is null) writes.AddRange([Update(Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION")),
+            Update(Key("REGISTRATION#" + reference, "META")), Update(Key("BUILDING#" + building, listKey)), Put(dataTable, audit)]);
         if (residentsTable is not null)
         {
             var registrationMeta = new Dictionary<string, AttributeValue>(snapshot) { ["pk"] = S("REGISTRATION#" + reference), ["sk"] = S("META") };

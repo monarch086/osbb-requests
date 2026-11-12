@@ -53,7 +53,7 @@ public sealed partial class DynamoCommandRepository
         var put = new Put { TableName = residentsTable!, Item = item };
         if (expectedVersion is { } version)
         {
-            put.ConditionExpression = "attribute_not_exists(pk) OR (#version = :version AND complexId = :complex)";
+            put.ConditionExpression = "#version = :version AND complexId = :complex";
             put.ExpressionAttributeNames = new() { ["#version"] = "version" };
             put.ExpressionAttributeValues = new() { [":version"] = new() { N = version.ToString(System.Globalization.CultureInfo.InvariantCulture) }, [":complex"] = new(value.ComplexId) };
         }
@@ -80,7 +80,7 @@ public sealed partial class DynamoCommandRepository
         if (immutable) put.ConditionExpression = "attribute_not_exists(pk)";
         else if (expectedVersion is { } version)
         {
-            put.ConditionExpression = "attribute_not_exists(pk) OR (#v = :expected AND complexId = :complex)";
+            put.ConditionExpression = "#v = :expected AND complexId = :complex";
             put.ExpressionAttributeNames = new() { ["#v"] = "version" };
             put.ExpressionAttributeValues = new() { [":expected"] = new() { N = version.ToString(System.Globalization.CultureInfo.InvariantCulture) }, [":complex"] = new(complexId) };
         }

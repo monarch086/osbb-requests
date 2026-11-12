@@ -15,17 +15,17 @@ public sealed partial class DynamoCommandRepository
             !int.TryParse(profile.ApartmentNumber, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var apartment) || apartment <= 0)
             throw new InvalidOperationException("Automatic approval requires a completed resident registration.");
         var registrationMeta = RegistrationItem("REGISTRATION#" + profile.Id, "META", profile);
-        writes.Add(Put(registrationMeta));
+        if (residentsTable is null || complexId is null) writes.Add(Put(registrationMeta));
         if (residentsTable is not null) writes.Add(RelatedResidentPut(registrationMeta, profile.BuildingId, immutable: true));
         var residentEntry = RegistrationItem("BUILDING#" + profile.BuildingId, "RESIDENT#" + profile.UserId.ToString("D20", System.Globalization.CultureInfo.InvariantCulture), profile);
-        writes.Add(new() { Put = new() { TableName = tableName, Item = residentEntry } });
+        if (residentsTable is null || complexId is null) writes.Add(new() { Put = new() { TableName = tableName, Item = residentEntry } });
         if (residentsTable is not null) writes.Add(RelatedResidentPut(residentEntry, profile.BuildingId));
         var membership = Key("USER#" + Number(profile.UserId), "MEMBERSHIP");
         membership["buildingId"] = new(profile.BuildingId);
         membership["active"] = new() { BOOL = true };
         membership["reviewedBy"] = new("system");
         membership["reviewedAt"] = new(profile.UpdatedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
-        writes.Add(new()
+        if (residentsTable is null || complexId is null) writes.Add(new()
         {
             Put = new()
             {
@@ -41,7 +41,7 @@ public sealed partial class DynamoCommandRepository
         audit["decision"] = new("Approved");
         audit["approvalMode"] = new("Automatic");
         audit["createdAt"] = new(profile.UpdatedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
-        writes.Add(Put(audit));
+        if (residentsTable is null || complexId is null) writes.Add(Put(audit));
         if (residentsTable is not null) writes.Add(RelatedResidentPut(audit, profile.BuildingId, immutable: true));
         writes.Add(NotificationWrite(AdministratorNotifications.NewResident(profile)));
     }

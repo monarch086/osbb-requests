@@ -85,6 +85,8 @@ def main():
     parser.add_argument('--building-id')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
+    if args.apply:
+        parser.error('Historical migration is disabled for runtime use; it depends on the legacy resident records.')
     if not re.fullmatch(r'[a-zA-Z0-9-]+', args.stage):
         parser.error('Invalid stage.')
     count = migrate('osbb-requests-' + args.stage + '-command-data', args.building_id or 'osbb-requests-' + args.stage,

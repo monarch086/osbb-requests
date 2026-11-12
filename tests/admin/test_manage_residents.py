@@ -127,7 +127,7 @@ class ResidentAdministrationTests(unittest.TestCase):
         self.assertNotIn('UserId', visible)
         self.assertNotIn('telegram_id', visible)
 
-    def test_decision_reads_new_table_and_keeps_atomic_dual_write(self):
+    def test_decision_reads_new_table_and_writes_only_residents_and_outbox(self):
         payload = json.dumps(self.registration)
         meta = dict(admin.key('REGISTRATION#' + 'a' * 32, 'META'), payload={'S': payload}, version={'N': '4'})
         profile = dict(admin.key('USER#99', 'REGISTRATION'), payload={'S': payload}, version={'N': '4'})
@@ -143,6 +143,9 @@ class ResidentAdministrationTests(unittest.TestCase):
         writes = aws.call_args_list[-1].args[3]['TransactItems']
         tables = {next(iter(write.values()))['TableName'] for write in writes}
         self.assertEqual({'osbb-requests-dev-residents', 'osbb-requests-dev-command-data'}, tables)
+        old = [next(iter(w.values())) for w in writes if next(iter(w.values()))['TableName'].endswith('-command-data')]
+        self.assertEqual(1, len(old))
+        self.assertTrue(old[0]['Item']['pk']['S'].startswith('NOTIFICATIONS#'))
         self.assertTrue(any(write.get('Put', {}).get('Item', {}).get('sourceSk', {}).get('S') == 'EVENT#DECIDED' for write in writes))
 
     def test_decision_rejects_inconsistent_profile_before_writing(self):

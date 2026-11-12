@@ -2,6 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 source = Path(__file__).resolve().parents[2] / 'scripts' / 'revoke-deleted-residents.py'
 spec = importlib.util.spec_from_file_location('revoke_deleted', source)
@@ -10,6 +11,11 @@ spec.loader.exec_module(module)
 
 
 class RevokeDeletedTests(unittest.TestCase):
+    def test_legacy_write_cli_is_disabled(self):
+        with patch('sys.argv', ['legacy-script', '--apply']), patch('sys.stderr'):
+            with self.assertRaises(SystemExit):
+                module.main()
+
     def run_migration(self, apply=False, changed=False, residents_table=None):
         self.calls = []
         profile = {'Id': 'reference', 'UserId': 99, 'BuildingId': 'complex', 'Stage': 'Approved', 'Version': 7,

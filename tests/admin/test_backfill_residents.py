@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 source = Path(__file__).resolve().parents[2] / 'scripts' / 'backfill-residents.py'
 spec = importlib.util.spec_from_file_location('backfill_residents', source)
@@ -11,6 +12,11 @@ spec.loader.exec_module(backfill)
 
 
 class ResidentBackfillTests(unittest.TestCase):
+    def test_legacy_write_cli_is_disabled(self):
+        with patch('sys.argv', ['legacy-script', '--apply']), patch('sys.stderr'):
+            with self.assertRaises(SystemExit):
+                backfill.main()
+
     def profile(self, stage='Approved', building='building'):
         return dict(backfill.manage.key('USER#99', 'REGISTRATION'), version={'N': '5'}, payload={'S': json.dumps({
             'UserId': 99, 'BuildingId': building, 'Stage': stage, 'Phone': '+380500000000'

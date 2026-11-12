@@ -197,6 +197,7 @@ public sealed class ResidentDirectoryTests
         Assert.Equal("4", mirror.ExpressionAttributeValues[":version"].N);
         Assert.Equal("COMPLEX#building#" + stage, mirror.Item["directory"].S);
         Assert.Equal("Марія", JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S)!.FirstName);
+        Assert.DoesNotContain(db.Transaction.TransactItems, w => w.Update?.TableName == "data" || w.Put?.TableName == "data");
         Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "META");
         var audit = Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) == true).Put;
         Assert.Equal("attribute_not_exists(pk)", audit.ConditionExpression);
@@ -213,8 +214,9 @@ public sealed class ResidentDirectoryTests
         var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal)).Put;
         Assert.Equal("4", mirror.ExpressionAttributeValues[":version"].N);
         Assert.Equal(approved, mirror.Item.ContainsKey("directory"));
+        Assert.DoesNotContain(db.Transaction.TransactItems, w => w.Update?.TableName == "data" || w.Delete?.TableName == "data");
         var delete = Assert.Single(db.Transaction.TransactItems, w => w.Delete?.TableName == "residents").Delete;
-        Assert.Contains("attribute_not_exists(pk)", delete.ConditionExpression);
+        Assert.Contains("#v = :expected", delete.ConditionExpression);
         Assert.Equal("4", delete.ExpressionAttributeValues[":expected"].N);
         Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "REGISTRATION");
         Assert.Equal(approved ? 1 : 0, db.Transaction.TransactItems.Count(w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S.StartsWith("RESIDENT#", StringComparison.Ordinal) == true));
@@ -234,7 +236,7 @@ public sealed class ResidentDirectoryTests
         Assert.Equal(409, error.Status);
         Assert.Equal(1, db.TransactionCalls);
         Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal));
-        Assert.Equal(3, db.Transaction.TransactItems.Count(w => w.Update is not null));
+        Assert.DoesNotContain(db.Transaction.TransactItems, w => w.Update?.TableName == "data");
     }
 
     [Theory]

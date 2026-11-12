@@ -326,13 +326,14 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var audit = Key("REGISTRATION#" + reference, "EVENT#DECIDED");
         audit["actor"] = S(actor.Email); audit["createdAt"] = S(now.ToString("O")); audit["decision"] = S(next.Stage.ToString());
         audit["reason"] = S(next.DecisionReason ?? "");
-        var writes = new List<TransactWriteItem> { ActorCheck(actor), Update(Key(user, "REGISTRATION")), Update(Key("REGISTRATION#" + reference, "META")),
+        var writes = new List<TransactWriteItem> { ActorCheck(actor) };
+        if (residentsTable is null) writes.AddRange([Update(Key(user, "REGISTRATION")), Update(Key("REGISTRATION#" + reference, "META")),
             new() { Delete = new() { TableName = dataTable, Key = Key("BUILDING#" + building, "REGISTRATION#" + reference),
                 ConditionExpression = "#v = :version", ExpressionAttributeNames = new() { ["#v"] = "version" },
                 ExpressionAttributeValues = new() { [":version"] = N(decision.Version) } } },
             new() { Put = new() { TableName = dataTable, Item = member,
                 ConditionExpression = "attribute_not_exists(pk) OR buildingId = :building",
-                ExpressionAttributeValues = new() { [":building"] = S(building) } } }, Put(dataTable, audit) };
+                ExpressionAttributeValues = new() { [":building"] = S(building) } } }, Put(dataTable, audit)]);
         if (residentsTable is not null)
         {
             var registrationMeta = new Dictionary<string, AttributeValue>(snapshot) { ["pk"] = S("REGISTRATION#" + reference), ["sk"] = S("META") };
@@ -354,7 +355,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             var resident = Key("BUILDING#" + building, "RESIDENT#" + registration.UserId.ToString("D20", CultureInfo.InvariantCulture));
             resident["payload"] = S(JsonSerializer.Serialize(next));
             resident["version"] = N(next.Version);
-            writes.Add(new() { Put = new() { TableName = dataTable, Item = resident } });
+            if (residentsTable is null) writes.Add(new() { Put = new() { TableName = dataTable, Item = resident } });
             if (residentsTable is not null) writes.Add(RelatedResidentPut(resident, building));
             writes.Add(NotificationWrite(ResidentNotification.RegistrationApproved(next)));
         }
