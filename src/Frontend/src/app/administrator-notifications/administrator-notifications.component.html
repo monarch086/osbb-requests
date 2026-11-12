@@ -55,7 +55,20 @@
             [disabled]="saving"
           />
           <label class="form-check-label" [for]="'notify-requests-' + admin.userId"
-            >Надсилати сповіщення про нові заявки</label
+            >Надсилати сповіщення про нові заявки по комплексу</label
+          >
+        </div>
+        <div class="form-check mb-2">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            [id]="'notify-key-orders-' + admin.userId"
+            name="notifyNewKeyOrders"
+            [(ngModel)]="settings.notifyNewKeyOrders"
+            [disabled]="saving"
+          />
+          <label class="form-check-label" [for]="'notify-key-orders-' + admin.userId"
+            >Надсилати сповіщення про нові замовлення ключів</label
           >
         </div>
         <div class="form-check mb-3">

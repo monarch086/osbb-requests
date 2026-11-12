@@ -50,7 +50,7 @@ public sealed class AdministratorNotificationTests
         Assert.DoesNotContain("987654321", alert.Text);
         Assert.DoesNotContain("Приватне пояснення", alert.Text);
         Assert.DoesNotContain("private-assignee", alert.Text);
-        Assert.Equal(AdministratorEvent.NewRequest, alert.AdministratorEvent);
+        Assert.Equal(AdministratorEvent.NewComplexRequest, alert.AdministratorEvent);
         Assert.True(alert.IsBroadcast);
     }
 
@@ -225,7 +225,8 @@ public sealed class AdministratorNotificationTests
 
     [Theory]
     [InlineData(AdministratorEvent.NewResident)]
-    [InlineData(AdministratorEvent.NewRequest)]
+    [InlineData(AdministratorEvent.NewComplexRequest)]
+    [InlineData(AdministratorEvent.NewKeyOrder)]
     [InlineData(AdministratorEvent.NewAdministrator)]
     public async Task BroadcastExpandsOnlySubscribedActiveRecipientsUsingCurrentBaseRows(AdministratorEvent kind)
     {
@@ -254,13 +255,90 @@ public sealed class AdministratorNotificationTests
 
     [Theory]
     [InlineData(AdministratorEvent.NewResident)]
-    [InlineData(AdministratorEvent.NewRequest)]
+    [InlineData(AdministratorEvent.NewComplexRequest)]
+    [InlineData(AdministratorEvent.NewKeyOrder)]
     [InlineData(AdministratorEvent.NewAdministrator)]
     public void EachSubscriptionSelectsOnlyItsOwnEvent(AdministratorEvent kind)
     {
         var settings = new AdministratorNotificationSettings("123", kind == AdministratorEvent.NewResident,
-            kind == AdministratorEvent.NewRequest, kind == AdministratorEvent.NewAdministrator);
-        foreach (var candidate in Enum.GetValues<AdministratorEvent>()) Assert.Equal(candidate == kind, settings.Includes(candidate));
+            kind == AdministratorEvent.NewComplexRequest, kind == AdministratorEvent.NewAdministrator, kind == AdministratorEvent.NewKeyOrder);
+        foreach (var candidate in Enum.GetValues<AdministratorEvent>().Where(candidate => candidate != AdministratorEvent.NewRequest))
+            Assert.Equal(candidate == kind, settings.Includes(candidate));
+    }
+
+    [Fact]
+    public void RequestEventsDistinguishKeyOrdersAndKeepLegacySubscription()
+    {
+        var request = new MaintenanceRequest(7, 42, "complex", "Інше", "", "Опис", Now);
+        Assert.Equal(AdministratorEvent.NewComplexRequest, AdministratorNotifications.NewRequest(request).AdministratorEvent);
+        Assert.Equal(AdministratorEvent.NewKeyOrder, AdministratorNotifications.NewRequest(request with { Category = RequestCategories.KeyOrder }).AdministratorEvent);
+        var legacy = new AdministratorNotificationSettings("123", NotifyNewRequests: true);
+        Assert.True(legacy.Includes(AdministratorEvent.NewRequest));
+        Assert.True(legacy.Includes(AdministratorEvent.NewComplexRequest));
+        Assert.True(legacy.Includes(AdministratorEvent.NewKeyOrder));
+        Assert.False((legacy with { NotifyNewKeyOrders = false }).Includes(AdministratorEvent.NewKeyOrder));
+    }
+
+    [Theory]
+    [InlineData(true, false, AdministratorEvent.NewComplexRequest, true)]
+    [InlineData(true, false, AdministratorEvent.NewKeyOrder, false)]
+    [InlineData(false, true, AdministratorEvent.NewComplexRequest, false)]
+    [InlineData(false, true, AdministratorEvent.NewKeyOrder, true)]
+    public async Task BroadcastAndDeliveryRespectIndependentRequestSubscriptions(bool complex, bool keys, AdministratorEvent kind, bool expected)
+    {
+        using var db = new NotificationDynamo();
+        var admin = Administrator();
+        admin["NotifyNewRequests"] = new() { BOOL = complex };
+        admin["NotifyNewKeyOrders"] = new() { BOOL = keys };
+        db.Administrators["recipient"] = admin;
+        db.Page = new() { Items = [new() { ["UserId"] = new("recipient") }] };
+        var repository = new DynamoNotificationRepository(db, "data", "complex", "admins");
+        var notification = Broadcast(kind);
+        await repository.ExpandAsync(notification, "lease", Now, default);
+        Assert.Equal(expected ? 1 : 0, db.Transaction!.TransactItems.Count(w => w.Put?.Item.ContainsKey("attempts") == true));
+        var direct = notification with { Notification = notification.Notification with { OwnerId = 123, AdministratorId = "recipient" } };
+        Assert.Equal(expected, await repository.CanDeliverAsync(direct, default));
+    }
+
+    [Fact]
+    public async Task KeyOrderSettingRequiresChatAndIsWrittenIndependently()
+    {
+        using var db = new NotificationDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var change = new NotificationSettingsChange(null, false, false, false, 2, true);
+        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => store.SetNotificationSettingsAsync(Super, Regular, change, default))).Status);
+        await store.SetNotificationSettingsAsync(Super, Regular, change with { TelegramChatId = "123" }, default);
+        var update = Assert.Single(db.Transaction!.TransactItems, w => w.Update is not null).Update;
+        Assert.True(update.ExpressionAttributeValues[":keys"].BOOL);
+        Assert.False(update.ExpressionAttributeValues[":requests"].BOOL);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ExistingAdministratorsInheritPreviousRequestSubscription(bool previous)
+    {
+        using var db = new NotificationDynamo();
+        db.Administrators["regular"] = Administrator();
+        db.Administrators["regular"]["NotifyNewRequests"] = new() { BOOL = previous };
+        var admin = await new DynamoAdminStore(db, "admins", "data", "complex").GetAdminAsync("regular", default);
+        Assert.Equal(previous, admin!.NotifyNewRequests);
+        Assert.Equal(previous, admin.NotifyNewKeyOrders);
+        db.Administrators["regular"]["NotifyNewKeyOrders"] = new() { BOOL = !previous };
+        admin = await new DynamoAdminStore(db, "admins", "data", "complex").GetAdminAsync("regular", default);
+        Assert.Equal(!previous, admin!.NotifyNewKeyOrders);
+    }
+
+    [Fact]
+    public async Task OlderClientLeavesIndependentKeyOrderSubscriptionUnchanged()
+    {
+        using var db = new NotificationDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var target = Regular with { NotifyNewKeyOrders = true };
+        await store.SetNotificationSettingsAsync(Super, target, new("123", false, false, false, 2), default);
+        var update = Assert.Single(db.Transaction!.TransactItems, w => w.Update is not null).Update;
+        Assert.True(update.ExpressionAttributeValues[":keys"].BOOL);
+        Assert.False(update.ExpressionAttributeValues[":requests"].BOOL);
     }
 
     [Fact]

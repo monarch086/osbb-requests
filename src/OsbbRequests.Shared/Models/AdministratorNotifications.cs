@@ -5,15 +5,17 @@ using OsbbRequests.Shared.Domain;
 namespace OsbbRequests.Shared.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<AdministratorEvent>))]
-public enum AdministratorEvent { NewResident, NewRequest, NewAdministrator }
+public enum AdministratorEvent { NewResident, NewRequest, NewAdministrator, NewComplexRequest, NewKeyOrder }
 
 public sealed record AdministratorNotificationSettings(string? TelegramChatId = null, bool NotifyNewResidents = false,
-    bool NotifyNewRequests = false, bool NotifyNewAdministrators = false)
+    bool NotifyNewRequests = false, bool NotifyNewAdministrators = false, bool? NotifyNewKeyOrders = null)
 {
     public bool Includes(AdministratorEvent kind) => kind switch
     {
         AdministratorEvent.NewResident => NotifyNewResidents,
         AdministratorEvent.NewRequest => NotifyNewRequests,
+        AdministratorEvent.NewComplexRequest => NotifyNewRequests,
+        AdministratorEvent.NewKeyOrder => NotifyNewKeyOrders ?? NotifyNewRequests,
         AdministratorEvent.NewAdministrator => NotifyNewAdministrators,
         _ => false
     };
@@ -48,7 +50,8 @@ public static class AdministratorNotifications
         $"Нова заявка №{request.Id} у ЖК «Зелений острів 2».\n" +
         ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + "\nКатегорія: " + request.Category +
         "\nСтворено: " + Date(request.CreatedAt) + "\n~~~~~\n" + request.Description +
-        "\n~~~~~\nПерегляньте заявку в розділі «Заявки» вебпанелі.", request.CreatedAt, AdministratorEvent.NewRequest);
+        "\n~~~~~\nПерегляньте заявку в розділі «Заявки» вебпанелі.", request.CreatedAt,
+        request.Category == RequestCategories.KeyOrder ? AdministratorEvent.NewKeyOrder : AdministratorEvent.NewComplexRequest);
 
     public static ResidentNotification NewAdministrator(string id, string email, string complex, DateTimeOffset now) => new(
         "new-administrator-" + id, complex, 0, null, null,

@@ -18,7 +18,8 @@ public sealed partial class DynamoNotificationRepository
         var data = result.Item ?? [];
         return (data.GetValueOrDefault("IsActive")?.BOOL == true,
             new(data.GetValueOrDefault("TelegramChatId")?.S, data.GetValueOrDefault("NotifyNewResidents")?.BOOL == true,
-                data.GetValueOrDefault("NotifyNewRequests")?.BOOL == true, data.GetValueOrDefault("NotifyNewAdministrators")?.BOOL == true));
+                data.GetValueOrDefault("NotifyNewRequests")?.BOOL == true, data.GetValueOrDefault("NotifyNewAdministrators")?.BOOL == true,
+                data.GetValueOrDefault("NotifyNewKeyOrders")?.BOOL));
     }
     public async Task<bool> CanDeliverAsync(NotificationWorkItem item, CancellationToken ct)
     {

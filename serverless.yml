@@ -673,6 +673,7 @@ resources:
                   - TelegramChatId
                   - NotifyNewResidents
                   - NotifyNewRequests
+                  - NotifyNewKeyOrders
                   - NotifyNewAdministrators
                   - AccessComplexRequests
                   - AccessKeyOrders

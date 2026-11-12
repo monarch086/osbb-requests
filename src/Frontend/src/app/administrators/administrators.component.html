@@ -51,12 +51,20 @@
                   <span class="d-block" role="listitem">• Нові мешканці</span>
                 }
                 @if (a.notifyNewRequests) {
-                  <span class="d-block" role="listitem">• Нові заявки</span>
+                  <span class="d-block" role="listitem">• Нові заявки по комплексу</span>
+                }
+                @if (a.notifyNewKeyOrders) {
+                  <span class="d-block" role="listitem">• Нові замовлення ключів</span>
                 }
                 @if (a.notifyNewAdministrators) {
                   <span class="d-block" role="listitem">• Нові адміністратори</span>
                 }
-                @if (!a.notifyNewResidents && !a.notifyNewRequests && !a.notifyNewAdministrators) {
+                @if (
+                  !a.notifyNewResidents &&
+                  !a.notifyNewRequests &&
+                  !a.notifyNewKeyOrders &&
+                  !a.notifyNewAdministrators
+                ) {
                   <span class="d-block" role="listitem">• Не налаштовано</span>
                 }
               </span>

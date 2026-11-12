@@ -11,6 +11,7 @@ export interface NotificationSettings {
   telegramChatId: string | null;
   notifyNewResidents: boolean;
   notifyNewRequests: boolean;
+  notifyNewKeyOrders: boolean;
   notifyNewAdministrators: boolean;
 }
 export interface Admin extends NotificationSettings {

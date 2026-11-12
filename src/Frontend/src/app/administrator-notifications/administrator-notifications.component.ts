@@ -19,6 +19,7 @@ export class AdministratorNotificationsComponent implements OnChanges {
     telegramChatId: '',
     notifyNewResidents: false,
     notifyNewRequests: false,
+    notifyNewKeyOrders: false,
     notifyNewAdministrators: false,
   };
   protected get missingChat(): boolean {
@@ -26,6 +27,7 @@ export class AdministratorNotificationsComponent implements OnChanges {
       !this.settings.telegramChatId?.trim() &&
       (this.settings.notifyNewResidents ||
         this.settings.notifyNewRequests ||
+        this.settings.notifyNewKeyOrders ||
         this.settings.notifyNewAdministrators)
     );
   }
@@ -35,6 +37,7 @@ export class AdministratorNotificationsComponent implements OnChanges {
         telegramChatId: this.admin.telegramChatId ?? '',
         notifyNewResidents: this.admin.notifyNewResidents,
         notifyNewRequests: this.admin.notifyNewRequests,
+        notifyNewKeyOrders: this.admin.notifyNewKeyOrders,
         notifyNewAdministrators: this.admin.notifyNewAdministrators,
       };
     }

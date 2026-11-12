@@ -306,7 +306,7 @@ public sealed class InfrastructureTests
         Assert.Equal("REQUEST#100", transaction.TransactItems[2].Put.Item["pk"].S);
         var broadcast = Assert.Single(transaction.TransactItems, item => item.Put.Item["pk"].S == "NOTIFICATIONS#building").Put.Item;
         var administratorAlert = JsonSerializer.Deserialize<ResidentNotification>(broadcast["payload"].S)!;
-        Assert.Equal(AdministratorEvent.NewRequest, administratorAlert.AdministratorEvent);
+        Assert.Equal(AdministratorEvent.NewComplexRequest, administratorAlert.AdministratorEvent);
         Assert.Contains("\n~~~~~\n" + request.Description + "\n~~~~~\n", administratorAlert.Text);
         Assert.All(transaction.TransactItems.Skip(1), item => Assert.False(item.Put.Item.ContainsKey("expiresAt")));
     }
