@@ -587,6 +587,26 @@ public sealed class AdminApiTests
         Assert.Empty(document.Descendants(ns + "f"));
     }
 
+    [Theory]
+    [InlineData("/admin/requests/export/")]
+    [InlineData("/admin/requests/export//")]
+    public async Task TicketExportCannotBypassThrottledRouteWithTrailingSlashes(string path)
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request(path, query: new() { ["section"] = "complex" }), default));
+        Assert.Equal(404, error.Status);
+        Assert.Equal(0, store.ExportReads);
+    }
+
+    [Fact]
+    public async Task TicketExportCannotRunViaGreedyGatewayRoute()
+    {
+        var request = Request("/admin/requests/export", query: new() { ["section"] = "complex" });
+        request.RouteKey = "ANY /admin/{proxy+}";
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(new FakeStore()).HandleAsync(request, default));
+        Assert.Equal(404, error.Status);
+    }
+
     [Fact]
     public async Task TicketExportRejectsRepeatedCursorAndInvalidFilters()
     {

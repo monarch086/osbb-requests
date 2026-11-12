@@ -158,6 +158,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         }
         if (method == "GET" && path is "/admin/requests" or "/admin/requests/export")
         {
+            // The export must use the explicitly throttled API Gateway route, not the greedy proxy.
+            if (path == "/admin/requests/export" && (request.RawPath != path || request.RouteKey != "GET /admin/requests/export")) throw new ApiError(404, "Сторінку не знайдено.");
             var status = query.GetValueOrDefault("status");
             var statuses = string.IsNullOrEmpty(status) ? [] : status.Split(',').Distinct(StringComparer.Ordinal).ToArray();
             if (status?.Length > 150 || statuses.Any(value => !Enum.GetNames<RequestStatus>().Contains(value, StringComparer.Ordinal)))

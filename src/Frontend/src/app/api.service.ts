@@ -170,6 +170,9 @@ export class ApiService {
 
   private async checkResponse(response: Response): Promise<void> {
     if (!response.ok) {
+      if (response.status === 429) {
+        throw new UserFacingError('Забагато запитів. Зачекайте кілька секунд і спробуйте ще раз.');
+      }
       const result = (await response.json().catch(() => ({}))) as { error?: string };
       throw new UserFacingError(
         result.error ||

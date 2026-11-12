@@ -141,6 +141,13 @@ functions:
         method: GET
         path: /health
     - httpApi:
+        method: GET
+        path: /admin/requests/export
+        authorizer:
+          name: adminJwt
+          scopes:
+          - aws.cognito.signin.user.admin
+    - httpApi:
         method: ANY
         path: /admin/{proxy+}
         authorizer:
@@ -784,6 +791,17 @@ resources:
             - FrontendDistribution
             - DomainName
   extensions:
+    HttpApiStage:
+      DependsOn:
+      - HttpApiRouteGetAdminRequestsExport
+      Properties:
+        DefaultRouteSettings:
+          ThrottlingRateLimit: 30
+          ThrottlingBurstLimit: 60
+        RouteSettings:
+          'GET /admin/requests/export':
+            ThrottlingRateLimit: 0.2
+            ThrottlingBurstLimit: 2
     HttpApi:
       Properties:
         CorsConfiguration:
