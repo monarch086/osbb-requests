@@ -62,66 +62,29 @@
     </div>
     <div class="list-group list-group-flush">
       @for (r of residents; track r.id) {
-        <article
-          class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
+        <button
+          type="button"
+          class="list-group-item list-group-item-action p-4 text-start"
+          [disabled]="saving || loading"
+          (click)="selectPending.emit(r)"
         >
-          <div>
-            <h3 class="h6">{{ r.firstName }} {{ r.lastName }}</h3>
-            <p class="small text-body-secondary">{{ typeLabel(r.residentType) }}</p>
-            @if (r.buildingNumber || r.apartmentNumber) {
-              <p class="small text-body-secondary">
-                @if (r.buildingNumber) {
-                  Будинок {{ r.buildingNumber }}
-                }
-                @if (r.apartmentNumber) {
-                  · Квартира {{ r.apartmentNumber }}
-                }
-              </p>
+          <span class="h6 d-block mb-1">{{ r.firstName }} {{ r.lastName }}</span>
+          <span class="small text-body-secondary d-block">{{ typeLabel(r.residentType) }}</span>
+          <span class="small text-body-secondary d-block">
+            @if (r.buildingNumber) {
+              Будинок {{ r.buildingNumber }}
             }
-            <a [href]="'tel:' + r.phone">{{ r.phone }}</a>
-            @if (r.email) {
-              <p class="small mt-2 mb-1">Email: {{ r.email }}</p>
+            @if (r.buildingNumber && r.apartmentNumber) {
+              ·
             }
-            <p class="text-body-secondary small mt-2 mb-1">
-              Telegram Chat Id: {{ r.telegramChatId || '-' }}
-            </p>
-            <p class="text-body-secondary small">
-              Згода на обробку даних: {{ r.consentAt ? date(r.consentAt) : 'не зафіксована' }}
-            </p>
-            <p class="text-body-secondary">Подано {{ date(r.updatedAt) }}</p>
-          </div>
-          <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
-            <button
-              class="btn btn-outline-secondary"
-              (click)="editResident.emit(r)"
-              [disabled]="saving || loading"
-            >
-              Редагувати дані
-            </button>
-            @if (r.typeChangeCount) {
-              <button
-                class="btn btn-outline-secondary"
-                (click)="showHistory.emit(r)"
-                [disabled]="saving || loading"
-              >
-                Історія змін
-              </button>
+            @if (r.apartmentNumber) {
+              Квартира {{ r.apartmentNumber }}
             }
-            <button
-              class="btn btn-primary"
-              (click)="approve.emit(r)"
-              [disabled]="saving || loading"
-            >
-              Надати доступ</button
-            ><button
-              class="btn btn-outline-secondary"
-              (click)="reject.emit(r)"
-              [disabled]="saving || loading"
-            >
-              Відхилити
-            </button>
-          </div>
-        </article>
+            @if (!r.buildingNumber && !r.apartmentNumber) {
+              Розташування не зазначено
+            }
+          </span>
+        </button>
       }
     </div>
     @if (!residents.length && !loading) {
@@ -249,67 +212,37 @@
     </div>
     <div class="list-group list-group-flush">
       @for (resident of registeredResidents; track resident.id) {
-        <article
-          class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-4"
+        <button
+          type="button"
+          class="list-group-item list-group-item-action p-4 text-start"
+          [disabled]="saving || loading"
+          (click)="selectRegistered.emit(resident)"
         >
-          <div>
-            <h3 class="h6">
-              @if (resident.personalDataDeleted) {
-                Мешканець видалив свої дані
-              } @else {
-                {{ resident.firstName }} {{ resident.lastName }}
-              }
-            </h3>
-            <p class="small text-body-secondary">{{ typeLabel(resident.residentType) }}</p>
-            @if (resident.buildingNumber || resident.apartmentNumber) {
-              <p class="small text-body-secondary">
-                @if (resident.buildingNumber) {
-                  Будинок {{ resident.buildingNumber }}
-                }
-                @if (resident.apartmentNumber) {
-                  · Квартира {{ resident.apartmentNumber }}
-                }
-              </p>
+          <span class="h6 d-block mb-1">
+            @if (resident.personalDataDeleted) {
+              Мешканець видалив свої дані
+            } @else {
+              {{ resident.firstName }} {{ resident.lastName }}
             }
-            @if (resident.phone) {
-              <a [href]="'tel:' + resident.phone">{{ resident.phone }}</a>
+          </span>
+          <span class="small text-body-secondary d-block">{{
+            typeLabel(resident.residentType)
+          }}</span>
+          <span class="small text-body-secondary d-block">
+            @if (resident.buildingNumber) {
+              Будинок {{ resident.buildingNumber }}
             }
-            @if (resident.email) {
-              <p class="small mt-2 mb-1">Email: {{ resident.email }}</p>
+            @if (resident.buildingNumber && resident.apartmentNumber) {
+              ·
             }
-            <p class="text-body-secondary small mt-2 mb-1">
-              Telegram Chat Id: {{ resident.telegramChatId || '-' }}
-            </p>
-            <p class="text-body-secondary small mt-2 mb-0">
-              Згода на обробку даних:
-              {{ resident.consentAt ? date(resident.consentAt) : 'не зафіксована' }}
-            </p>
-            <p class="text-body-secondary small mt-2 mb-0">
-              Реєстрацію підтверджено {{ date(resident.registeredAt) }}
-            </p>
-          </div>
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            @if (permissions.pendingResidents && !resident.personalDataDeleted) {
-              <button
-                class="btn btn-outline-secondary"
-                (click)="editResident.emit(resident)"
-                [disabled]="saving || loading"
-              >
-                Редагувати дані
-              </button>
+            @if (resident.apartmentNumber) {
+              Квартира {{ resident.apartmentNumber }}
             }
-            @if (resident.typeChangeCount) {
-              <button
-                class="btn btn-outline-secondary"
-                (click)="showHistory.emit(resident)"
-                [disabled]="saving || loading"
-              >
-                Історія змін
-              </button>
+            @if (!resident.buildingNumber && !resident.apartmentNumber) {
+              Розташування не зазначено
             }
-            <span class="badge rounded-pill text-bg-success align-self-start">Зареєстровано</span>
-          </div>
-        </article>
+          </span>
+        </button>
       }
     </div>
     @if (!registeredResidents.length && !loading) {

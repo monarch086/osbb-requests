@@ -1,0 +1,113 @@
+<div class="modal-backdrop fade show"></div>
+<div
+  class="modal d-block"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="resident-details-title"
+  tabindex="-1"
+  (keydown.escape)="!saving && closed.emit()"
+>
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <section class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="resident-details-title">Дані мешканця</h2>
+        <button
+          #closeButton
+          type="button"
+          class="btn-close"
+          aria-label="Закрити"
+          [disabled]="saving"
+          (click)="closed.emit()"
+        ></button>
+      </div>
+      @if (pending || resident; as person) {
+        <div class="modal-body">
+          @if (error) {
+            <div class="alert alert-danger" role="alert">{{ error }}</div>
+          }
+          <h3 class="h5">
+            @if (resident?.personalDataDeleted) {
+              Мешканець видалив свої дані
+            } @else {
+              {{ person.firstName }} {{ person.lastName }}
+            }
+          </h3>
+          <dl class="mb-0">
+            <dt>Тип мешканця</dt>
+            <dd>{{ typeLabel(person.residentType) }}</dd>
+            <dt>Будинок</dt>
+            <dd>{{ person.buildingNumber || 'Не зазначено' }}</dd>
+            <dt>Квартира</dt>
+            <dd>{{ person.apartmentNumber || 'Не зазначено' }}</dd>
+            <dt>Телефон</dt>
+            <dd>
+              @if (person.phone) {
+                <a [href]="'tel:' + person.phone">{{ person.phone }}</a>
+              } @else {
+                Не зазначено
+              }
+            </dd>
+            <dt>Email</dt>
+            <dd>{{ person.email || 'Не зазначено' }}</dd>
+            <dt>Telegram Chat Id</dt>
+            <dd>{{ person.telegramChatId || 'Не зазначено' }}</dd>
+            <dt>Згода на обробку даних</dt>
+            <dd>{{ person.consentAt ? date(person.consentAt) : 'не зафіксована' }}</dd>
+            @if (pending) {
+              <dt>Подано</dt>
+              <dd>{{ date(pending.updatedAt) }}</dd>
+            }
+            @if (resident) {
+              <dt>Реєстрацію підтверджено</dt>
+              <dd>{{ date(resident.registeredAt) }}</dd>
+            }
+          </dl>
+        </div>
+        <div class="modal-footer justify-content-between">
+          <div class="d-flex flex-wrap gap-2">
+            @if (permissions.pendingResidents && !resident?.personalDataDeleted) {
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                [disabled]="saving"
+                (click)="edit.emit(person)"
+              >
+                Редагувати дані
+              </button>
+            }
+            @if (person.typeChangeCount) {
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                [disabled]="saving"
+                (click)="history.emit(person)"
+              >
+                Історія змін
+              </button>
+            }
+          </div>
+          @if (pending) {
+            <div class="d-flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                [disabled]="saving"
+                (click)="reject.emit(pending)"
+              >
+                Відхилити
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="saving"
+                (click)="approve.emit(pending)"
+              >
+                Надати доступ
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</div>

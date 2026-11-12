@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
 
 import type { PagePermissions, RegisteredResident, Registration } from '../api.models';
-import { buildingNumbers, formatDate } from '../shared/ticket-presentation';
+import { buildingNumbers } from '../shared/ticket-presentation';
 import type { ResidentFilters, ResidentView } from './resident-directory';
 import { residentTypeLabel } from './resident-type';
 
@@ -32,11 +32,8 @@ export class ResidentsComponent {
   @Input() residents: Registration[] = [];
   @Input() loading = false;
   @Input() saving = false;
-  @Output() readonly approve = new EventEmitter<Registration>();
-  @Output() readonly reject = new EventEmitter<Registration>();
-  @Output() readonly editResident = new EventEmitter<Registration | RegisteredResident>();
-  @Output() readonly showHistory = new EventEmitter<Registration | RegisteredResident>();
-  protected readonly date = formatDate;
+  @Output() readonly selectPending = new EventEmitter<Registration>();
+  @Output() readonly selectRegistered = new EventEmitter<RegisteredResident>();
   protected readonly buildings = buildingNumbers;
   protected changeFilters(change: Partial<ResidentFilters>): void {
     this.filtersChange.emit({ ...this.filters, ...change });

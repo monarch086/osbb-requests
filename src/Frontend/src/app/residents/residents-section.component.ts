@@ -12,6 +12,7 @@ import { ExcelExportService } from '../export/excel-export.service';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
+import { ResidentDetailsDialogComponent } from './resident-details-dialog.component';
 import type { ResidentFilters, ResidentView } from './resident-directory';
 import { ResidentHistoryDialogComponent } from './resident-history-dialog.component';
 import { ResidentTypeDialogComponent } from './resident-type-dialog.component';
@@ -26,13 +27,17 @@ import { ResidentsList } from './residents-list';
     PaginationComponent,
     ResidentTypeDialogComponent,
     ResidentHistoryDialogComponent,
+    ResidentDetailsDialogComponent,
   ],
   templateUrl: './residents-section.component.html',
 })
 export class ResidentsSectionComponent extends WorkspaceSection {
   private readonly excel = inject(ExcelExportService);
   protected override readonly lists = new ResidentsList();
+  protected selectedPending: Registration | null = null;
+  protected selectedRegistered: RegisteredResident | null = null;
   protected rejecting: Registration | null = null;
+  private detailsTrigger: HTMLElement | null = null;
   protected changingType: Registration | RegisteredResident | null = null;
   protected historyResident: Registration | RegisteredResident | null = null;
   protected history: ResidentTypeHistory[] = [];
@@ -74,6 +79,32 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.lists.pendingDirectory.setItems(registrations);
       this.lists.showResidentPage(index);
     }
+  }
+  protected openPending(resident: Registration): void {
+    this.detailsTrigger =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    this.selectedPending = resident;
+    this.selectedRegistered = null;
+    this.error = '';
+  }
+  protected openRegistered(resident: RegisteredResident): void {
+    this.detailsTrigger =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    this.selectedRegistered = resident;
+    this.selectedPending = null;
+    this.error = '';
+  }
+  protected closeDetails(): void {
+    if (this.saving) {
+      return;
+    }
+    this.selectedPending = null;
+    this.selectedRegistered = null;
+    this.error = '';
+    if (this.detailsTrigger?.isConnected) {
+      this.detailsTrigger.focus();
+    }
+    this.detailsTrigger = null;
   }
   protected async switchResidentView(view: ResidentView): Promise<void> {
     if (
@@ -130,6 +161,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.lists.showResidentPage(this.lists.pagination.index);
       this.pendingCount = Math.max(0, this.pendingCount - 1);
       this.rejecting = null;
+      this.selectedPending = null;
       this.notice = approved ? 'Мешканцю надано доступ.' : 'Реєстрацію відхилено.';
     });
   }
