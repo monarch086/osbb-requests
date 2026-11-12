@@ -72,7 +72,9 @@ def resident_mirror_put(table, registration, expected_version):
         name = ('0#' + order(last) if last.strip() else '1#') + '#' + order(first) + '#' + str(user_id).zfill(20)
         timestamp = registration.get('ApprovedAt') or registration['UpdatedAt'] if registration['Stage'] == 'Approved' else registration['UpdatedAt']
         instant = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).astimezone(timezone.utc)
-        date = instant.strftime('%Y-%m-%dT%H:%M:%S.') + f'{instant.microsecond:06d}0+00:00#{user_id:020d}'
+        fraction = re.search(r'\.(\d{1,7})', timestamp)
+        tick = (fraction.group(1).ljust(7, '0')[6] if fraction else '0')
+        date = instant.strftime('%Y-%m-%dT%H:%M:%S.') + f'{instant.microsecond:06d}{tick}+00:00#{user_id:020d}'
         item.update(directory={'S': f'COMPLEX#{building}#{registration["Stage"]}'}, dateOrder={'S': date},
                     nameOrder={'S': name}, buildingNumber={'S': registration.get('BuildingNumber') or ''},
                     residentType={'S': registration.get('ResidentType') or 'FamilyMember'})
