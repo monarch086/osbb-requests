@@ -24,6 +24,7 @@ public interface IAdminStore
     Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct);
     Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct);
     Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct);
+    Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct);
     Task<ManagedRequest?> GetRequestAsync(long ownerId, long requestId, CancellationToken ct);
     Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct);
     Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct);

@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Shared.Domain;
+using OsbbRequests.Shared.Models;
 
 namespace OsbbRequests.AdminApi.Data;
 
@@ -27,15 +29,18 @@ public sealed partial class DynamoAdminStore
     }
     private static string RequestPageCursor(RequestCursor value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value)));
 
-    public async Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct)
+    public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) =>
+        ListRequestsPageAsync(filters, cursor, 25, ct);
+
+    private async Task<Page<ManagedRequest>> ListRequestsPageAsync(RequestFilters filters, string? cursor, int limit, CancellationToken ct)
     {
-        if (!prioritizeRequests) return await ListRequestsByDateAsync(filters, cursor, ct);
+        if (!prioritizeRequests) return await ListRequestsByDateAsync(filters, cursor, limit, ct);
         var position = ReadRequestCursor(cursor);
         var rank = position.Priority;
         var start = position.Key?.ToDictionary(pair => pair.Key, pair => S(pair.Value));
         var items = new List<ManagedRequest>();
         var evaluated = 0;
-        while (rank >= 0 && evaluated < 25)
+        while (rank >= 0 && evaluated < limit)
         {
             var prefix = rank.ToString(System.Globalization.CultureInfo.InvariantCulture) + "#";
             var values = new Dictionary<string, AttributeValue>
@@ -54,7 +59,7 @@ public sealed partial class DynamoAdminStore
                 FilterExpression = filter,
                 ExclusiveStartKey = start,
                 ScanIndexForward = false,
-                Limit = 25 - evaluated
+                Limit = limit - evaluated
             }, ct);
             items.AddRange((page.Items ?? []).Select(Managed));
             evaluated += page.ScannedCount ?? page.Items?.Count ?? 0;
@@ -64,5 +69,76 @@ public sealed partial class DynamoAdminStore
             start = null;
         }
         return new(items, rank < 0 ? null : RequestPageCursor(new(building, rank, null)));
+    }
+
+    public async Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct)
+    {
+        if (pageNumber < 1 || pageNumber > 1000000) throw new ApiError(400, "Некоректна сторінка.");
+        var items = new List<ManagedRequest>();
+        var next = cursor;
+        do
+        {
+            var page = await ListRequestsPageAsync(filters, next, 25 - items.Count, ct);
+            items.AddRange(page.Items);
+            if (page.Cursor is not null && page.Cursor == next) throw new InvalidOperationException("Repeated request cursor.");
+            next = page.Cursor;
+        } while (items.Count < 25 && next is not null);
+
+        var counts = await CountRequestsAsync(filters, ct);
+        return new(items, next, pageNumber, 25, counts);
+    }
+
+    private async Task<RequestCounts> CountRequestsAsync(RequestFilters filters, CancellationToken ct)
+    {
+        var total = 0;
+        var newCount = 0;
+        var progressCount = 0;
+        var firstRank = prioritizeRequests ? 3 : 0;
+        for (var rank = firstRank; rank >= 0; rank--)
+        {
+            var values = new Dictionary<string, AttributeValue> { [":building"] = S(building) };
+            string condition;
+            if (prioritizeRequests)
+            {
+                var prefix = rank.ToString(System.Globalization.CultureInfo.InvariantCulture) + "#";
+                values[":lower"] = S(prefix + (filters.From ?? "0000"));
+                values[":upper"] = S(prefix + (filters.To ?? "9999") + "~");
+                condition = "requestBuildingId = :building AND requestPriorityCreatedAt BETWEEN :lower AND :upper";
+            }
+            else
+            {
+                condition = "requestBuildingId = :building";
+                if (filters.From is not null || filters.To is not null)
+                {
+                    values[":from"] = S(filters.From ?? "0000");
+                    values[":to"] = S((filters.To ?? "9999") + "~");
+                    condition += " AND requestCreatedAt BETWEEN :from AND :to";
+                }
+            }
+            var filter = RequestFilterExpression(filters, values);
+            Dictionary<string, AttributeValue>? start = null;
+            do
+            {
+                var result = await db.QueryAsync(new QueryRequest
+                {
+                    TableName = dataTable,
+                    IndexName = prioritizeRequests ? "BuildingPriorityRequestsIndex" : "BuildingRequestsIndex",
+                    KeyConditionExpression = condition,
+                    ExpressionAttributeValues = values,
+                    FilterExpression = filter,
+                    ProjectionExpression = "payload",
+                    ExclusiveStartKey = start
+                }, ct);
+                foreach (var row in result.Items ?? [])
+                {
+                    var status = Payload<MaintenanceRequest>(row).Status;
+                    total++;
+                    if (status == RequestStatus.New) newCount++;
+                    else if (status == RequestStatus.InProgress) progressCount++;
+                }
+                start = result.LastEvaluatedKey;
+            } while (start is { Count: > 0 });
+        }
+        return new(total, newCount, progressCount);
     }
 }

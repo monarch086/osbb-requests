@@ -358,7 +358,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         await Transact(writes, ct);
     }
 
-    private async Task<Page<ManagedRequest>> ListRequestsByDateAsync(RequestFilters filters, string? cursor, CancellationToken ct)
+    private async Task<Page<ManagedRequest>> ListRequestsByDateAsync(RequestFilters filters, string? cursor, int limit, CancellationToken ct)
     {
         var values = new Dictionary<string, AttributeValue> { [":building"] = S(building) };
         var condition = "requestBuildingId = :building";
@@ -377,7 +377,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             FilterExpression = filterExpression,
             ExclusiveStartKey = Decode(cursor, "requestBuildingId", building),
             ScanIndexForward = false,
-            Limit = 25
+            Limit = limit
         }, ct);
         return new Page<ManagedRequest>((result.Items ?? []).Select(Managed).ToList(), Encode(result.LastEvaluatedKey));
     }

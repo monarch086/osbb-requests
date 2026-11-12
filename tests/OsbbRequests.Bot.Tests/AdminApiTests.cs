@@ -495,6 +495,18 @@ public sealed class AdminApiTests
         Assert.Equal(0, store.LastFilters!.Floor);
     }
 
+    [Fact]
+    public async Task RequestDirectoryReturnsPageMetadataAndStatistics()
+    {
+        var store = new FakeStore();
+        var response = await Handler(store).HandleAsync(Request("/admin/requests", query: new() { ["page"] = "2", ["section"] = "keys" }), default);
+        using var json = JsonDocument.Parse(response.Body);
+        Assert.Equal(2, json.RootElement.GetProperty("pageNumber").GetInt32());
+        Assert.Equal(25, json.RootElement.GetProperty("pageSize").GetInt32());
+        Assert.Equal(0, json.RootElement.GetProperty("counts").GetProperty("total").GetInt32());
+        Assert.Equal("keys", store.LastFilters!.Section);
+    }
+
     [Theory]
     [InlineData("Building5", "1")]
     [InlineData("Building1", "1")]
@@ -710,6 +722,11 @@ public sealed class AdminApiTests
             if (cursor is null) return Task.FromResult(new Page<ManagedRequest>([new(new(1, 99, "building", "Інше", "", "=2+2", date), 1)], "one"));
             if (cursor == "one") return Task.FromResult(new Page<ManagedRequest>([], RepeatExportCursor ? "one" : "two"));
             return Task.FromResult(new Page<ManagedRequest>([new(new(2, 99, "building", "Інше", "", "Опис", date), 1), new(new(3, 100, "building", "Інше", "", "Опис", date), 1)], null));
+        }
+        public async Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct)
+        {
+            var page = await ListRequestsAsync(filters, cursor, ct);
+            return new(page.Items, page.Cursor, pageNumber, 25, new(page.Items.Count, 0, 0));
         }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(ForcedRequest ?? new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
         public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct)

@@ -78,6 +78,100 @@ public sealed class RequestPriorityTests
     }
 
     [Fact]
+    public async Task DirectoryReturnsFullPagesAndFilteredStatisticsWithoutOverlaps()
+    {
+        var data = Enumerable.Range(1, 90).Select(id => Ticket(id, id <= 40 ? "Urgent" : "High",
+            id <= 40 ? RequestStatus.Completed : id % 2 == 0 ? RequestStatus.New : RequestStatus.InProgress)).ToList();
+        using var db = new PriorityDynamo(data, countPageSize: 13);
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var filters = new RequestFilters(["New", "InProgress"], null, null, null, null);
+        var first = await store.ListRequestsWithStatisticsAsync(filters, null, 1, default);
+        var second = await store.ListRequestsWithStatisticsAsync(filters, first.Cursor, 2, default);
+        Assert.Equal(25, first.Items.Count);
+        Assert.Equal(25, second.Items.Count);
+        Assert.Equal(new RequestCounts(50, 25, 25), first.Counts);
+        Assert.Equal(first.Counts, second.Counts);
+        Assert.Equal(1, first.PageNumber);
+        Assert.Equal(2, second.PageNumber);
+        Assert.Empty(first.Items.Select(item => item.Request.Id).Intersect(second.Items.Select(item => item.Request.Id)));
+        Assert.Equal(data.Where(item => item.Status != RequestStatus.Completed).OrderByDescending(item => item.CreatedAt).Select(item => item.Id),
+            first.Items.Concat(second.Items).Select(item => item.Request.Id));
+        Assert.Contains(db.Queries, query => query.ProjectionExpression == "payload" && query.Limit is null);
+    }
+
+    [Theory]
+    [InlineData("complex")]
+    [InlineData("keys")]
+    public async Task DirectoryStatisticsRespectSectionAndStatusFilters(string section)
+    {
+        var data = Enumerable.Range(1, 40).Select(id => Ticket(id, status: id % 4 == 0 ? RequestStatus.Completed : RequestStatus.New) with
+        { Category = id <= 20 ? RequestCategories.KeyOrder : "інше" }).ToList();
+        using var db = new PriorityDynamo(data);
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var page = await store.ListRequestsWithStatisticsAsync(new(null, null, null, null, null, Section: section), null, 1, default);
+        Assert.Equal(20, page.Counts.Total);
+        Assert.Equal(15, page.Counts.NewCount);
+        Assert.Equal(0, page.Counts.ProgressCount);
+        var filtered = await store.ListRequestsWithStatisticsAsync(new(["Completed"], null, null, null, null, Section: section), null, 1, default);
+        Assert.Equal(5, filtered.Counts.Total);
+        Assert.Equal(0, filtered.Counts.NewCount);
+        Assert.All(filtered.Items, item => Assert.Equal(RequestStatus.Completed, item.Request.Status));
+        Assert.All(page.Items, item => Assert.Equal(section == "keys", item.Request.Category == RequestCategories.KeyOrder));
+    }
+
+    [Fact]
+    public async Task DirectoryUsesSameFiltersForRowsAndStatistics()
+    {
+        using var db = new PriorityDynamo([Ticket(1)]);
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var filters = new RequestFilters(["New", "InProgress"], "інше", "Тест", "2026-10-25", "2026-10-26", "Building4Б", 5, "complex");
+        await store.ListRequestsWithStatisticsAsync(filters, null, 1, default);
+        Assert.Contains(db.Queries, query => query.ProjectionExpression == "payload");
+        Assert.Contains(db.Queries, query => query.ProjectionExpression is null);
+        Assert.All(db.Queries, query =>
+        {
+            Assert.Equal("інше", query.ExpressionAttributeValues[":requestCategory"].S);
+            Assert.Equal("тест", query.ExpressionAttributeValues[":search"].S);
+            Assert.Equal("Building4Б", query.ExpressionAttributeValues[":target"].S);
+            Assert.Equal("5", query.ExpressionAttributeValues[":floor"].N);
+            Assert.Equal("New", query.ExpressionAttributeValues[":status0"].S);
+            Assert.Equal("InProgress", query.ExpressionAttributeValues[":status1"].S);
+            Assert.Contains("2026-10-25", query.ExpressionAttributeValues[":lower"].S);
+            Assert.Contains("2026-10-26", query.ExpressionAttributeValues[":upper"].S);
+            Assert.Contains("requestStatus IN", query.FilterExpression);
+            Assert.Contains("contains(searchText", query.FilterExpression);
+        });
+    }
+
+    [Fact]
+    public async Task DateModeReturnsStatisticsUsingDateIndex()
+    {
+        using var db = new DateDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
+        var page = await store.ListRequestsWithStatisticsAsync(new(null, null, null, "2026-10-25", "2026-10-26"), null, 1, default);
+        Assert.Equal(3, page.Items.Count);
+        Assert.Equal(new RequestCounts(3, 1, 1), page.Counts);
+        Assert.Equal(2, db.Queries.Count);
+        Assert.All(db.Queries, query =>
+        {
+            Assert.Equal("BuildingRequestsIndex", query.IndexName);
+            Assert.Contains("requestCreatedAt BETWEEN", query.KeyConditionExpression);
+            Assert.Equal("2026-10-25", query.ExpressionAttributeValues[":from"].S);
+        });
+    }
+
+    private sealed class DateDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
+    {
+        public List<QueryRequest> Queries { get; } = [];
+        public override Task<QueryResponse> QueryAsync(QueryRequest query, CancellationToken ct = default)
+        {
+            Queries.Add(query);
+            var data = new[] { Ticket(1), Ticket(2, status: RequestStatus.InProgress), Ticket(3, status: RequestStatus.Completed) };
+            return Task.FromResult(new QueryResponse { Items = data.Select(Row).ToList(), LastEvaluatedKey = [] });
+        }
+    }
+
+    [Fact]
     public async Task CursorCannotBeReusedForAnotherComplexOrPriorityBucket()
     {
         using var db = new PriorityDynamo(Enumerable.Range(1, 30).Select(id => Ticket(id, "Urgent")).ToList());
@@ -123,7 +217,7 @@ public sealed class RequestPriorityTests
         Assert.Null(page.Cursor);
     }
 
-    private sealed class PriorityDynamo(List<MaintenanceRequest> data) : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
+    private sealed class PriorityDynamo(List<MaintenanceRequest> data, int? countPageSize = null) : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public List<QueryRequest> Queries { get; } = [];
         public TransactWriteItemsRequest? Transaction;
@@ -137,9 +231,16 @@ public sealed class RequestPriorityTests
                 .OrderByDescending(item => item["requestPriorityCreatedAt"].S, StringComparer.Ordinal).ToList();
             var start = query.ExclusiveStartKey is { Count: > 0 }
                 ? candidates.FindIndex(item => item["sk"].S == query.ExclusiveStartKey["sk"].S) + 1 : 0;
-            var evaluated = candidates.Skip(start).Take(query.Limit!.Value).ToList();
-            var items = evaluated.Where(item => !values.ContainsKey(":status0") ||
-                JsonSerializer.Deserialize<MaintenanceRequest>(item["payload"].S)!.Status.ToString() == values[":status0"].S).ToList();
+            var evaluated = candidates.Skip(start).Take(query.Limit ?? countPageSize ?? int.MaxValue).ToList();
+            var statuses = values.Where(pair => pair.Key.StartsWith(":status", StringComparison.Ordinal)).Select(pair => pair.Value.S).ToHashSet();
+            var items = evaluated.Where(item =>
+            {
+                var request = JsonSerializer.Deserialize<MaintenanceRequest>(item["payload"].S)!;
+                if (statuses.Count > 0 && !statuses.Contains(request.Status.ToString())) return false;
+                if (values.ContainsKey(":keyCategory") &&
+                    (request.Category == RequestCategories.KeyOrder) != query.FilterExpression!.StartsWith("requestCategory = :keyCategory", StringComparison.Ordinal)) return false;
+                return true;
+            }).ToList();
             var last = start + evaluated.Count < candidates.Count
                 ? evaluated[^1].Where(pair => pair.Key is "pk" or "sk" or "requestBuildingId" or "requestPriorityCreatedAt").ToDictionary() : [];
             return Task.FromResult(new QueryResponse { Items = items, ScannedCount = evaluated.Count, LastEvaluatedKey = last });

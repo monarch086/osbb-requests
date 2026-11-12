@@ -7,7 +7,6 @@ import { PaginationComponent } from '../pagination/pagination.component';
 import type { TicketFilters } from '../shared/ticket-presentation';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
-import { countRequests } from './request-counts';
 import { RequestsComponent } from './requests.component';
 import { RequestsList } from './requests-list';
 
@@ -38,19 +37,11 @@ export class RequestsSectionComponent extends WorkspaceSection {
     cursor: string | null,
     isCurrent: () => boolean,
   ): Promise<void> {
-    const page = await this.api.getTickets(this.lists.appliedFilters, cursor);
-    const counts =
-      this.lists.counts ??
-      (await countRequests(
-        this.lists.appliedFilters,
-        (filters, next) => this.api.getTickets(filters, next),
-        isCurrent,
-        cursor === null ? page : undefined,
-      ));
+    const page = await this.api.getTickets(this.lists.appliedFilters, cursor, index + 1);
     if (isCurrent()) {
       this.lists.tickets = page.items;
       this.lists.pagination.accept(index, cursor, page.cursor);
-      this.lists.counts = counts;
+      this.lists.counts = page.counts;
     }
   }
   protected override async load(): Promise<void> {

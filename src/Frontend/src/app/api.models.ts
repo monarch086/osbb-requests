@@ -124,6 +124,11 @@ export interface Page<T> {
   items: T[];
   cursor: string | null;
 }
+export interface TicketPage extends Page<ManagedTicket> {
+  pageNumber: number;
+  pageSize: number;
+  counts: { total: number; newCount: number; progressCount: number };
+}
 
 export interface Assignee {
   userId: string;

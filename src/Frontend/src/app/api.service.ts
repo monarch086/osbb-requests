@@ -18,6 +18,7 @@ import type {
   Ticket,
   TicketFilters,
   TicketHistory,
+  TicketPage,
 } from './api.models';
 import { AuthService } from './auth.service';
 import { UserFacingError } from './error-message';
@@ -93,8 +94,14 @@ export class ApiService {
     return this.request('/messages' + this.cursorQuery(cursor));
   }
 
-  getTickets(filters: TicketFilters, cursor: string | null): Promise<Page<ManagedTicket>> {
-    return this.request('/requests?' + this.ticketFilterQuery(filters, cursor));
+  getTickets(
+    filters: TicketFilters,
+    cursor: string | null,
+    pageNumber: number,
+  ): Promise<TicketPage> {
+    const params = new URLSearchParams(this.ticketFilterQuery(filters, cursor));
+    params.set('page', String(pageNumber));
+    return this.request('/requests?' + params.toString());
   }
 
   async exportTickets(filters: TicketFilters): Promise<Blob> {

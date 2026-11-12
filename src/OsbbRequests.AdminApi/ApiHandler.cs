@@ -243,7 +243,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     Headers = new Dictionary<string, string> { ["content-type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ["cache-control"] = "no-store" }
                 };
             }
-            return Reply(200, await store.ListRequestsAsync(filters, cursor, ct));
+            if (!int.TryParse(query.GetValueOrDefault("page") ?? "1", out var pageNumber)) throw new ApiError(400, "Некоректна сторінка.");
+            return Reply(200, await store.ListRequestsWithStatisticsAsync(filters, cursor, pageNumber, ct));
         }
         if (segments.Length is 4 or 5 && segments[0] == "admin" && segments[1] == "requests" &&
             long.TryParse(segments[2], NumberStyles.None, CultureInfo.InvariantCulture, out var owner) && owner > 0 &&
