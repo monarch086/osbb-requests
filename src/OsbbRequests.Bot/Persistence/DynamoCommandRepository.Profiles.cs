@@ -57,6 +57,7 @@ public sealed partial class DynamoCommandRepository
                 ExpressionAttributeValues = values
             }
         });
+        if (residentsTable is not null) writes.Add(ResidentMirrorWrite(profile, update.ExpectedVersion));
         writes.Add(VersionedProfilePut(RegistrationItem("USER#" + Number(command.UserId), "REGISTRATION", profile), update.ExpectedVersion));
         writes.Add(VersionedProfilePut(RegistrationItem("REGISTRATION#" + profile.Id, "META", profile), update.ExpectedVersion, allowMissing: true));
         writes.Add(VersionedProfilePut(RegistrationItem("BUILDING#" + profile.BuildingId,

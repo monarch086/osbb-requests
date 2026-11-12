@@ -170,6 +170,24 @@ public sealed class AutomaticResidentApprovalTests
     }
 
     [Theory]
+    [InlineData(RegistrationStage.Pending)]
+    [InlineData(RegistrationStage.Approved)]
+    public async Task RegistrationMirrorIsInSameGuardedTransaction(RegistrationStage stage)
+    {
+        using var db = new Capture();
+        var profile = Approved with { Stage = stage, ApprovedAt = stage == RegistrationStage.Approved ? Approved.ApprovedAt : null };
+        await new DynamoCommandRepository(db, "data", residentsTable: "residents").CommitAsync(Message(6, "125"),
+            new("ok", Registration: new(profile, 5, AutomaticallyApproved: stage == RegistrationStage.Approved)), default);
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        Assert.Equal("COMPLEX#building#USER#99", mirror.Item["pk"].S);
+        Assert.Equal("COMPLEX#building#" + stage, mirror.Item["directory"].S);
+        Assert.Equal("5", mirror.ExpressionAttributeValues[":version"].N);
+        Assert.Contains("attribute_not_exists(pk)", mirror.ConditionExpression);
+        Assert.Equal(profile, JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S));
+        Assert.False(mirror.Item.ContainsKey("expiresAt"));
+    }
+
+    [Theory]
     [InlineData("pending")]
     [InlineData("missing-apartment")]
     [InlineData("missing-phone")]

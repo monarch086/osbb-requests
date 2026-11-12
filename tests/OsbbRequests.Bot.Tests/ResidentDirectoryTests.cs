@@ -186,6 +186,45 @@ public sealed class ResidentDirectoryTests
     }
 
     [Theory]
+    [InlineData(RegistrationStage.Pending)]
+    [InlineData(RegistrationStage.Approved)]
+    public async Task AdminEditingAndApprovalAlsoUpdateMirrorAtomically(RegistrationStage stage)
+    {
+        using var db = new RecordingDynamo { Snapshot = Item(Registration with { Stage = stage }) };
+        var store = new DynamoAdminStore(db, "admins", "data", "building", residentsTable: "residents");
+        await store.UpdateResidentDataAsync(Actor, Registration.Id, new("Марія", "Нова", "Owner", 4), default);
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        Assert.Equal("4", mirror.ExpressionAttributeValues[":version"].N);
+        Assert.Equal("COMPLEX#building#" + stage, mirror.Item["directory"].S);
+        Assert.Equal("Марія", JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S)!.FirstName);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AdminDecisionMirrorsApprovalAndRejectionAtomically(bool approved)
+    {
+        using var db = new RecordingDynamo { Snapshot = Item(Registration) };
+        var store = new DynamoAdminStore(db, "admins", "data", "building", residentsTable: "residents");
+        await store.DecideAsync(Actor, Registration.Id, new(approved, approved ? null : "Причина", 4), default);
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        Assert.Equal("4", mirror.ExpressionAttributeValues[":version"].N);
+        Assert.Equal(approved, mirror.Item.ContainsKey("directory"));
+    }
+
+    [Fact]
+    public async Task MirrorVersionConflictCancelsEntireAdminMutation()
+    {
+        using var db = new RecordingDynamo { Snapshot = Item(Registration), Conflict = true };
+        var store = new DynamoAdminStore(db, "admins", "data", "building", residentsTable: "residents");
+        var error = await Assert.ThrowsAsync<ApiError>(() => store.UpdateResidentDataAsync(Actor, Registration.Id, new("Марія", "Нова", "Owner", 4), default));
+        Assert.Equal(409, error.Status);
+        Assert.Equal(1, db.TransactionCalls);
+        Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents");
+        Assert.Equal(3, db.Transaction.TransactItems.Count(w => w.Update is not null));
+    }
+
+    [Theory]
     [InlineData("", "Тестова", "Owner", 4, RegistrationStage.Pending, 400)]
     [InlineData("Ім'я1", "Тестова", "Owner", 4, RegistrationStage.Pending, 400)]
     [InlineData("Олена", "Тестова", "FamilyMember", 4, RegistrationStage.Pending, 400)]

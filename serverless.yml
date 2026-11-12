@@ -89,6 +89,8 @@ functions:
       BOT_TOKEN_PARAMETER: ${self:custom.parameterPrefix}/telegram-bot-token
       COMMAND_DATA_TABLE:
         Ref: CommandDataTable
+      RESIDENTS_TABLE:
+        Ref: ResidentsTable
       COMMAND_QUEUE_URL:
         Ref: CommandQueue
       TELEGRAM_BOT_USERNAME: ${self:custom.botUsername}
@@ -168,6 +170,8 @@ functions:
         Ref: CommandDataTable
       BUILDING_ID: ${self:custom.buildingId}
       REQUEST_SORT_MODE: ${param:requestSortMode}
+      RESIDENTS_TABLE:
+        Ref: ResidentsTable
 resources:
   Resources:
     CommandDataTable:
@@ -214,6 +218,46 @@ resources:
           - AttributeName: requestBuildingId
             KeyType: HASH
           - AttributeName: requestPriorityCreatedAt
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+    ResidentsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      Properties:
+        TableName: ${self:service}-${sls:stage}-residents
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: directory
+          AttributeType: S
+        - AttributeName: dateOrder
+          AttributeType: S
+        - AttributeName: nameOrder
+          AttributeType: S
+        KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        SSESpecification:
+          SSEEnabled: true
+        GlobalSecondaryIndexes:
+        - IndexName: ResidentsByDate
+          KeySchema:
+          - AttributeName: directory
+            KeyType: HASH
+          - AttributeName: dateOrder
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: ResidentsByName
+          KeySchema:
+          - AttributeName: directory
+            KeyType: HASH
+          - AttributeName: nameOrder
             KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -449,6 +493,13 @@ resources:
                 - CommandDataTable
                 - Arn
             - Effect: Allow
+              Action:
+              - dynamodb:PutItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+            - Effect: Allow
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${CommandDataTable.Arn}/index/BuildingRequestsIndex
@@ -633,6 +684,13 @@ resources:
                 - Arn
               - Fn::Sub: ${CommandDataTable.Arn}/index/BuildingRequestsIndex
             - Effect: Allow
+              Action:
+              - dynamodb:PutItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+            - Effect: Allow
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${CommandDataTable.Arn}/index/BuildingPriorityRequestsIndex
@@ -761,6 +819,9 @@ resources:
                 AWS:SourceArn:
                   Fn::Sub: arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
   Outputs:
+    ResidentsTableName:
+      Value:
+        Ref: ResidentsTable
     CommandDataTableName:
       Value:
         Ref: CommandDataTable

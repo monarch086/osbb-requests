@@ -12,7 +12,7 @@ manage = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(manage)
 
 
-def migrate(table, building, region, apply=False, aws=manage.call_aws):
+def migrate(table, building, region, apply=False, aws=manage.call_aws, residents_table=None):
     cursor = None
     count = 0
     while True:
@@ -53,6 +53,8 @@ def migrate(table, building, region, apply=False, aws=manage.call_aws):
                     'UpdateExpression': 'SET #active = :no', 'ConditionExpression': 'buildingId = :complex',
                     'ExpressionAttributeNames': {'#active': 'active'},
                     'ExpressionAttributeValues': {':no': {'BOOL': False}, ':complex': {'S': building}}}})
+                if residents_table:
+                    writes.append(manage.resident_mirror_put(residents_table, next_profile, profile['Version']))
                 aws('dynamodb', 'transact-write-items', region, {'TransactItems': writes})
             count += 1
         cursor = page.get('LastEvaluatedKey')
@@ -70,7 +72,7 @@ def main():
     if not re.fullmatch(r'[a-zA-Z0-9-]+', args.stage):
         parser.error('Invalid stage.')
     count = migrate('osbb-requests-' + args.stage + '-command-data', args.building_id or 'osbb-requests-' + args.stage,
-                    args.region, args.apply)
+                    args.region, args.apply, residents_table='osbb-requests-' + args.stage + '-residents')
     print(('Migrated' if args.apply else 'Would migrate') + ': ' + str(count) + '. Personal data not displayed.')
 
 

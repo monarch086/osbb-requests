@@ -77,8 +77,10 @@ public sealed partial class DynamoAdminStore
             }
         };
         var listKey = current.Stage == RegistrationStage.Pending ? "REGISTRATION#" + reference : "RESIDENT#" + current.UserId.ToString("D20", CultureInfo.InvariantCulture);
-        await Transact([ActorCheck(actor), Update(Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION")),
-            Update(Key("REGISTRATION#" + reference, "META")), Update(Key("BUILDING#" + building, listKey)), Put(dataTable, audit)], ct);
+        var writes = new List<TransactWriteItem> { ActorCheck(actor), Update(Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION")),
+            Update(Key("REGISTRATION#" + reference, "META")), Update(Key("BUILDING#" + building, listKey)), Put(dataTable, audit) };
+        if (residentsTable is not null) writes.Add(ResidentMirrorWrite(next, current.Version));
+        await Transact(writes, ct);
     }
 
     public async Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct)

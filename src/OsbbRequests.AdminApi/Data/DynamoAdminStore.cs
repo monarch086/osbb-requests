@@ -9,7 +9,7 @@ using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
-public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true) : IAdminStore
+public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null) : IAdminStore
 {
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(int value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
@@ -312,6 +312,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             new() { Put = new() { TableName = dataTable, Item = member,
                 ConditionExpression = "attribute_not_exists(pk) OR buildingId = :building",
                 ExpressionAttributeValues = new() { [":building"] = S(building) } } }, Put(dataTable, audit) };
+        if (residentsTable is not null) writes.Add(ResidentMirrorWrite(next, registration.Version));
         if (decision.Approved)
         {
             var resident = Key("BUILDING#" + building, "RESIDENT#" + registration.UserId.ToString("D20", CultureInfo.InvariantCulture));

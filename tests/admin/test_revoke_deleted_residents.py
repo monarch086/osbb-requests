@@ -10,7 +10,7 @@ spec.loader.exec_module(module)
 
 
 class RevokeDeletedTests(unittest.TestCase):
-    def run_migration(self, apply=False, changed=False):
+    def run_migration(self, apply=False, changed=False, residents_table=None):
         self.calls = []
         profile = {'Id': 'reference', 'UserId': 99, 'BuildingId': 'complex', 'Stage': 'Approved', 'Version': 7,
                    'PersonalDataDeleted': True, 'PersonalDataDeletedAt': '2026-10-25T10:00:00Z',
@@ -23,7 +23,7 @@ class RevokeDeletedTests(unittest.TestCase):
                 current = dict(profile, PersonalDataDeleted=False) if changed else profile
                 return {'Item': {'payload': {'S': json.dumps(current)}, 'version': {'N': '7'}}}
             return {}
-        return module.migrate('data', 'complex', 'eu-central-1', apply, aws)
+        return module.migrate('data', 'complex', 'eu-central-1', apply, aws, residents_table=residents_table)
 
     def test_dry_run_does_not_change_access(self):
         self.assertEqual(1, self.run_migration())
@@ -40,6 +40,14 @@ class RevokeDeletedTests(unittest.TestCase):
         self.assertEqual('2026-10-25T10:00:00Z', profile['PersonalDataDeletedAt'])
         self.assertFalse(writes[-1]['Update']['ExpressionAttributeValues'][':no']['BOOL'])
         self.assertTrue(all('Delete' not in item for item in writes))
+
+    def test_apply_also_clears_mirror_atomically(self):
+        self.assertEqual(1, self.run_migration(True, residents_table='residents'))
+        writes = self.calls[-1][1]['TransactItems']
+        mirror = next(write['Put'] for write in writes if write.get('Put', {}).get('TableName') == 'residents')
+        self.assertEqual('7', mirror['ExpressionAttributeValues'][':version']['N'])
+        self.assertNotIn('directory', mirror['Item'])
+        self.assertIsNone(json.loads(mirror['Item']['payload']['S'])['Email'])
 
     def test_restored_profile_is_never_revoked_from_stale_directory(self):
         self.assertEqual(0, self.run_migration(True, changed=True))

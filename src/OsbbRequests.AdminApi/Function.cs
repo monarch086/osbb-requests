@@ -26,7 +26,7 @@ public sealed class Function
         _ => throw new InvalidOperationException("REQUEST_SORT_MODE must be Priority or Date.")
     };
     public Function() : this(new ApiHandler(new DynamoAdminStore(new AmazonDynamoDBClient(), Config("ADMINISTRATORS_TABLE"),
-        Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting()), new CognitoIdentity(new AmazonCognitoIdentityProviderClient())))
+        Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting(), Config("RESIDENTS_TABLE")), new CognitoIdentity(new AmazonCognitoIdentityProviderClient())))
     { notifier = TelegramServiceNotifier.FromEnvironment(Http); }
     public Function(ApiHandler handler, IServiceNotifier? notifier = null)
     { this.handler = handler; this.notifier = notifier; }

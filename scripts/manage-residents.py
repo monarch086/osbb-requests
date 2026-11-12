@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import tempfile
+import unicodedata
 from zoneinfo import ZoneInfo
 
 
@@ -44,7 +45,44 @@ def conditional_update(table, item_key, original, replacement):
     }}
 
 
-def decision_transaction(table, registration, original_payload, decision, reason, actor, now):
+def resident_mirror_put(table, registration, expected_version):
+    """Match the backend projection used while old and new tables are written together."""
+    building = registration['BuildingId']
+    user_id = registration['UserId']
+    item = {
+        'pk': {'S': f'COMPLEX#{building}#USER#{user_id}'},
+        'complexId': {'S': building},
+        'payload': {'S': json.dumps(registration, ensure_ascii=False, separators=(',', ':'))},
+        'version': {'N': str(registration['Version'])},
+    }
+    if registration['Stage'] in ('Pending', 'Approved') and not registration.get('PersonalDataDeleted', False):
+        alphabet = 'абвгґдеєжзиіїйклмнопрстуфхцчшщьюя'
+        upper_alphabet = 'АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ'
+        def order(value):
+            text = unicodedata.normalize('NFC', (value or '').strip())
+            def weight(c):
+                if c in upper_alphabet:
+                    return 0x200000 + upper_alphabet.index(c)
+                if c in alphabet:
+                    return 0x200000 + alphabet.index(c)
+                return ord(c) + 32 if 'A' <= c <= 'Z' else ord(c)
+            return ''.join(f'{weight(c):06X}' for c in text)
+        last = registration.get('LastName') or ''
+        first = registration.get('FirstName') or ''
+        name = ('0#' + order(last) if last.strip() else '1#') + '#' + order(first) + '#' + str(user_id).zfill(20)
+        timestamp = registration.get('ApprovedAt') or registration['UpdatedAt'] if registration['Stage'] == 'Approved' else registration['UpdatedAt']
+        instant = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).astimezone(timezone.utc)
+        date = instant.strftime('%Y-%m-%dT%H:%M:%S.') + f'{instant.microsecond:06d}0+00:00#{user_id:020d}'
+        item.update(directory={'S': f'COMPLEX#{building}#{registration["Stage"]}'}, dateOrder={'S': date},
+                    nameOrder={'S': name}, buildingNumber={'S': registration.get('BuildingNumber') or ''},
+                    residentType={'S': registration.get('ResidentType') or 'FamilyMember'})
+    return {'Put': {'TableName': table, 'Item': item,
+                    'ConditionExpression': 'attribute_not_exists(pk) OR (#version = :version AND complexId = :complex)',
+                    'ExpressionAttributeNames': {'#version': 'version'},
+                    'ExpressionAttributeValues': {':version': {'N': str(expected_version)}, ':complex': {'S': building}}}}
+
+
+def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None):
     if decision not in ('Approved', 'Rejected'):
         raise ValueError('Unsupported decision.')
     if registration['Stage'] != 'Pending':
@@ -96,6 +134,8 @@ def decision_transaction(table, registration, original_payload, decision, reason
         pending = key('NOTIFICATIONS#' + registration['BuildingId'], 'DUE#' + due_time + '#' + notification_id)
         pending.update(payload={'S': json.dumps(notification, ensure_ascii=False, separators=(',', ':'))}, attempts={'N': '0'})
         writes.append({'Put': {'TableName': table, 'Item': pending, 'ConditionExpression': 'attribute_not_exists(pk)'}})
+    if residents_table:
+        writes.append(resident_mirror_put(residents_table, updated, registration['Version']))
     return {'TransactItems': writes}
 
 
@@ -164,7 +204,7 @@ def main():
         return
     actor = call_aws('sts', 'get-caller-identity', args.region)['Arn']
     transaction = decision_transaction(table, registration, original_payload, decision, reason, actor,
-                                       datetime.now(timezone.utc).isoformat())
+                                       datetime.now(timezone.utc).isoformat(), 'osbb-requests-' + args.stage + '-residents')
     call_aws('dynamodb', 'transact-write-items', args.region, transaction)
     print('Access approved.' if decision == 'Approved' else 'Registration rejected.')
     print('Telegram approval notification queued for delivery.' if decision == 'Approved' else

@@ -9,7 +9,7 @@ using OsbbRequests.Bot.Models;
 namespace OsbbRequests.Bot.Persistence;
 
 public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, string tableName,
-    TimeProvider? timeProvider = null) : ICommandRepository
+    TimeProvider? timeProvider = null, string? residentsTable = null) : ICommandRepository
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     private static string Number(long value) => value.ToString(CultureInfo.InvariantCulture);
@@ -340,6 +340,7 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
                 };
             }
             writes.Add(write);
+            if (residentsTable is not null) writes.Add(ResidentMirrorWrite(registration, change.ExpectedVersion));
             if (change.AutomaticallyApproved)
                 AddAutomaticApprovalWrites(writes, registration, change.ExpectedVersion);
             else if (registration.Stage == RegistrationStage.Pending)

@@ -336,6 +336,25 @@ public sealed class ResidentProfileTests
     }
 
     [Fact]
+    public async Task DeletingProfileAtomicallyRemovesPersonalDataFromMirrorAndIndexes()
+    {
+        using var db = new CaptureDynamo();
+        var state = new ResidentProfileDialog(42, "building", ProfileAction.Delete, 2, 6, null, false);
+        var deleted = new ResidentRegistration(Original.Id, 42, "building", RegistrationStage.Deleted, 7, Original.CreatedAt, Original.UpdatedAt, PersonalDataDeleted: true);
+        await new DynamoCommandRepository(db, "data", residentsTable: "residents").CommitAsync(Message(1, "confirm"),
+            new("Видалено", ProfileDialog: new(state, 1), Profile: new(deleted, 6)), default);
+        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents").Put;
+        var mirrored = System.Text.Json.JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S)!;
+        Assert.Null(mirrored.FirstName);
+        Assert.Null(mirrored.LastName);
+        Assert.Null(mirrored.Phone);
+        Assert.Null(mirrored.Email);
+        Assert.False(mirror.Item.ContainsKey("directory"));
+        Assert.Equal("6", mirror.ExpressionAttributeValues[":version"].N);
+        Assert.Contains(db.Transaction.TransactItems, w => w.Update?.Key["sk"].S == "MEMBERSHIP");
+    }
+
+    [Fact]
     public async Task ProfileUpdateCannotUseAnotherResidentsIdentity()
     {
         using var db = new CaptureDynamo();
