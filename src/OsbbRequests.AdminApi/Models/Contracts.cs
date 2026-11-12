@@ -26,7 +26,7 @@ public sealed record ResidentDataChangeRequest(string FirstName, string LastName
 public sealed record ResidentTypeChange(string PreviousType, string NewType, string Actor, DateTimeOffset CreatedAt, bool FirstNameChanged = false, bool LastNameChanged = false);
 public sealed record RequestChange(string Status, string Visibility, string? Resolution, string? AssignedTo,
     string Priority, string? PlannedDate, int Version, string? Scope = null, string? BuildingNumber = null, int? Floor = null, int? Entrance = null);
-public sealed record RequestAuthor(string? FirstName, string? LastName, string? BuildingNumber, string? ApartmentNumber, bool PersonalDataDeleted = false);
+public sealed record RequestAuthor(string? FirstName, string? LastName, string? BuildingNumber, string? ApartmentNumber, bool PersonalDataDeleted = false, string? Phone = null);
 public sealed record ManagedRequest(MaintenanceRequest Request, int Version, RequestAuthor? Author = null);
 public sealed record RequestFilters(IReadOnlyList<string>? Statuses, string? Category, string? Search, string? From, string? To, string? Target = null, int? Floor = null, string? Section = null);
 public sealed class ApiError(int status, string message) : Exception(message)

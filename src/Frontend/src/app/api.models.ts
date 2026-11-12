@@ -97,6 +97,7 @@ export interface Ticket {
   plannedDate: string | null;
 }
 export interface RequestAuthor {
+  phone?: string | null;
   personalDataDeleted?: boolean;
   firstName: string | null;
   lastName: string | null;

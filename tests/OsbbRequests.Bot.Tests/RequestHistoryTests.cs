@@ -110,17 +110,16 @@ public sealed class RequestHistoryTests
     }
 
     [Fact]
-    public async Task RequestAuthorUsesPrivateProfileWithAddressAndDoesNotExposePhoneOrTelegramId()
+    public async Task RequestAuthorUsesPrivateProfileWithAddressAndPhoneButNotTelegramId()
     {
         using var db = new HistoryDynamo { Resident = Resident with { BuildingNumber = "4Д", ApartmentNumber = "125" } };
         var author = await new DynamoAdminStore(db, "admins", "data", "complex").GetRequestAuthorAsync(Request, default);
-        Assert.Equal(new RequestAuthor("Олена", "Ковальчук", "4Д", "125"), author);
+        Assert.Equal(new RequestAuthor("Олена", "Ковальчук", "4Д", "125", Phone: Resident.Phone), author);
         Assert.Equal("USER#99", db.Get!.Key["pk"].S);
         Assert.True(db.Get.ConsistentRead);
         var json = JsonSerializer.Serialize(author);
-        Assert.DoesNotContain(Resident.Phone!, json);
+        Assert.Equal(Resident.Phone, author!.Phone);
         Assert.DoesNotContain("UserId", json);
-        Assert.DoesNotContain("Phone", json);
     }
 
     [Theory]
@@ -178,6 +177,7 @@ public sealed class RequestHistoryTests
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         var author = await store.GetRequestAuthorAsync(Request, default);
         Assert.True(author!.PersonalDataDeleted);
+        Assert.Null(author.Phone);
         Assert.Null(author.FirstName);
         Assert.Null(author.BuildingNumber);
         var entry = Assert.Single(await store.HistoryAsync(Request, default));
@@ -202,7 +202,7 @@ public sealed class RequestHistoryTests
         };
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         var author = await store.GetRequestAuthorAsync(Request, default);
-        Assert.Equal(new RequestAuthor("Іван", "Новий", "4Д", "125"), author);
+        Assert.Equal(new RequestAuthor("Іван", "Новий", "4Д", "125", Phone: Resident.Phone), author);
         var entry = Assert.Single(await store.HistoryAsync(Request, default));
         Assert.Equal("Іван Новий", entry["actor"]);
         Assert.DoesNotContain("HasDeletedPersonalData", JsonSerializer.Serialize(db.Resident));

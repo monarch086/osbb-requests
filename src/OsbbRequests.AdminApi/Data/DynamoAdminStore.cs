@@ -387,7 +387,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var resident = Payload<ResidentRegistration>(profile);
         if (resident.BuildingId != building || resident.UserId != request.OwnerId) return null;
         return resident.HasDeletedPersonalData ? new(null, null, null, null, true)
-            : new(resident.FirstName?.Trim(), resident.LastName?.Trim(), resident.BuildingNumber, resident.ApartmentNumber);
+            : new(resident.FirstName?.Trim(), resident.LastName?.Trim(), resident.BuildingNumber, resident.ApartmentNumber, Phone: resident.Phone);
     }
     public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
     {

@@ -14,6 +14,7 @@ import {
   ticketRows,
 } from './export-data';
 import { exportFilename } from './export-filename';
+import { loadTicketAuthors } from './load-ticket-authors';
 
 @Injectable({ providedIn: 'root' })
 export class ExcelExportService {
@@ -23,7 +24,14 @@ export class ExcelExportService {
     const applied = { ...filters, status: [...filters.status] };
     const items = await collectPages((cursor) => this.api.getTickets(applied, cursor), isCurrent);
     if (items) {
-      await this.save('Заявки', ticketHeadings, ticketRows(items), isCurrent);
+      const withAuthors = await loadTicketAuthors(
+        items,
+        (ticket) => this.api.getTicket(ticket),
+        isCurrent,
+      );
+      if (withAuthors) {
+        await this.save('Заявки', ticketHeadings, ticketRows(withAuthors), isCurrent);
+      }
     }
   }
 

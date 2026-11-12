@@ -549,7 +549,7 @@ public sealed class AdminApiTests
         Assert.Equal("Олена", author.GetProperty("firstName").GetString());
         Assert.Equal("4Д", author.GetProperty("buildingNumber").GetString());
         Assert.Equal("125", author.GetProperty("apartmentNumber").GetString());
-        Assert.False(author.TryGetProperty("phone", out _));
+        Assert.Equal("+380500000000", author.GetProperty("phone").GetString());
         Assert.False(author.TryGetProperty("telegramChatId", out _));
     }
 
@@ -591,7 +591,7 @@ public sealed class AdminApiTests
         public Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct) => Task.CompletedTask;
         public Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct) { LastFilters = filters; return Task.FromResult(new Page<ManagedRequest>([], null)); }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(ForcedRequest ?? new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
-        public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<RequestAuthor?>(new("Олена", "Ковальчук", "4Д", "125"));
+        public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<RequestAuthor?>(new("Олена", "Ковальчук", "4Д", "125", Phone: "+380500000000"));
         public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
         public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct) { LastHistoryRequest = request; return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]); }
     }

@@ -17,6 +17,8 @@ export const ticketHeadings = [
   'Поверх',
   'Уточнення місця',
   'Опис',
+  'Автор',
+  'Телефон',
   'Пріоритет',
   'Видимість',
   'Відповідальний',
@@ -35,7 +37,7 @@ export const residentHeadings = [
 ];
 
 export function ticketRows(tickets: ManagedTicket[]): (string | number)[][] {
-  return tickets.map(({ request: r }) => [
+  return tickets.map(({ request: r, author }) => [
     String(r.id),
     formatDate(r.createdAt),
     statusLabels[r.status],
@@ -44,6 +46,10 @@ export function ticketRows(tickets: ManagedTicket[]): (string | number)[][] {
     r.floor == null ? '' : floorLabel(r.floor),
     r.location || '',
     r.description,
+    author?.personalDataDeleted
+      ? 'Мешканець видалив свої дані'
+      : [author?.firstName, author?.lastName].filter(Boolean).join(' '),
+    author?.personalDataDeleted ? '' : (author?.phone ?? ''),
     ticketPriorities.find((priority) => priority.value === r.priority)?.label ?? r.priority,
     r.visibility === 'Public' ? 'Для мешканців комплексу' : 'Приватна',
     r.assignedTo ?? '',
