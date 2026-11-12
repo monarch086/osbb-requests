@@ -12,11 +12,15 @@ export class PaginationComponent {
   @Input() hasPrevious = false;
   @Input() hasNext = false;
   @Input() disabled = false;
+  @Input() sequential = false;
   @Output() readonly pageSelected = new EventEmitter<number>();
   @Output() readonly previousPage = new EventEmitter<void>();
   @Output() readonly nextPage = new EventEmitter<void>();
 
   protected get pageLinks(): { key: string; number: number | null }[] {
+    if (this.sequential) {
+      return [{ key: String(this.pageNumber), number: this.pageNumber }];
+    }
     const count = Math.max(1, this.availablePages);
     const windowSize = 10;
     const start = Math.max(1, Math.min(this.pageNumber - 4, count - windowSize + 1));

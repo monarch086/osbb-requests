@@ -16,6 +16,7 @@ public sealed record PermissionsChange(int Version, PagePermissions Permissions)
 public sealed record NotificationSettingsChange(string? TelegramChatId, bool NotifyNewResidents, bool NotifyNewRequests, bool NotifyNewAdministrators, int Version);
 public sealed record Identity(string UserId, string Email, string DisplayName);
 public sealed record Page<T>(IReadOnlyList<T> Items, string? Cursor);
+public sealed record ResidentDirectoryPage(IReadOnlyList<ResidentRegistration> Items, int PageNumber, int PageSize, int Total);
 public sealed record MessageChange(string Id, string Text);
 public sealed record BroadcastMessage(string Id, string Text, string CreatedBy, string CreatedById, DateTimeOffset CreatedAt);
 public sealed record AccessChange(bool IsActive, int Version);

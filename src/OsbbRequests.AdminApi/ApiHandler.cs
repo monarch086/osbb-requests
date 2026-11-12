@@ -89,6 +89,46 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             var page = await store.ListAdminsAsync(cursor, ct);
             return Reply(200, new { items = page.Items.Where(a => a.IsActive).Select(a => new { a.UserId, a.Email }), page.Cursor });
         }
+        if (method == "GET" && (path == "/admin/residents/directory" || path == "/admin/registrations/directory"))
+        {
+            var pending = path == "/admin/registrations/directory";
+            if (pending ? !actor.EffectivePermissions.PendingResidents : !actor.EffectivePermissions.RegisteredResidents)
+                throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
+            if (!int.TryParse(query.GetValueOrDefault("page") ?? "1", out var number)) throw new ApiError(400, "Некоректна сторінка.");
+            var directory = await store.ListResidentDirectoryAsync(pending, number, query.GetValueOrDefault("building"),
+                query.GetValueOrDefault("residentType"), query.GetValueOrDefault("sort"), query.GetValueOrDefault("direction"), ct);
+            if (pending) return Reply(200, new
+            {
+                items = directory.Items.Select(r => new
+                {
+                    r.Id,
+                    r.FirstName,
+                    r.LastName,
+                    r.Phone,
+                    r.Email,
+                    r.BuildingNumber,
+                    r.ApartmentNumber,
+                    r.ResidentType,
+                    r.TypeChangeCount,
+                    r.ConsentAt,
+                    r.UpdatedAt,
+                    r.Version,
+                    TelegramChatId = r.UserId.ToString(CultureInfo.InvariantCulture)
+                }),
+                directory.PageNumber,
+                directory.PageSize,
+                directory.Total
+            });
+            return Reply(200, new
+            {
+                items = directory.Items.Select(r => new RegisteredResident(r.Id, r.FirstName, r.LastName, r.Phone,
+                    r.ApprovedAt ?? r.UpdatedAt, r.UserId.ToString(CultureInfo.InvariantCulture), r.BuildingNumber,
+                    r.ApartmentNumber, r.PersonalDataDeleted, r.Email, r.ConsentAt, r.ResidentType, r.TypeChangeCount, r.Version)),
+                directory.PageNumber,
+                directory.PageSize,
+                directory.Total
+            });
+        }
         if (method == "GET" && path == "/admin/residents")
         {
             if (!actor.EffectivePermissions.RegisteredResidents) throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");

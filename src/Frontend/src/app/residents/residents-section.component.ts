@@ -72,18 +72,38 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     }
     this.pendingCount = count.count;
     if (this.lists.residentView === 'registered') {
-      const residents = await collectPages((next) => this.api.getResidents(next), isCurrent);
-      if (residents) {
-        this.lists.residentDirectory.setItems(residents);
-        this.lists.showResidentPage(index);
+      const page = await this.api.getResidentDirectory(
+        index + 1,
+        this.lists.residentDirectory.filters,
+      );
+      if (isCurrent()) {
+        this.lists.registeredResidents = page.items;
+        this.lists.total = page.total;
+        this.lists.pagination.index = page.pageNumber - 1;
       }
       return;
     }
-    const registrations = await collectPages((next) => this.api.getRegistrations(next), isCurrent);
-    if (registrations) {
-      this.lists.pendingDirectory.setItems(registrations);
-      this.lists.showResidentPage(index);
+    const page = await this.api.getPendingDirectory(
+      index + 1,
+      this.lists.pendingDirectory.building,
+    );
+    if (isCurrent()) {
+      this.lists.residents = page.items;
+      this.lists.total = page.total;
+      this.lists.pagination.index = page.pageNumber - 1;
     }
+  }
+  protected override async goToPage(number: number): Promise<void> {
+    if (
+      this.loading ||
+      this.saving ||
+      number < 1 ||
+      number > this.lists.availablePages() ||
+      Math.abs(number - (this.lists.pagination.index + 1)) !== 1
+    ) {
+      return;
+    }
+    await this.loadPage(number - 1, null);
   }
   protected openPending(resident: Registration): void {
     this.detailsTrigger =
@@ -151,28 +171,57 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     await this.load();
   }
   protected async exportExcel(): Promise<void> {
-    await this.runExport((current) =>
-      this.excel.exportResidents(
-        this.lists.residentView,
-        this.lists.residentDirectory,
-        this.lists.pendingDirectory,
-        current,
-      ),
-    );
+    await this.runExport(async (current) => {
+      if (this.lists.residentView === 'registered') {
+        const items: RegisteredResident[] = [];
+        for (let number = 1; current(); number++) {
+          const page = await this.api.getResidentDirectory(
+            number,
+            this.lists.residentDirectory.filters,
+          );
+          items.push(...page.items);
+          if (number * page.pageSize >= page.total || page.pageNumber !== number) {
+            break;
+          }
+        }
+        this.lists.residentDirectory.setItems(items);
+      } else {
+        const items: Registration[] = [];
+        for (let number = 1; current(); number++) {
+          const page = await this.api.getPendingDirectory(
+            number,
+            this.lists.pendingDirectory.building,
+          );
+          items.push(...page.items);
+          if (number * page.pageSize >= page.total || page.pageNumber !== number) {
+            break;
+          }
+        }
+        this.lists.pendingDirectory.setItems(items);
+      }
+      if (current()) {
+        await this.excel.exportResidents(
+          this.lists.residentView,
+          this.lists.residentDirectory,
+          this.lists.pendingDirectory,
+          current,
+        );
+      }
+    });
   }
-  protected applyResidentFilters(filters: ResidentFilters): void {
+  protected async applyResidentFilters(filters: ResidentFilters): Promise<void> {
     if (this.loading || this.saving || this.lists.residentView !== 'registered') {
       return;
     }
     this.lists.residentDirectory.applyFilters(filters);
-    this.lists.showResidentPage(0);
+    await this.loadPage(0, null);
   }
-  protected applyPendingBuilding(building: string): void {
+  protected async applyPendingBuilding(building: string): Promise<void> {
     if (this.loading || this.saving || this.lists.residentView !== 'pending') {
       return;
     }
     this.lists.pendingDirectory.building = building;
-    this.lists.showResidentPage(0);
+    await this.loadPage(0, null);
   }
   protected async decide(
     registration: Registration,
@@ -185,8 +234,8 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     }
     await this.write(async () => {
       await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
-      this.lists.pendingDirectory.remove(registration.id);
-      this.lists.showResidentPage(this.lists.pagination.index);
+      this.lists.residents = this.lists.residents.filter((item) => item.id !== registration.id);
+      this.lists.total = Math.max(0, this.lists.total - 1);
       this.pendingCount = Math.max(0, this.pendingCount - 1);
       this.rejecting = null;
       this.selectedPending = null;
@@ -207,8 +256,6 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       resident.residentType = change.residentType;
       resident.typeChangeCount = (resident.typeChangeCount ?? 0) + 1;
       resident.version++;
-      this.lists.residentDirectory.applyFilters(this.lists.residentDirectory.filters);
-      this.lists.showResidentPage(this.lists.pagination.index);
       this.changingType = null;
       this.notice = 'Дані мешканця збережено.';
     });

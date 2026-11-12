@@ -10,13 +10,12 @@ export class ResidentsList extends WorkspaceLists {
   residentView: ResidentView = 'registered';
   residentDirectory = new ResidentDirectory();
   pendingDirectory = new PendingDirectory();
+  total = 0;
   override usesLocalPagination(): boolean {
     return true;
   }
   override availablePages(): number {
-    return this.residentView === 'registered'
-      ? this.residentDirectory.pageCount
-      : this.pendingDirectory.pageCount;
+    return Math.max(1, Math.ceil(this.total / 25));
   }
   override hasNext(): boolean {
     return this.pagination.index + 1 < this.availablePages();
@@ -36,6 +35,7 @@ export class ResidentsList extends WorkspaceLists {
   }
   override resetPagination(): void {
     this.pagination.reset();
+    this.total = 0;
     this.residents = [];
     this.registeredResidents = [];
     this.residentDirectory.setItems([]);

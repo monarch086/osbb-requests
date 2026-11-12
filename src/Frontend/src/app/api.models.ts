@@ -30,6 +30,12 @@ export interface PagePermissions {
   messages: boolean;
 }
 export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant' | 'Employee';
+export interface ResidentDirectoryPage<T> {
+  items: T[];
+  pageNumber: number;
+  pageSize: number;
+  total: number;
+}
 export interface Registration {
   telegramChatId: string;
   residentType?: ResidentType;

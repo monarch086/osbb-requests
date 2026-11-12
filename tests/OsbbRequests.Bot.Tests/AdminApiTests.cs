@@ -176,7 +176,9 @@ public sealed class AdminApiTests
 
     [Theory]
     [InlineData("/admin/residents")]
+    [InlineData("/admin/residents/directory")]
     [InlineData("/admin/registrations")]
+    [InlineData("/admin/registrations/directory")]
     [InlineData("/admin/registrations/count")]
     [InlineData("/admin/messages")]
     [InlineData("/admin/assignees")]
@@ -692,6 +694,8 @@ public sealed class AdminApiTests
         public Task SetAccessAsync(AdminUser actor, AdminUser target, AccessChange change, CancellationToken ct)
         { AccessWrites++; Users[target.UserId] = target with { IsActive = change.IsActive }; return Task.CompletedTask; }
         public Task<int> CountRegistrationsAsync(CancellationToken ct) => Task.FromResult(0);
+        public Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)
+        { PrivateReads++; return Task.FromResult(new ResidentDirectoryPage([], page, 25, 0)); }
         public Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new Page<ResidentRegistration>([new("reference", 99, "building", RegistrationStage.Pending, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "+380500000000", "Олена", "Ковальчук", Email: "resident@example.com")], null)); }
         public Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)

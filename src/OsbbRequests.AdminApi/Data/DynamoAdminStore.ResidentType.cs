@@ -3,6 +3,7 @@ using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.AdminApi.Data;
 
@@ -10,7 +11,7 @@ public sealed partial class DynamoAdminStore
 {
     public async Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct)
     {
-        var item = await Get(dataTable, Key("REGISTRATION#" + reference, "META"), ct);
+        var item = await GetResidentRecordAsync("REGISTRATION#" + reference, "META", ct);
         if (item is null) return null;
         var registration = Payload<ResidentRegistration>(item);
         return registration.Id == reference && registration.BuildingId == building ? registration : null;
@@ -18,10 +19,18 @@ public sealed partial class DynamoAdminStore
 
     public async Task<RegistrationApproval?> GetRegistrationApprovalAsync(string reference, CancellationToken ct)
     {
-        var item = await Get(dataTable, Key("REGISTRATION#" + reference, "EVENT#DECIDED"), ct);
+        var item = await GetResidentRecordAsync("REGISTRATION#" + reference, "EVENT#DECIDED", ct);
         if (item?.GetValueOrDefault("decision")?.S != "Approved" || item.GetValueOrDefault("actor")?.S is not { Length: > 0 } actor) return null;
         var timestamp = DateTimeOffset.TryParse(item.GetValueOrDefault("createdAt")?.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var date) ? date : (DateTimeOffset?)null;
         return new RegistrationApproval(actor, timestamp, actor == "system");
+    }
+
+    private async Task<Dictionary<string, AttributeValue>?> GetResidentRecordAsync(string pk, string sk, CancellationToken ct)
+    {
+        if (residentsTable is null) return await Get(dataTable, Key(pk, sk), ct);
+        var record = ResidentRecordKey.Create(building, pk, sk);
+        var item = await Get(residentsTable, new() { ["pk"] = S(record.Key) }, ct);
+        return item?.GetValueOrDefault("recordData")?.M;
     }
 
     public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) =>
@@ -104,6 +113,26 @@ public sealed partial class DynamoAdminStore
     public async Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct)
     {
         var pk = "REGISTRATION#" + reference;
+        if (residentsTable is not null)
+        {
+            var group = ResidentRecordKey.Create(building, pk, "").Group;
+            var startKey = Decode(cursor, "recordGroup", group);
+            if (startKey is not null && (startKey.Count != 3 ||
+                startKey.GetValueOrDefault("recordOrder")?.S?.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) != true ||
+                startKey.GetValueOrDefault("pk")?.S != ResidentRecordKey.Create(building, pk, startKey["recordOrder"].S).Key))
+                throw new ApiError(400, "Некоректна сторінка.");
+            var response = await db.QueryAsync(new QueryRequest
+            {
+                TableName = residentsTable,
+                IndexName = "ResidentRecordsByGroup",
+                KeyConditionExpression = "recordGroup = :group AND begins_with(recordOrder, :prefix)",
+                ExpressionAttributeValues = new() { [":group"] = S(group), [":prefix"] = S("EVENT#TYPE#") },
+                ExclusiveStartKey = startKey,
+                ScanIndexForward = false,
+                Limit = 25
+            }, ct);
+            return new Page<ResidentTypeChange>((response.Items ?? []).Select(item => Payload<ResidentTypeChange>(item["recordData"].M)).ToList(), Encode(response.LastEvaluatedKey));
+        }
         var start = Decode(cursor, "pk", pk);
         if (start is not null && (start.Count != 2 || start.GetValueOrDefault("sk")?.S?.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) != true))
             throw new ApiError(400, "Некоректна сторінка.");

@@ -225,6 +225,24 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     {
         Dictionary<string, AttributeValue>? cursor = null;
         var count = 0;
+        if (!string.IsNullOrEmpty(residentsTable))
+        {
+            do
+            {
+                var result = await db.QueryAsync(new QueryRequest
+                {
+                    TableName = residentsTable,
+                    IndexName = "ResidentsByDate",
+                    Select = Select.COUNT,
+                    KeyConditionExpression = "directory = :directory",
+                    ExpressionAttributeValues = new() { [":directory"] = S("COMPLEX#" + building + "#Pending") },
+                    ExclusiveStartKey = cursor
+                }, ct);
+                count += result.Count ?? throw new InvalidOperationException("Missing registration count.");
+                cursor = result.LastEvaluatedKey;
+            } while (cursor is { Count: > 0 });
+            return count;
+        }
         do
         {
             var page = await db.QueryAsync(new QueryRequest

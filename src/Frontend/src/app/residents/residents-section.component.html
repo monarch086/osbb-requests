@@ -67,6 +67,7 @@
   />
 }
 <app-pagination
+  [sequential]="true"
   [pageNumber]="lists.pagination.index + 1"
   [availablePages]="lists.availablePages()"
   [itemCount]="lists.itemCount()"

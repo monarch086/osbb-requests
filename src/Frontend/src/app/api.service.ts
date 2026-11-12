@@ -13,6 +13,7 @@ import type {
   Registration,
   RegistrationApproval,
   ResidentDataChange,
+  ResidentDirectoryPage,
   ResidentTypeHistory,
   Ticket,
   TicketFilters,
@@ -20,6 +21,7 @@ import type {
 } from './api.models';
 import { AuthService } from './auth.service';
 import { UserFacingError } from './error-message';
+import type { ResidentFilters } from './residents/resident-directory';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -40,6 +42,24 @@ export class ApiService {
 
   getResidents(cursor: string | null): Promise<Page<RegisteredResident>> {
     return this.request('/residents' + this.cursorQuery(cursor));
+  }
+
+  getResidentDirectory(
+    page: number,
+    filters: ResidentFilters,
+  ): Promise<ResidentDirectoryPage<RegisteredResident>> {
+    const params = new URLSearchParams({ page: String(page), ...filters });
+    return this.request('/residents/directory?' + params.toString());
+  }
+
+  getPendingDirectory(
+    page: number,
+    building: string,
+  ): Promise<ResidentDirectoryPage<Registration>> {
+    return this.request(
+      '/registrations/directory?' +
+        new URLSearchParams({ page: String(page), building }).toString(),
+    );
   }
 
   getRegistrationCount(): Promise<{ count: number }> {
