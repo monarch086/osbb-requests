@@ -39,6 +39,9 @@
             @if (author?.apartmentNumber) {
               <span> · Квартира {{ author?.apartmentNumber }}</span>
             }
+            @if (!author?.personalDataDeleted && author?.phone) {
+              <span> · Телефон {{ author?.phone }}</span>
+            }
           </p>
         }
         @if (error) {
