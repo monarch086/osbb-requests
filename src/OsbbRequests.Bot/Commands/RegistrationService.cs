@@ -49,7 +49,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         var now = clock.GetUtcNow();
         var registration = new ResidentRegistration(Guid.NewGuid().ToString("N"), userId, buildingId,
             RegistrationStage.AwaitingConsent, (current?.Version ?? 0) + 1, now, now,
-            PersonalDataDeletedAt: current?.PersonalDataDeleted == true ? now : current?.PersonalDataDeletedAt, ConsentVersion: ConsentVersion);
+            PersonalDataDeletedAt: current?.PersonalDataDeleted == true ? now : current?.PersonalDataDeletedAt, ConsentVersion: ConsentVersion, TypeBeforeAddress: true);
         var prompt = Prompt(registration.Stage, approvalMode);
         if (current is { Stage: RegistrationStage.Rejected, DecisionReason: { Length: > 0 } reason })
             prompt = prompt with { Reply = "Попередню реєстрацію відхилено. Причина: " + reason + "\n\n" + prompt.Reply };
@@ -100,13 +100,13 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         var outcome = Advance(current, envelope, clock.GetUtcNow());
         if (current.Stage == RegistrationStage.AwaitingConsent && outcome.Registration is { Value.Stage: RegistrationStage.AwaitingPhone } consentChange)
             outcome = Prompt(RegistrationStage.AwaitingPhone, approvalMode) with { Registration = consentChange };
-        if (current.Stage == RegistrationStage.AwaitingEmail && outcome.Registration is { Value.Stage: RegistrationStage.Pending } submitted)
+        if (current.Stage == RegistrationStage.AwaitingEmail && !current.TypeBeforeAddress && outcome.Registration is { Value.Stage: RegistrationStage.Pending } submitted)
         {
             var next = submitted.Value with { Stage = RegistrationStage.AwaitingResidentType };
             return Prompt(next.Stage) with { Registration = submitted with { Value = next } };
         }
         if (approvalMode != ResidentApprovalMode.Automatic || outcome.Registration?.Value.Stage != RegistrationStage.Pending ||
-            outcome.Registration.Value.ResidentType == ResidentType.Owner)
+            outcome.Registration.Value.ResidentType is not (ResidentType.FamilyMember or ResidentType.Tenant))
             return outcome;
         var change = outcome.Registration;
         var approved = change.Value with { Stage = RegistrationStage.Approved, ApprovedAt = change.Value.UpdatedAt };
@@ -146,7 +146,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             case RegistrationStage.AwaitingLastName:
                 if (envelope.Contact is not null || !ValidName(envelope.Text))
                     return new CommandOutcome("Введіть своє прізвище текстом: від 1 до 80 символів, без цифр.", Keyboard: ReplyKeyboard.Remove);
-                next = current with { LastName = envelope.Text.Trim(), Stage = RegistrationStage.AwaitingBuilding };
+                next = current with { LastName = envelope.Text.Trim(), Stage = current.TypeBeforeAddress ? RegistrationStage.AwaitingInitialResidentType : RegistrationStage.AwaitingBuilding };
                 break;
             case RegistrationStage.AwaitingBuilding:
                 var building = envelope.Text.Trim();
@@ -161,6 +161,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
                     return new CommandOutcome("Введіть номер квартири цілим додатним числом, наприклад 125.", Keyboard: ReplyKeyboard.Remove);
                 next = current with { ApartmentNumber = apartment.ToString(CultureInfo.InvariantCulture), Stage = RegistrationStage.AwaitingEmail };
                 break;
+            case RegistrationStage.AwaitingInitialResidentType:
             case RegistrationStage.AwaitingResidentType:
                 if (envelope.Contact is not null) return Prompt(current.Stage);
                 var residentType = envelope.Text.Trim().ToLowerInvariant() switch
@@ -168,10 +169,17 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
                     "власник" => ResidentType.Owner,
                     "член родини" => ResidentType.FamilyMember,
                     "орендар" => ResidentType.Tenant,
+                    "працівник осбб" => ResidentType.Employee,
                     _ => (ResidentType?)null
                 };
                 if (residentType is null) return Prompt(current.Stage);
-                next = current with { ResidentType = residentType.Value, Stage = RegistrationStage.Pending };
+                next = current with
+                {
+                    ResidentType = residentType.Value,
+                    Stage = current.Stage == RegistrationStage.AwaitingInitialResidentType
+                    ? residentType == ResidentType.Employee ? RegistrationStage.AwaitingEmail : RegistrationStage.AwaitingBuilding
+                    : RegistrationStage.Pending
+                };
                 break;
             case RegistrationStage.AwaitingEmail:
                 var email = envelope.Text.Trim();
@@ -185,7 +193,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         next = next with { Version = current.Version + 1, UpdatedAt = now };
         var outcome = next.Stage == RegistrationStage.Pending
             ? new CommandOutcome($"Дякуємо, {next.FirstName} {next.LastName}!\n" +
-                $"Телефон: {next.Phone}\nБудинок: {next.BuildingNumber}, квартира: {next.ApartmentNumber}\n\nЗапит на доступ передано адміністратору. " +
+                $"Телефон: {next.Phone}\n" + (next.BuildingNumber is null ? "" : $"Будинок: {next.BuildingNumber}, квартира: {next.ApartmentNumber}\n") + "\nЗапит на доступ передано адміністратору. " +
                 "Після перевірки даних адміністратор надасть доступ. Перевірити стан: /start.", Keyboard: ReplyKeyboard.Remove)
             : Prompt(next.Stage);
         return outcome with { Registration = new RegistrationChange(next, current.Version) };
@@ -205,22 +213,22 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
     }
 
     public static bool IsDraft(RegistrationStage stage) => stage is RegistrationStage.AwaitingConsent or RegistrationStage.AwaitingPhone or
-        RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName or RegistrationStage.AwaitingBuilding or RegistrationStage.AwaitingApartment or RegistrationStage.AwaitingEmail or RegistrationStage.AwaitingResidentType;
+        RegistrationStage.AwaitingFirstName or RegistrationStage.AwaitingLastName or RegistrationStage.AwaitingBuilding or RegistrationStage.AwaitingApartment or RegistrationStage.AwaitingEmail or RegistrationStage.AwaitingResidentType or RegistrationStage.AwaitingInitialResidentType;
 
     public static CommandOutcome Prompt(RegistrationStage stage, ResidentApprovalMode approvalMode = ResidentApprovalMode.Manual) => stage switch
     {
         RegistrationStage.AwaitingConsent => new CommandOutcome(ConsentText, Keyboard: ReplyKeyboard.PersonalDataConsent),
-        RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації в системі потрібні ваш мобільний номер, ім’я, прізвище, будинок і номер квартири. " +
+        RegistrationStage.AwaitingPhone => new CommandOutcome("Для реєстрації в системі потрібні ваш мобільний номер, ім’я та прізвище. Мешканці також зазначають будинок і номер квартири. " +
             (approvalMode == ResidentApprovalMode.Automatic
-                ? "Після заповнення даних власник очікує підтвердження адміністратора; членам родини та орендарям доступ надається автоматично. Дані профілю доступні адміністраторам комплексу.\n\n"
+                ? "Власники та працівники ОСББ очікують підтвердження адміністратора; членам родини та орендарям доступ надається автоматично. Дані профілю доступні адміністраторам комплексу.\n\n"
                 : "Їх побачить адміністратор ОСББ для перевірки та надання доступу.\n\n") +
-            "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, оберіть будинок, введіть номер квартири та за бажанням email. Скасувати: /cancel.",
+            "Натисніть «Поділитися номером телефону» та дотримуйтеся подальших інструкцій. Скасувати: /cancel.",
             Keyboard: ReplyKeyboard.RequestContact),
         RegistrationStage.AwaitingFirstName => new CommandOutcome("Дякуємо! Тепер введіть своє ім’я.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.AwaitingLastName => new CommandOutcome("Введіть своє прізвище.", Keyboard: ReplyKeyboard.Remove),
         RegistrationStage.AwaitingBuilding => new CommandOutcome("У якому будинку ви проживаєте? Оберіть 4Б, 4В, 4Г або 4Д.", Keyboard: ReplyKeyboard.RegistrationBuilding),
         RegistrationStage.AwaitingApartment => new CommandOutcome("Введіть номер своєї квартири, наприклад 125.", Keyboard: ReplyKeyboard.Remove),
-        RegistrationStage.AwaitingResidentType => new CommandOutcome("Оберіть тип мешканця: Власник, Член родини або Орендар. Реєстрацію власника має підтвердити адміністратор. Скасувати: /cancel.", Keyboard: ReplyKeyboard.ResidentType),
+        RegistrationStage.AwaitingResidentType or RegistrationStage.AwaitingInitialResidentType => new CommandOutcome("Оберіть тип: Власник, Член родини, Орендар або Працівник ОСББ. Реєстрацію власника та працівника ОСББ має підтвердити адміністратор. Скасувати: /cancel.", Keyboard: ReplyKeyboard.ResidentType),
         RegistrationStage.AwaitingEmail => new CommandOutcome("Введіть вашу email-адресу або натисніть «Пропустити». Email необов’язковий.", Keyboard: ReplyKeyboard.OptionalEmail),
         _ => throw new InvalidOperationException("Unknown registration step.")
     };

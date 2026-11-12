@@ -21,7 +21,7 @@ export interface Admin extends NotificationSettings {
   isSuperAdmin: boolean;
   version: number;
 }
-export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant';
+export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant' | 'Employee';
 export interface Registration {
   telegramChatId: string;
   residentType?: ResidentType;

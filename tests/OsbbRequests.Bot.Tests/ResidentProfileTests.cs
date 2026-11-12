@@ -101,6 +101,26 @@ public sealed class ResidentProfileTests
         Assert.Equal(RegistrationStage.Approved, repo.Registrations[42].Stage);
     }
 
+    [Fact]
+    public async Task EmployeeEditsProfileWithoutAddressOrLosingApprovalAndConsent()
+    {
+        var (repo, processor) = Setup();
+        var employee = Original with { ResidentType = ResidentType.Employee, BuildingNumber = null, ApartmentNumber = null };
+        repo.Registrations[42] = employee;
+        await processor.ProcessAsync(Message(1, "/edit_profile"), default);
+        await processor.ProcessAsync(Message(2, "", new("+380671234567", 42)), default);
+        await processor.ProcessAsync(Message(3, "Іван"), default);
+        await processor.ProcessAsync(Message(4, "Новий"), default);
+        Assert.Equal(RegistrationStage.AwaitingEmail, repo.ProfileDialogs[42].Draft!.Stage);
+        await processor.ProcessAsync(Message(5, RegistrationService.SkipEmail), default);
+        Assert.Equal(ResidentType.Employee, repo.Registrations[42].ResidentType);
+        Assert.Equal(RegistrationStage.Approved, repo.Registrations[42].Stage);
+        Assert.Equal(employee.ConsentAt, repo.Registrations[42].ConsentAt);
+        Assert.Null(repo.Registrations[42].BuildingNumber);
+        Assert.Null(repo.Registrations[42].ApartmentNumber);
+        Assert.Contains(42, repo.Residents);
+    }
+
     [Theory]
     [InlineData("/edit_profile")]
     [InlineData("/account")]
@@ -279,10 +299,10 @@ public sealed class ResidentProfileTests
         await processor.ProcessAsync(Message(2, "", new("+380671234567", 42)), default);
         await processor.ProcessAsync(Message(3, "Іван"), default);
         await processor.ProcessAsync(Message(4, "Новий"), default);
+        await processor.ProcessAsync(Message(1007, "Член родини"), default);
         await processor.ProcessAsync(Message(5, "4Д"), default);
         await processor.ProcessAsync(Message(6, "125"), default);
         await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
-        await processor.ProcessAsync(Message(1007, "Член родини"), default);
         var profile = repo.Registrations[42];
         Assert.False(profile.PersonalDataDeleted);
         Assert.Equal("Іван", profile.FirstName);
@@ -334,12 +354,12 @@ public sealed class ResidentProfileTests
         await processor.ProcessAsync(Message(6, "", new("+380671234567", 42)), default);
         await processor.ProcessAsync(Message(7, "Іван"), default);
         await processor.ProcessAsync(Message(8, "Новий"), default);
+        await processor.ProcessAsync(Message(1011, "Член родини"), default);
         await processor.ProcessAsync(Message(9, "4Д"), default);
         Assert.DoesNotContain(42, repo.Residents);
         await processor.ProcessAsync(Message(10, "125"), default);
         Assert.DoesNotContain(42, repo.Residents);
         await processor.ProcessAsync(Message(11, RegistrationService.SkipEmail), default);
-        await processor.ProcessAsync(Message(1011, "Член родини"), default);
         Assert.Contains(42, repo.Residents);
         Assert.Equal((42L, true), telegram.Menus[^1]);
         Assert.Single(repo.Requests);

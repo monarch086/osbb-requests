@@ -30,13 +30,13 @@ public sealed class AutomaticResidentApprovalTests
         await processor.ProcessAsync(Message(2, "", new("+380671234567", 99)), default);
         await processor.ProcessAsync(Message(3, "Олена"), default);
         await processor.ProcessAsync(Message(4, "Ковальчук"), default);
+        await processor.ProcessAsync(Message(61, "Член родини"), default);
         await processor.ProcessAsync(Message(5, "Будинок 4Д"), default);
         Assert.DoesNotContain(99, repo.Residents);
         Assert.Equal(RegistrationStage.AwaitingApartment, repo.Registrations[99].Stage);
         await processor.ProcessAsync(Message(6, "125"), default);
         Assert.DoesNotContain(99, repo.Residents);
-        await processor.ProcessAsync(Message(60, RegistrationService.SkipEmail), default);
-        var final = Message(61, "Член родини");
+        var final = Message(60, RegistrationService.SkipEmail);
         await processor.ProcessAsync(final, default);
         Assert.Contains(99, repo.Residents);
         Assert.Equal(RegistrationStage.Approved, repo.Registrations[99].Stage);
@@ -92,6 +92,53 @@ public sealed class AutomaticResidentApprovalTests
         Assert.DoesNotContain(99, repo.Residents);
     }
 
+    [Theory]
+    [InlineData(ResidentApprovalMode.Automatic)]
+    [InlineData(ResidentApprovalMode.Manual)]
+    public async Task EmployeeRegistrationSkipsAddressAndRequiresReview(ResidentApprovalMode mode)
+    {
+        var repo = new MemoryRepository();
+        var telegram = new FakeTelegram();
+        var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building", residentApprovalMode: mode), telegram, "building");
+        await processor.ProcessAsync(Message(1, "/start"), default);
+        await processor.ProcessAsync(Message(2, RegistrationService.ConsentButton), default);
+        await processor.ProcessAsync(Message(3, "", new("+380671234567", 99)), default);
+        await processor.ProcessAsync(Message(4, "Олена"), default);
+        await processor.ProcessAsync(Message(5, "Ковальчук"), default);
+        Assert.Equal(RegistrationStage.AwaitingInitialResidentType, repo.Registrations[99].Stage);
+        await processor.ProcessAsync(Message(6, "Працівник ОСББ"), default);
+        Assert.Equal(RegistrationStage.AwaitingEmail, repo.Registrations[99].Stage);
+        var final = Message(7, RegistrationService.SkipEmail);
+        await processor.ProcessAsync(final, default);
+        await processor.ProcessAsync(final, default);
+        var profile = repo.Registrations[99];
+        Assert.Equal(ResidentType.Employee, profile.ResidentType);
+        Assert.Equal(RegistrationStage.Pending, profile.Stage);
+        Assert.Null(profile.BuildingNumber);
+        Assert.Null(profile.ApartmentNumber);
+        Assert.NotNull(profile.ConsentAt);
+        Assert.DoesNotContain(99, repo.Residents);
+        Assert.Contains("адміністратору", telegram.Messages[^1].Text);
+        Assert.DoesNotContain("Будинок:", telegram.Messages[^1].Text);
+        await processor.ProcessAsync(Message(8, "/new"), default);
+        Assert.Empty(repo.Requests);
+        Assert.DoesNotContain(99, repo.Residents);
+    }
+
+    [Fact]
+    public async Task EmployeePendingRegistrationIsStoredAtomicallyWithoutMembership()
+    {
+        using var db = new Capture();
+        var employee = Approved with { ResidentType = ResidentType.Employee, Stage = RegistrationStage.Pending, ApprovedAt = null, BuildingNumber = null, ApartmentNumber = null };
+        await new DynamoCommandRepository(db, "data").CommitAsync(Message(7, RegistrationService.SkipEmail),
+            new("На перевірці", Registration: new(employee, 5)), default);
+        var writes = db.Transaction!.TransactItems;
+        Assert.Single(writes, w => w.Put.Item["pk"].S == "BUILDING#building" && w.Put.Item["sk"].S.StartsWith("REGISTRATION#", StringComparison.Ordinal));
+        Assert.Single(writes, w => w.Put.Item["pk"].S == "NOTIFICATIONS#building");
+        Assert.DoesNotContain(writes, w => w.Put.Item["sk"].S == "MEMBERSHIP");
+        Assert.DoesNotContain(writes, w => w.Put.Item["sk"].S.StartsWith("RESIDENT#", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task AutomaticApprovalAtomicallyWritesMembershipDirectoryAuditAndAdminNotificationWithoutPendingEntry()
     {
@@ -130,6 +177,7 @@ public sealed class AutomaticResidentApprovalTests
     [InlineData("missing-firstname")]
     [InlineData("missing-consent")]
     [InlineData("owner")]
+    [InlineData("employee")]
     public async Task IncompleteRegistrationCannotCreateMembership(string kind)
     {
         using var db = new Capture();
@@ -138,6 +186,7 @@ public sealed class AutomaticResidentApprovalTests
             "pending" => Approved with { Stage = RegistrationStage.Pending },
             "missing-consent" => Approved with { ConsentAt = null },
             "owner" => Approved with { ResidentType = ResidentType.Owner },
+            "employee" => Approved with { ResidentType = ResidentType.Employee },
             "missing-apartment" => Approved with { ApartmentNumber = null },
             "missing-phone" => Approved with { Phone = null },
             "missing-building" => Approved with { BuildingNumber = null },

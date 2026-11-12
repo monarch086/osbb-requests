@@ -91,13 +91,13 @@ public sealed class RegistrationTests
         Assert.Equal(ReplyKeyboard.Remove, repository.Replies[2].Keyboard);
         await processor.ProcessAsync(Message(3, "Олена"), CancellationToken.None);
         await processor.ProcessAsync(Message(4, "Ковальчук"), CancellationToken.None);
-        Assert.Equal(RegistrationStage.AwaitingBuilding, repository.Registrations[99].Stage);
+        Assert.Equal(RegistrationStage.AwaitingInitialResidentType, repository.Registrations[99].Stage);
+        await processor.ProcessAsync(Message(1060, "Власник"), CancellationToken.None);
         await processor.ProcessAsync(Message(5, "Будинок 4В"), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingApartment, repository.Registrations[99].Stage);
         await processor.ProcessAsync(Message(6, "125"), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingEmail, repository.Registrations[99].Stage);
         await processor.ProcessAsync(Message(60, "olena@example.com"), CancellationToken.None);
-        await processor.ProcessAsync(Message(1060, "Власник"), CancellationToken.None);
         var registration = repository.Registrations[99];
         Assert.Equal("4В", registration.BuildingNumber);
         Assert.Equal("125", registration.ApartmentNumber);
@@ -182,10 +182,10 @@ public sealed class RegistrationTests
         Assert.Equal(RegistrationStage.AwaitingFirstName, repository.Registrations[99].Stage);
         await processor.ProcessAsync(Message(4, "Анна-Марія"), CancellationToken.None);
         await processor.ProcessAsync(Message(5, "О’Коннор"), CancellationToken.None);
+        await processor.ProcessAsync(Message(1070, "Власник"), CancellationToken.None);
         await processor.ProcessAsync(Message(6, "4Г"), CancellationToken.None);
         await processor.ProcessAsync(Message(7, "1"), CancellationToken.None);
         await processor.ProcessAsync(Message(70, RegistrationService.SkipEmail), CancellationToken.None);
-        await processor.ProcessAsync(Message(1070, "Власник"), CancellationToken.None);
         var before = repository.Registrations[99];
         await processor.ProcessAsync(Message(8, "/register"), CancellationToken.None);
         Assert.Equal(before, repository.Registrations[99]);
@@ -418,10 +418,10 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(2, contact: new("+380671234567", 99)), default);
         await processor.ProcessAsync(Message(3, "Олена"), default);
         await processor.ProcessAsync(Message(4, "Ковальчук"), default);
+        await processor.ProcessAsync(Message(1007, "Власник"), default);
         await processor.ProcessAsync(Message(5, "4Д"), default);
         await processor.ProcessAsync(Message(6, "125"), default);
         await processor.ProcessAsync(Message(7, RegistrationService.SkipEmail), default);
-        await processor.ProcessAsync(Message(1007, "Власник"), default);
         Assert.Equal(RegistrationStage.Pending, repository.Registrations[99].Stage);
         Assert.DoesNotContain(99, repository.Residents);
     }

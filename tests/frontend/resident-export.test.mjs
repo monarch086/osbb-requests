@@ -34,6 +34,8 @@ test('resident exports include the localized type after the name', () => {
   assert.equal(data.registeredResidentRows([{ ...resident, residentType: 'Owner' }])[0][2], 'Власник');
   assert.equal(data.registeredResidentRows([resident])[0][2], 'Член родини');
   assert.equal(data.pendingResidentRows([{ ...resident, residentType: 'Tenant' }])[0][2], 'Орендар');
+  assert.equal(data.pendingResidentRows([{ ...resident, residentType: 'Employee' }])[0][2], 'Працівник ОСББ');
+  assert.equal(data.registeredResidentRows([{ ...resident, residentType: 'Employee' }])[0][2], 'Працівник ОСББ');
 });
 
 test('resident exports omit Telegram IDs while retaining aligned dates', () => {

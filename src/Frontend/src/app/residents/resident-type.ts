@@ -6,6 +6,8 @@ export function residentTypeLabel(type: ResidentType | null | undefined): string
       return 'Власник';
     case 'Tenant':
       return 'Орендар';
+    case 'Employee':
+      return 'Працівник ОСББ';
     case 'FamilyMember':
     case null:
     case undefined:

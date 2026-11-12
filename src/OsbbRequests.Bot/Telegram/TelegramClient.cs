@@ -46,7 +46,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation]],
                 ReplyKeyboard.OwnerRequestCategory => RequestCreationService.Categories.Split(", ").Append(RequestCategories.KeyOrder).Select(category => new[] { category }).ToArray(),
                 ReplyKeyboard.KeyType => [["Магніт"], ["Перепустка"]],
-                ReplyKeyboard.ResidentType => [["Власник"], ["Член родини"], ["Орендар"]],
+                ReplyKeyboard.ResidentType => [["Власник"], ["Член родини"], ["Орендар"], ["Працівник ОСББ"]],
                 ReplyKeyboard.PersonalDataConsent => [[RegistrationService.ConsentButton]],
                 ReplyKeyboard.OptionalEmail => [[RegistrationService.SkipEmail]],
                 ReplyKeyboard.RegistrationBuilding => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).ToArray(),

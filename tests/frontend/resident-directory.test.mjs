@@ -99,3 +99,12 @@ test('filters resident types together with building across all pages, including 
   directory.applyFilters({ ...directory.filters, building: '', residentType: '' });
   assert.equal(directory.all().length, 160);
 });
+
+test('filters employees without treating them as family members', () => {
+  const directory = new ResidentDirectory();
+  directory.setItems([resident(1, { residentType: 'Employee', buildingNumber: null }), resident(2)]);
+  directory.applyFilters({ ...directory.filters, residentType: 'Employee' });
+  assert.deepEqual(directory.all().map(item => item.id), ['1']);
+  directory.applyFilters({ ...directory.filters, building: 'Unspecified' });
+  assert.deepEqual(directory.all().map(item => item.id), ['1']);
+});

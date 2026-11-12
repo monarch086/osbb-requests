@@ -17,7 +17,7 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         var previous = await repository.GetProfileDialogAsync(userId, ct);
         Validate(previous, userId);
         if (previous is { Active: true, Draft: { } draft } && previous.Action == action)
-            return action == ProfileAction.Account ? AccountPrompt(draft.Stage) : EditPrompt(draft.Stage);
+            return action == ProfileAction.Account ? AccountPrompt(draft.Stage) : EditPrompt(draft.Stage, draft.ResidentType);
         if (action == ProfileAction.Account)
         {
             if (current is null || current.Stage != RegistrationStage.Approved || current.PersonalDataDeleted)
@@ -34,10 +34,13 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         }
         var now = clock.GetUtcNow();
         var value = new ResidentRegistration(current?.Id ?? Guid.NewGuid().ToString("N"), userId, complexId,
-            RegistrationStage.AwaitingPhone, 1, current?.CreatedAt ?? now, now, PersonalDataDeletedAt: current?.PersonalDataDeletedAt, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now, ConsentAt: current?.ConsentAt, ConsentVersion: current?.ConsentVersion, ResidentType: current?.ResidentType ?? ResidentType.FamilyMember);
+            RegistrationStage.AwaitingPhone, 1, current?.CreatedAt ?? now, now,
+            BuildingNumber: current?.ResidentType == ResidentType.Employee ? current.BuildingNumber : null,
+            ApartmentNumber: current?.ResidentType == ResidentType.Employee ? current.ApartmentNumber : null,
+            PersonalDataDeletedAt: current?.PersonalDataDeletedAt, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now, ConsentAt: current?.ConsentAt, ConsentVersion: current?.ConsentVersion, ResidentType: current?.ResidentType ?? ResidentType.FamilyMember);
         var dialog = new ResidentProfileDialog(userId, complexId, action, (previous?.Version ?? 0) + 1, current?.Version,
             action == ProfileAction.Edit ? value : null);
-        var prompt = action == ProfileAction.Edit ? EditPrompt(value.Stage) : DeletePrompt();
+        var prompt = action == ProfileAction.Edit ? EditPrompt(value.Stage, value.ResidentType) : DeletePrompt();
         return prompt with { ProfileDialog = new(dialog, previous?.Version) };
     }
     public async Task<CommandOutcome?> CancelAsync(long userId, CancellationToken ct)
@@ -74,6 +77,11 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
             return ContinueAccount(dialog, current, command, now);
         var outcome = RegistrationService.Advance(dialog.Draft ?? throw new InvalidOperationException("Missing profile draft."), command, now);
         if (outcome.Registration is not { } change) return outcome;
+        if (current?.ResidentType == ResidentType.Employee && dialog.Draft?.Stage == RegistrationStage.AwaitingLastName && change.Value.Stage == RegistrationStage.AwaitingBuilding)
+        {
+            change = change with { Value = change.Value with { Stage = RegistrationStage.AwaitingEmail } };
+            outcome = RegistrationService.Prompt(RegistrationStage.AwaitingEmail);
+        }
         if (change.Value.Stage == RegistrationStage.Pending)
         {
             var profile = change.Value with
@@ -136,10 +144,12 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         ? new("Для визначення особового рахунку оберіть будинок проживання: 4Б, 4В, 4Г або 4Д. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RegistrationBuilding)
         : new("Введіть номер квартири від 1 до 999. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove);
 
-    private static CommandOutcome EditPrompt(RegistrationStage stage) => stage == RegistrationStage.AwaitingPhone
+    private static CommandOutcome EditPrompt(RegistrationStage stage, ResidentType type) => stage == RegistrationStage.AwaitingPhone
         ? new("Оновлення профілю. Попередні дані збережуться до завершення всіх кроків. " +
             "Доступ залишиться чинним, повторне схвалення не потрібне.\n\n" +
-            "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, будинок, номер квартири та за бажанням email. Скасувати: /cancel.",
+            (type == ResidentType.Employee
+                ? "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище та за бажанням email. Скасувати: /cancel."
+                : "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, будинок, номер квартири та за бажанням email. Скасувати: /cancel."),
             Keyboard: ReplyKeyboard.RequestContact)
         : RegistrationService.Prompt(stage);
     private void Validate(ResidentProfileDialog? dialog, long userId)

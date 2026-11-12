@@ -21,6 +21,7 @@ public sealed class KeyOrderTests
     [Theory]
     [InlineData(ResidentType.FamilyMember)]
     [InlineData(ResidentType.Tenant)]
+    [InlineData(ResidentType.Employee)]
     public async Task NonOwnersCannotSeeOrSelectKeyOrder(ResidentType type)
     {
         var repo = new MemoryRepository();
