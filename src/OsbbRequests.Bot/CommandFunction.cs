@@ -59,6 +59,9 @@ public sealed class CommandFunction
                 var command = JsonSerializer.Deserialize<CommandEnvelope>(record.Body)
                     ?? throw new InvalidOperationException("Invalid queue command.");
                 await processor.ProcessAsync(command, timeout.Token);
+                if (record.Attributes?.TryGetValue("ApproximateReceiveCount", out var count) == true &&
+                    int.TryParse(count, out var receives) && receives > 1)
+                    context.Logger.LogLine($"operation=process_command messageId={record.MessageId} outcome=retry_succeeded receiveCount={receives}");
             }
             catch (Exception ex)
             {

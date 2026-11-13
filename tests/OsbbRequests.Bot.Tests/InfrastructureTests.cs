@@ -543,6 +543,7 @@ public sealed class InfrastructureTests
         var log = Assert.Single(logs);
         Assert.Contains("telegramFailure=" + category, log);
         Assert.Contains("telegramHttpStatus=" + expectedStatus, log);
+        Assert.Contains("telegramOperation=SendMessage", log);
         Assert.DoesNotContain("SECRET", log);
         Assert.DoesNotContain("private text", log);
     }
@@ -559,6 +560,72 @@ public sealed class InfrastructureTests
         Assert.Contains("telegramFailure=Transport", Assert.Single(logs));
         Assert.DoesNotContain("SECRET", string.Join('\n', logs));
         Assert.DoesNotContain("https://", string.Join('\n', logs));
+        Assert.DoesNotContain("telegramHttpStatus=", string.Join('\n', logs));
+    }
+
+    [Fact]
+    public async Task TransportFailureRecordsSafeNetworkCodesAndAvailableHttpStatus()
+    {
+        var socket = new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.HostNotFound);
+        using var http = new HttpClient(new HttpStub(_ => throw new HttpRequestException(HttpRequestError.NameResolutionError,
+            "https://api.telegram.org/botSECRET/sendMessage", socket, HttpStatusCode.BadGateway)));
+        var error = await Assert.ThrowsAsync<TelegramApiException>(() =>
+            new TelegramClient(http, new FakeSecret("SECRET")).SendMessageAsync(42, "Текст", default));
+        var details = TelegramFailureDiagnostics.For(error);
+        Assert.Contains("telegramFailure=Transport", details);
+        Assert.Contains("telegramHttpStatus=502", details);
+        Assert.Contains("telegramOperation=SendMessage", details);
+        Assert.Contains("httpRequestError=NameResolutionError", details);
+        Assert.Contains("socketError=HostNotFound", details);
+        Assert.DoesNotContain("SECRET", details + error);
+        Assert.DoesNotContain("https://", details + error);
+    }
+
+    [Fact]
+    public async Task SuccessfulRetryLogsOnlySafeMessageIdentifierAndReceiveCount()
+    {
+        var repository = new MemoryRepository();
+        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
+        var record = Record("message-id", 100);
+        record.Attributes = new Dictionary<string, string> { ["ApproximateReceiveCount"] = "2" };
+        var logs = new List<string>();
+        var response = await new CommandFunction(processor).FunctionHandler(new SQSEvent { Records = [record] }, ContextProxy.Create(logs));
+        Assert.Empty(response.BatchItemFailures);
+        Assert.True(repository.Replies[100].Delivered);
+        var log = Assert.Single(logs);
+        Assert.Contains("messageId=message-id", log);
+        Assert.Contains("outcome=retry_succeeded", log);
+        Assert.Contains("receiveCount=2", log);
+        Assert.DoesNotContain("/help", log);
+    }
+
+    [Fact]
+    public async Task FailedRetryIsNotLoggedAsSuccessful()
+    {
+        using var http = new HttpClient(new HttpStub(_ => throw new HttpRequestException("SECRET")));
+        var repository = new MemoryRepository();
+        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
+            new TelegramClient(http, new FakeSecret("SECRET")));
+        var record = Record("message-id", 100);
+        record.Attributes = new Dictionary<string, string> { ["ApproximateReceiveCount"] = "2" };
+        var logs = new List<string>();
+        var response = await new CommandFunction(processor).FunctionHandler(new SQSEvent { Records = [record] }, ContextProxy.Create(logs));
+        Assert.Single(response.BatchItemFailures);
+        Assert.Contains("telegramFailure=Transport", Assert.Single(logs));
+        Assert.DoesNotContain("retry_succeeded", string.Join('\n', logs));
+        Assert.DoesNotContain("SECRET", string.Join('\n', logs));
+    }
+
+    [Fact]
+    public async Task FirstSuccessfulAttemptDoesNotGenerateRetryLog()
+    {
+        var repository = new MemoryRepository();
+        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
+        var record = Record("message-id", 100);
+        record.Attributes = new Dictionary<string, string> { ["ApproximateReceiveCount"] = "1" };
+        var logs = new List<string>();
+        await new CommandFunction(processor).FunctionHandler(new SQSEvent { Records = [record] }, ContextProxy.Create(logs));
+        Assert.Empty(logs);
     }
 
     [Fact]

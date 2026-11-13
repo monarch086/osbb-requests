@@ -1,6 +1,7 @@
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Telegram;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Globalization;
 using System.Text.Json;
 using OsbbRequests.Bot.Models;
@@ -87,6 +88,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
     private async Task CallAsync(string method, object payload, CancellationToken cancellationToken, bool requireTrueResult = false)
     {
         var token = await tokenProvider.GetAsync(cancellationToken);
+        var operation = method == "sendMessage" ? TelegramOperation.SendMessage : TelegramOperation.SetCommandMenu;
         int? responseStatus = null;
         try
         {
@@ -100,33 +102,37 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 var seconds = error.RootElement.TryGetProperty("parameters", out var parameters) &&
                     parameters.TryGetProperty("retry_after", out var retryAfter) && retryAfter.TryGetInt32(out var value)
                     ? value : 180;
-                throw new TelegramRateLimitException(seconds);
+                throw new TelegramRateLimitException(seconds, operation);
             }
             if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
-                throw new TelegramRecipientUnavailableException((int)response.StatusCode);
+                throw new TelegramRecipientUnavailableException((int)response.StatusCode, operation);
             if (!response.IsSuccessStatusCode)
-                throw new TelegramApiException(TelegramFailureCategory.HttpError, (int)response.StatusCode);
+                throw new TelegramApiException(TelegramFailureCategory.HttpError, (int)response.StatusCode, operation);
             using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
                 cancellationToken: cancellationToken);
             if (body.RootElement.ValueKind != JsonValueKind.Object)
-                throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, (int)response.StatusCode);
+                throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, (int)response.StatusCode, operation);
             if (!body.RootElement.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
-                throw new TelegramApiException(TelegramFailureCategory.ApiRejected, (int)response.StatusCode);
+                throw new TelegramApiException(TelegramFailureCategory.ApiRejected, (int)response.StatusCode, operation);
             if (requireTrueResult && (!body.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.True))
-                throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode);
+                throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode, operation);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException error)
         {
-            // Do not propagate an exception containing a URL with the bot token.
-            throw new TelegramApiException(TelegramFailureCategory.Transport);
+            // Preserve only bounded framework error codes, never exception messages or URLs.
+            SocketError? socketError = null;
+            for (Exception? inner = error.InnerException; inner is not null; inner = inner.InnerException)
+                if (inner is SocketException socket) { socketError = socket.SocketErrorCode; break; }
+            throw new TelegramApiException(TelegramFailureCategory.Transport,
+                responseStatus ?? (error.StatusCode is { } status ? (int)status : null), operation, error.HttpRequestError, socketError);
         }
         catch (JsonException)
         {
-            throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, responseStatus);
+            throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, responseStatus, operation);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new TelegramApiException(TelegramFailureCategory.Timeout);
+            throw new TelegramApiException(TelegramFailureCategory.Timeout, responseStatus, operation);
         }
     }
 }
