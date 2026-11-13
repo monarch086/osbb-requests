@@ -7,6 +7,7 @@ using OsbbRequests.AdminApi.Auth;
 using OsbbRequests.AdminApi.Data;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Domain;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -381,12 +382,64 @@ public sealed class AdminApiTests
         Assert.False(resident.TryGetProperty("buildingId", out _));
     }
 
-    [Fact]
-    public async Task CompletedRequestRequiresExplanation()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Ключі видано")]
+    public async Task KeyOrderCanBeCompletedWithoutExplanationByKeysOnlyAdmin(string? resolution)
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, true, false, false, false) };
+        store.ForcedRequest = new(1, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow);
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "Completed", visibility = "Private", resolution, priority = "Normal", version = 1, scope = "Complex" }), default);
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(1, store.RequestWrites);
+        Assert.Equal(RequestStatus.Completed, store.LastRequest!.Status);
+        Assert.Equal(resolution?.Trim(), store.LastRequest.Resolution);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task RejectedRequestStillRequiresExplanation(string? resolution)
     {
         var store = new FakeStore();
         var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
-            new { status = "Completed", visibility = "Private", resolution = "", priority = "Normal", plannedDate = (string?)null, assignedTo = (string?)null, version = 1 }), default));
+            new { status = "Rejected", visibility = "Private", resolution, priority = "Normal", version = 1, scope = "Complex" }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Equal(0, store.RequestWrites);
+    }
+
+    [Fact]
+    public async Task ComplexRequestCanBeCompletedWithoutExplanation()
+    {
+        var store = new FakeStore();
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "Completed", visibility = "Public", resolution = (string?)null, priority = "Normal", version = 1, scope = "Complex" }), default);
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(RequestStatus.Completed, store.LastRequest!.Status);
+        Assert.Null(store.LastRequest.Resolution);
+    }
+
+    [Fact]
+    public async Task RejectedRequestAcceptsExplanation()
+    {
+        var store = new FakeStore();
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "Rejected", visibility = "Public", resolution = " Причина ", priority = "Normal", version = 1, scope = "Complex" }), default);
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("Причина", store.LastRequest!.Resolution);
+    }
+
+    [Fact]
+    public async Task CompletedRequestStillRejectsExplanationOverLimit()
+    {
+        var store = new FakeStore();
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "Completed", visibility = "Private", resolution = new string('x', 1001), priority = "Normal", version = 1, scope = "Complex" }), default));
         Assert.Equal(400, error.Status);
         Assert.Equal(0, store.RequestWrites);
     }

@@ -197,10 +197,10 @@
             name="resolution"
             [(ngModel)]="draft.resolution"
             maxlength="1000"
-            [required]="draft.status === 'Completed' || draft.status === 'Rejected'"
+            [required]="draft.status === 'Rejected'"
             [disabled]="saving"
             rows="3"
-            placeholder="Обов’язково для виконаних і відхилених заявок"
+            placeholder="Обов’язково для відхилених заявок"
           ></textarea>
           <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
             <button

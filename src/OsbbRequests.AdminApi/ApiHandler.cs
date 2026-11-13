@@ -282,8 +282,9 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     change.Priority is not ("Low" or "Normal" or "High" or "Urgent")) throw new ApiError(400, "Некоректні параметри заявки.");
                 if (current.Request.Category == RequestCategories.KeyOrder && visibility != RequestVisibility.Private)
                     throw new ApiError(400, "Замовлення ключів має бути приватним.");
-                if (change.Resolution?.Length > 1000 || status is RequestStatus.Completed or RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
-                    throw new ApiError(400, "Для виконання або відхилення потрібне пояснення до 1000 символів.");
+                if (change.Resolution?.Length > 1000) throw new ApiError(400, "Пояснення має містити не більше 1000 символів.");
+                if (status == RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
+                    throw new ApiError(400, "Для відхилення потрібне пояснення.");
                 if (!Enum.TryParse<RequestScope>(change.Scope, out var scope) || !ComplexLayout.IsValid(scope, change.BuildingNumber, change.Floor, change.Entrance))
                     throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або прибудинкову територію. Для будинку оберіть поверх 1–25 або «Парадне»; під’їзд - 1, 2 або «Не зазначено» (для 4Б лише 1 або «Не зазначено»).");
                 var date = Date(change.PlannedDate);
