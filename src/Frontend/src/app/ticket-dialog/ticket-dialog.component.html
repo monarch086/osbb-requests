@@ -195,6 +195,34 @@
               </ng-select>
             </div>
           </div>
+          @if (draft.category === 'Замовлення ключів' && draft.keyItems?.length) {
+            <section class="mb-3" aria-label="Ключі замовлення">
+              <h3 class="h5">Ключі замовлення</h3>
+              @for (item of draft.keyItems; track $index; let index = $index) {
+                <div class="border rounded p-3 mb-2">
+                  <p class="mb-2">
+                    <strong>{{ item.type }}</strong> · {{ item.phone }} ·
+                    @if (authorLoading) {
+                      Завантажуємо дані…
+                    } @else {
+                      {{ keyResidentNames[index]?.join(', ') || 'Мешканця не знайдено' }}
+                    }
+                  </p>
+                  <label class="form-label" [for]="'key-serial-' + index"
+                    >Серійний номер ключа</label
+                  >
+                  <input
+                    class="form-control"
+                    [id]="'key-serial-' + index"
+                    [name]="'keySerial' + index"
+                    [(ngModel)]="item.serialNumber"
+                    maxlength="25"
+                    [disabled]="saving"
+                  />
+                </div>
+              }
+            </section>
+          }
           <label class="form-label" for="ticket-resolution">Пояснення для мешканця</label
           ><textarea
             class="form-control"

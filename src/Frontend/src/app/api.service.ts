@@ -197,6 +197,9 @@ export class ApiService {
       assignedTo: draft.assignedTo,
       priority: draft.priority,
       plannedDate: draft.plannedDate || null,
+      ...(draft.category === 'Замовлення ключів' && draft.keyItems
+        ? { keySerialNumbers: draft.keyItems.map((item) => item.serialNumber ?? null) }
+        : {}),
       version: ticket.version,
     });
   }

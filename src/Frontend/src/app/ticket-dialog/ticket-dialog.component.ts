@@ -40,6 +40,7 @@ export class TicketDialogComponent {
   }[] = [];
   @Input() author: RequestAuthor | null = null;
   @Input() authorLoading = false;
+  @Input() keyResidentNames: string[][] = [];
   @Input() history: Record<string, string>[] = [];
   @Input() saving = false;
   @Input() error = '';

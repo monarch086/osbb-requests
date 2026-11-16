@@ -800,6 +800,93 @@ public sealed class AdminApiTests
     }
 
     [Fact]
+    public async Task KeyOrderDetailsAndSerialNumbersRespectKeysPermission()
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, true, false, false, false) };
+        store.ForcedRequest = new(7, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow,
+            KeyItems: [new("Магніт", "+380671234567"), new("Перепустка", "+380931234567")]);
+        var handler = Handler(store);
+        var details = await handler.HandleAsync(Request("/admin/requests/99/7"), default);
+        using var body = JsonDocument.Parse(details.Body);
+        Assert.Equal("Олена Тестова", body.RootElement.GetProperty("keyResidentNames")[0][0].GetString());
+        var result = await handler.HandleAsync(Request("/admin/requests/99/7", "PATCH", body: new
+        {
+            status = "New",
+            visibility = "Private",
+            priority = "Normal",
+            version = 1,
+            keySerialNumbers = new[] { " ABC-1 ", "002" }
+        }), default);
+        Assert.Equal(200, result.StatusCode);
+        Assert.Equal("ABC-1", store.LastRequest!.KeyItems![0].SerialNumber);
+        Assert.Equal("002", store.LastRequest.KeyItems[1].SerialNumber);
+        Assert.Equal("+380671234567", store.LastRequest.KeyItems[0].Phone);
+        Assert.Equal("Магніт", store.LastRequest.KeyItems[0].Type);
+        store.Users["regular"] = Regular with { Permissions = new(true, false, false, false, false) };
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/requests/99/7"), default))).Status);
+    }
+
+    [Fact]
+    public async Task SerialNumbersSupportTwentyFiveCharactersAndClearing()
+    {
+        var store = new FakeStore
+        {
+            ForcedRequest = new(7, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow,
+            KeyItems: [new("Магніт", "+380671234567", "old"), new("Перепустка", "+380931234567")])
+        };
+        await Handler(store).HandleAsync(Request("/admin/requests/99/7", "PATCH", body: new
+        {
+            status = "New",
+            visibility = "Private",
+            priority = "Normal",
+            version = 1,
+            keySerialNumbers = new[] { "", new string('x', 25) }
+        }), default);
+        Assert.Null(store.LastRequest!.KeyItems![0].SerialNumber);
+        Assert.Equal(25, store.LastRequest.KeyItems[1].SerialNumber!.Length);
+    }
+
+    [Theory]
+    [InlineData(26, 1)]
+    [InlineData(1, 2)]
+    public async Task InvalidSerialNumbersCannotBeSaved(int length, int count)
+    {
+        var store = new FakeStore
+        {
+            ForcedRequest = new(7, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow,
+            KeyItems: [new("Магніт", "+380671234567")])
+        };
+        var error = await Assert.ThrowsAsync<ApiError>(() => Handler(store).HandleAsync(Request("/admin/requests/99/7", "PATCH", body: new
+        {
+            status = "New",
+            visibility = "Private",
+            priority = "Normal",
+            version = 1,
+            keySerialNumbers = Enumerable.Repeat(new string('x', length), count).ToArray()
+        }), default));
+        Assert.Equal(400, error.Status);
+        Assert.Equal(0, store.RequestWrites);
+    }
+
+    [Fact]
+    public async Task UpdatingWithoutSerialNumbersPreservesExistingAndStaleVersionIsRejected()
+    {
+        var store = new FakeStore
+        {
+            ForcedRequest = new(7, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow,
+            KeyItems: [new("Магніт", "+380671234567", "saved")])
+        };
+        var handler = Handler(store);
+        await handler.HandleAsync(Request("/admin/requests/99/7", "PATCH", body: new { status = "New", visibility = "Private", priority = "Normal", version = 1 }), default);
+        Assert.Equal("saved", store.LastRequest!.KeyItems![0].SerialNumber);
+        var error = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/requests/99/7", "PATCH", body: new
+        { status = "New", visibility = "Private", priority = "Normal", version = 0, keySerialNumbers = new[] { "new" } }), default));
+        Assert.Equal(409, error.Status);
+        Assert.Equal(1, store.RequestWrites);
+    }
+
+    [Fact]
     public async Task RequestDetailsExposeAuthorOnlyToActiveAdministrators()
     {
         var store = new FakeStore();
@@ -833,6 +920,7 @@ public sealed class AdminApiTests
         public bool RepeatExportCursor;
         public int ExportReads;
         public int AuthorReads;
+        public Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<IReadOnlyList<IReadOnlyList<string>>>(request.KeyItems!.Select(_ => (IReadOnlyList<string>)new[] { "Олена Тестова" }).ToArray());
         public int PermissionWrites;
         public Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct) { PermissionWrites++; return Task.CompletedTask; }
         public Exception? ReadError;

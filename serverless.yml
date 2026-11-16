@@ -786,6 +786,14 @@ resources:
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentsByPhone
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#PHONE#*
     FrontendBucket:
       Type: AWS::S3::Bucket
       DeletionPolicy: Retain

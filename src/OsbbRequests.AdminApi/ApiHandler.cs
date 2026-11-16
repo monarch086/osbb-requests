@@ -272,7 +272,12 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             if (current.Request.Category == RequestCategories.KeyOrder ? !actor.EffectivePermissions.KeyOrders : !actor.EffectivePermissions.ComplexRequests)
                 throw new ApiError(403, "Недостатньо прав для роботи із заявкою.");
             if (method == "GET" && segments.Length == 5 && segments[4] == "history") return Reply(200, new { items = await store.HistoryAsync(current.Request, ct) });
-            if (method == "GET" && segments.Length == 4) return Reply(200, current with { Author = await store.GetRequestAuthorAsync(current.Request, ct) });
+            if (method == "GET" && segments.Length == 4) return Reply(200, current with
+            {
+                Author = await store.GetRequestAuthorAsync(current.Request, ct),
+                KeyResidentNames = current.Request.Category == RequestCategories.KeyOrder && current.Request.KeyItems is { Count: > 0 }
+                    ? await store.GetKeyResidentNamesAsync(current.Request, ct) : null
+            });
             if (method == "PATCH" && segments.Length == 4)
             {
                 var change = Body<RequestChange>(request);
@@ -292,8 +297,17 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 var date = Date(change.PlannedDate);
                 if (!string.IsNullOrEmpty(change.AssignedTo) && (await store.GetAdminAsync(change.AssignedTo, ct))?.IsActive != true)
                     throw new ApiError(400, "Оберіть активного адміністратора.");
+                var keyItems = current.Request.KeyItems;
+                if (change.KeySerialNumbers is not null)
+                {
+                    if (current.Request.Category != RequestCategories.KeyOrder || keyItems is null || change.KeySerialNumbers.Count != keyItems.Count ||
+                        change.KeySerialNumbers.Any(serial => serial is { Length: > 25 }))
+                        throw new ApiError(400, "Некоректні серійні номери ключів (до 25 символів). ");
+                    keyItems = keyItems.Select((item, index) => item with { SerialNumber = string.IsNullOrWhiteSpace(change.KeySerialNumbers[index]) ? null : change.KeySerialNumbers[index]!.Trim() }).ToArray();
+                }
                 var next = current.Request with
                 {
+                    KeyItems = keyItems,
                     Scope = scope,
                     BuildingNumber = change.BuildingNumber,
                     Floor = change.Floor,

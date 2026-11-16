@@ -24,6 +24,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
   protected history: Record<string, string>[] = [];
   protected author: RequestAuthor | null = null;
   protected authorLoading = false;
+  protected keyResidentNames: string[][] = [];
   private assigneesReady = false;
   private detailSequence = 0;
   override ngOnInit(): void {
@@ -110,10 +111,15 @@ export class RequestsSectionComponent extends WorkspaceSection {
       return;
     }
     this.selected = ticket;
-    this.draft = { ...ticket.request, entrance: ticket.request.entrance ?? null };
+    this.draft = {
+      ...ticket.request,
+      entrance: ticket.request.entrance ?? null,
+      keyItems: ticket.request.keyItems?.map((item) => ({ ...item })) ?? null,
+    };
     this.history = [];
     this.error = '';
     this.author = null;
+    this.keyResidentNames = [];
     this.authorLoading = true;
     const sequence = ++this.detailSequence;
     const epoch = this.epoch;
@@ -127,6 +133,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
     this.authorLoading = false;
     if (detail.status === 'fulfilled') {
       this.author = detail.value.author ?? null;
+      this.keyResidentNames = detail.value.keyResidentNames ?? [];
     } else {
       this.error = errorMessage(detail.reason);
     }

@@ -10,7 +10,7 @@ public sealed record MaintenanceRequest(
     string? Resolution = null, string? AssignedTo = null, string Priority = "Normal", DateOnly? PlannedDate = null,
     RequestScope? Scope = null, string? BuildingNumber = null, int? Floor = null, int? Entrance = null, string? KeyType = null, int? KeyQuantity = null, IReadOnlyList<KeyOrderItem>? KeyItems = null);
 
-public sealed record KeyOrderItem(string Type, string Phone);
+public sealed record KeyOrderItem(string Type, string Phone, string? SerialNumber = null);
 
 public sealed record RequestPage(IReadOnlyList<MaintenanceRequest> Items, long? NextBeforeId);
 

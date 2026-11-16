@@ -98,6 +98,12 @@ export type TicketStatus =
   'New' | 'InProgress' | 'AwaitingClarification' | 'Completed' | 'Rejected';
 export type TicketPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
 
+export interface KeyOrderItem {
+  type: string;
+  phone: string;
+  serialNumber?: string | null;
+}
+
 export interface Ticket {
   id: number;
   ownerId: number;
@@ -115,6 +121,7 @@ export interface Ticket {
   assignedTo: string | null;
   priority: TicketPriority;
   plannedDate: string | null;
+  keyItems?: KeyOrderItem[] | null;
 }
 export interface RequestAuthor {
   phone?: string | null;
@@ -127,6 +134,7 @@ export interface RequestAuthor {
 export interface ManagedTicket {
   request: Ticket;
   author?: RequestAuthor | null;
+  keyResidentNames?: string[][] | null;
   version: number;
 }
 export interface Page<T> {
