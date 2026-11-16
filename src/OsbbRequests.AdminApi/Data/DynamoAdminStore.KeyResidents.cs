@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Residents;
+using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
@@ -12,7 +13,7 @@ public sealed partial class DynamoAdminStore
     {
         if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
         var keys = new List<(long RequestId, long OwnerId, int Index)>();
-        var filters = new RequestFilters(null, null, null, null, null, Section: "keys");
+        var filters = new RequestFilters([nameof(RequestStatus.Completed)], null, null, null, null, Section: "keys");
         var seen = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = null;
         do
@@ -21,7 +22,7 @@ public sealed partial class DynamoAdminStore
             foreach (var candidate in batch.Items)
             {
                 var request = candidate.Request;
-                if (request is not { Category: RequestCategories.KeyOrder, KeyItems: { } items }) continue;
+                if (request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items }) continue;
                 for (var index = 0; index < items.Count; index++) keys.Add((request.Id, request.OwnerId, index));
             }
             cursor = batch.Cursor;
@@ -38,7 +39,7 @@ public sealed partial class DynamoAdminStore
             var identity = (key.OwnerId, key.RequestId);
             if (!requests.TryGetValue(identity, out var latest))
                 requests[identity] = latest = await GetRequestAsync(key.OwnerId, key.RequestId, ct);
-            if (latest?.Request is not { Category: RequestCategories.KeyOrder, KeyItems: { } items } || key.Index >= items.Count) continue;
+            if (latest?.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || key.Index >= items.Count) continue;
             current.Add((key.RequestId, key.Index, items[key.Index]));
         }
         var names = await GetKeyResidentNamesAsync(new MaintenanceRequest(0, 0, building, RequestCategories.KeyOrder,

@@ -108,7 +108,7 @@ public sealed class ResidentReadCutoverTests
         using var db = new ReadDynamo();
         const string phone = "+380671234567";
         var keys = Enumerable.Range(0, 26).Select(i => new KeyOrderItem("Магніт", i == 25 ? phone : "+380931234567", $"serial-{i:D2}")).ToArray();
-        var ticket = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, KeyItems: keys);
+        var ticket = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: keys);
         var ticketRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
         db.ItemsByIndex["BuildingRequestsIndex"] = [ticketRow];
         db.RawRows["USER#99"] = ticketRow;
@@ -143,7 +143,7 @@ public sealed class ResidentReadCutoverTests
         for (var id = 1; id <= 26; id++)
         {
             var ticket = new MaintenanceRequest(id, id, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
-                KeyItems: [new("Магніт", "+380671234567")]);
+                Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: [new("Магніт", "+380671234567")]);
             var row = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
             entries.Add(row);
             db.RawRows[$"USER#{id}"] = row;
@@ -156,6 +156,38 @@ public sealed class ResidentReadCutoverTests
         Assert.Equal(1, Assert.Single(page.Items).RequestId);
         Assert.Single(db.Reads, read => read.TableName == "old");
         Assert.Single(db.Queries, query => query.IndexName == "ResidentsByPhone");
+    }
+
+    [Fact]
+    public async Task KeyResidentDirectoryIncludesOnlyCompletedAndRechecksCurrentStatus()
+    {
+        using var db = new ReadDynamo();
+        var rows = new List<Dictionary<string, AttributeValue>>();
+        var statuses = Enum.GetValues<OsbbRequests.Shared.Domain.RequestStatus>();
+        foreach (var status in statuses)
+        {
+            var id = (int)status + 1;
+            var ticket = new MaintenanceRequest(id, id, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
+                Status: status, KeyItems: [new("Магніт", "+380671234567")]);
+            var row = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
+            rows.Add(row);
+            db.RawRows[$"USER#{id}"] = row;
+        }
+        db.ItemsByIndex["BuildingRequestsIndex"] = rows;
+        db.ItemsByIndex["ResidentsByPhone"] = [];
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", prioritizeRequests: false, residentsTable: "residents");
+        var result = await store.ListResidentsWithKeysAsync(1, default);
+        Assert.Equal(1, result.Total);
+        Assert.Single(result.Items);
+        var query = Assert.Single(db.Queries, query => query.IndexName == "BuildingRequestsIndex");
+        Assert.Equal("Completed", query.ExpressionAttributeValues[":status0"].S);
+        var completedId = (int)OsbbRequests.Shared.Domain.RequestStatus.Completed + 1;
+        var changed = new MaintenanceRequest(completedId, completedId, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
+            Status: OsbbRequests.Shared.Domain.RequestStatus.InProgress, KeyItems: [new("Магніт", "+380671234567")]);
+        db.RawRows[$"USER#{completedId}"] = new() { ["payload"] = new(JsonSerializer.Serialize(changed)) };
+        var stale = await store.ListResidentsWithKeysAsync(1, default);
+        Assert.Empty(stale.Items);
+        Assert.Equal(1, stale.Total);
     }
 
     [Fact]
