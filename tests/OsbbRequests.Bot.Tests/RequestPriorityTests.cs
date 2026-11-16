@@ -99,6 +99,17 @@ public sealed class RequestPriorityTests
         Assert.Contains(db.Queries, query => query.ProjectionExpression == "payload" && query.Limit is null);
     }
 
+    [Fact]
+    public async Task PageWithoutCountsSkipsFullStatisticsQueries()
+    {
+        using var db = new PriorityDynamo(Enumerable.Range(1, 50).Select(id => Ticket(id)).ToList());
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var page = await store.ListRequestsWithStatisticsAsync(new(null, null, null, null, null), null, 1, default, includeCounts: false);
+        Assert.Equal(25, page.Items.Count);
+        Assert.Null(page.Counts);
+        Assert.DoesNotContain(db.Queries, query => query.ProjectionExpression == "payload");
+    }
+
     [Theory]
     [InlineData("complex")]
     [InlineData("keys")]
@@ -109,11 +120,11 @@ public sealed class RequestPriorityTests
         using var db = new PriorityDynamo(data);
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         var page = await store.ListRequestsWithStatisticsAsync(new(null, null, null, null, null, Section: section), null, 1, default);
-        Assert.Equal(20, page.Counts.Total);
+        Assert.Equal(20, page.Counts!.Total);
         Assert.Equal(15, page.Counts.NewCount);
         Assert.Equal(0, page.Counts.ProgressCount);
         var filtered = await store.ListRequestsWithStatisticsAsync(new(["Completed"], null, null, null, null, Section: section), null, 1, default);
-        Assert.Equal(5, filtered.Counts.Total);
+        Assert.Equal(5, filtered.Counts!.Total);
         Assert.Equal(0, filtered.Counts.NewCount);
         Assert.All(filtered.Items, item => Assert.Equal(RequestStatus.Completed, item.Request.Status));
         Assert.All(page.Items, item => Assert.Equal(section == "keys", item.Request.Category == RequestCategories.KeyOrder));

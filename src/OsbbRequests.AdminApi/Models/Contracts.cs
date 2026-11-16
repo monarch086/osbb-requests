@@ -34,7 +34,7 @@ public sealed record ManagedRequest(MaintenanceRequest Request, int Version, Req
 public sealed record ResidentKeyEntry(string Name, string Phone, string? SerialNumber, long RequestId, int KeyIndex);
 public sealed record ResidentKeyPage(IReadOnlyList<ResidentKeyEntry> Items, int PageNumber, int PageSize, int Total);
 public sealed record RequestCounts(int Total, int NewCount, int ProgressCount);
-public sealed record AdminRequestPage(IReadOnlyList<ManagedRequest> Items, string? Cursor, int PageNumber, int PageSize, RequestCounts Counts);
+public sealed record AdminRequestPage(IReadOnlyList<ManagedRequest> Items, string? Cursor, int PageNumber, int PageSize, RequestCounts? Counts);
 public sealed record RequestFilters(IReadOnlyList<string>? Statuses, string? Category, string? Search, string? From, string? To, string? Target = null, int? Floor = null, string? Section = null);
 public sealed class ApiError(int status, string message) : Exception(message)
 {

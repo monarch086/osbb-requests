@@ -7,6 +7,7 @@ import { PaginationComponent } from '../pagination/pagination.component';
 import type { TicketFilters } from '../shared/ticket-presentation';
 import { TicketDialogComponent } from '../ticket-dialog/ticket-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
+import { RequestCountsCache } from './request-counts-cache';
 import { RequestsComponent } from './requests.component';
 import { RequestsList } from './requests-list';
 
@@ -27,6 +28,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
   protected keyResidentNames: string[][] = [];
   private assigneesReady = false;
   private detailSequence = 0;
+  private readonly countsCache = new RequestCountsCache();
   override ngOnInit(): void {
     if (!this.me.effectivePermissions.complexRequests && this.me.effectivePermissions.keyOrders) {
       this.lists.applyTicketFilters({ ...this.lists.filters, section: 'keys' });
@@ -38,11 +40,15 @@ export class RequestsSectionComponent extends WorkspaceSection {
     cursor: string | null,
     isCurrent: () => boolean,
   ): Promise<void> {
-    const page = await this.api.getTickets(this.lists.appliedFilters, cursor, index + 1);
+    const cached = this.countsCache.get();
+    const page = await this.api.getTickets(this.lists.appliedFilters, cursor, index + 1, !cached);
     if (isCurrent()) {
       this.lists.tickets = page.items;
       this.lists.pagination.accept(index, cursor, page.cursor);
-      this.lists.counts = page.counts;
+      if (page.counts) {
+        this.countsCache.set(page.counts);
+      }
+      this.lists.counts = page.counts ?? cached;
     }
   }
   protected override async load(): Promise<void> {
@@ -50,6 +56,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
       return;
     }
     this.lists.counts = null;
+    this.countsCache.clear();
     if (!this.assigneesReady) {
       await this.initialize();
     } else {

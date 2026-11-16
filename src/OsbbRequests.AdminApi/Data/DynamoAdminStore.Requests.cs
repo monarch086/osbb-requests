@@ -71,7 +71,7 @@ public sealed partial class DynamoAdminStore
         return new(items, rank < 0 ? null : RequestPageCursor(new(building, rank, null)));
     }
 
-    public async Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct)
+    public async Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct, bool includeCounts = true)
     {
         if (pageNumber < 1 || pageNumber > 1000000) throw new ApiError(400, "Некоректна сторінка.");
         var items = new List<ManagedRequest>();
@@ -84,7 +84,7 @@ public sealed partial class DynamoAdminStore
             next = page.Cursor;
         } while (items.Count < 25 && next is not null);
 
-        var counts = await CountRequestsAsync(filters, ct);
+        var counts = includeCounts ? await CountRequestsAsync(filters, ct) : null;
         return new(items, next, pageNumber, 25, counts);
     }
 

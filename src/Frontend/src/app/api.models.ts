@@ -166,7 +166,7 @@ export interface Page<T> {
 export interface TicketPage extends Page<ManagedTicket> {
   pageNumber: number;
   pageSize: number;
-  counts: { total: number; newCount: number; progressCount: number };
+  counts: { total: number; newCount: number; progressCount: number } | null;
 }
 
 export interface Assignee {

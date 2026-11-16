@@ -125,9 +125,13 @@ export class ApiService {
     filters: TicketFilters,
     cursor: string | null,
     pageNumber: number,
+    includeCounts = true,
   ): Promise<TicketPage> {
     const params = new URLSearchParams(this.ticketFilterQuery(filters, cursor));
     params.set('page', String(pageNumber));
+    if (!includeCounts) {
+      params.set('includeCounts', 'false');
+    }
     return this.request('/requests?' + params.toString());
   }
 

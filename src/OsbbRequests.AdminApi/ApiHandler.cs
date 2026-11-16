@@ -278,7 +278,9 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 };
             }
             if (!int.TryParse(query.GetValueOrDefault("page") ?? "1", out var pageNumber)) throw new ApiError(400, "Некоректна сторінка.");
-            return Reply(200, await store.ListRequestsWithStatisticsAsync(filters, cursor, pageNumber, ct));
+            var includeCounts = query.GetValueOrDefault("includeCounts");
+            if (includeCounts is not (null or "true" or "false")) throw new ApiError(400, "Некоректний параметр статистики.");
+            return Reply(200, await store.ListRequestsWithStatisticsAsync(filters, cursor, pageNumber, ct, includeCounts != "false"));
         }
         if (segments.Length is 4 or 5 && segments[0] == "admin" && segments[1] == "requests" &&
             long.TryParse(segments[2], NumberStyles.None, CultureInfo.InvariantCulture, out var owner) && owner > 0 &&

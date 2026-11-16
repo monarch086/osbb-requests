@@ -63,6 +63,18 @@ public sealed class AdminApiTests
     private static ApiHandler Handler(FakeStore store) => new(store, new FakeIdentity());
 
     [Fact]
+    public async Task RequestPageCanSkipCountsAndRejectsInvalidCountOption()
+    {
+        var store = new FakeStore();
+        var handler = Handler(store);
+        var response = await handler.HandleAsync(Request("/admin/requests", query: new() { ["section"] = "complex", ["includeCounts"] = "false" }), default);
+        using var json = JsonDocument.Parse(response.Body);
+        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("counts").ValueKind);
+        var error = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/requests", query: new() { ["section"] = "complex", ["includeCounts"] = "invalid" }), default));
+        Assert.Equal(400, error.Status);
+    }
+
+    [Fact]
     public async Task StatisticsRequiresActiveSuperAdminAndRecognizedPeriod()
     {
         var stats = new FakeStatistics();
@@ -1018,10 +1030,10 @@ public sealed class AdminApiTests
             if (cursor == "one") return Task.FromResult(new Page<ManagedRequest>([], RepeatExportCursor ? "one" : "two"));
             return Task.FromResult(new Page<ManagedRequest>([new(new(2, 99, "building", "Інше", "", "Опис", date), 1), new(new(3, 100, "building", "Інше", "", "Опис", date), 1)], null));
         }
-        public async Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct)
+        public async Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct, bool includeCounts = true)
         {
             var page = await ListRequestsAsync(filters, cursor, ct);
-            return new(page.Items, page.Cursor, pageNumber, 25, new(page.Items.Count, 0, 0));
+            return new(page.Items, page.Cursor, pageNumber, 25, includeCounts ? new(page.Items.Count, 0, 0) : null);
         }
         public Task<ManagedRequest?> GetRequestAsync(long owner, long id, CancellationToken ct) => Task.FromResult<ManagedRequest?>(new(ForcedRequest ?? new(id, owner, "building", "інше", "двір", "Опис заявки", DateTimeOffset.UtcNow), 1));
         public Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct)
