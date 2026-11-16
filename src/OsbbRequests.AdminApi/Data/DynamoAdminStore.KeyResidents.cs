@@ -11,7 +11,7 @@ public sealed partial class DynamoAdminStore
     public async Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct)
     {
         if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
-        var keys = new List<(long RequestId, int Index, KeyOrderItem Item)>();
+        var keys = new List<(long RequestId, long OwnerId, int Index)>();
         var filters = new RequestFilters(null, null, null, null, null, Section: "keys");
         var seen = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = null;
@@ -20,21 +20,33 @@ public sealed partial class DynamoAdminStore
             var batch = await ListRequestsAsync(filters, cursor, ct);
             foreach (var candidate in batch.Items)
             {
-                var latest = await GetRequestAsync(candidate.Request.OwnerId, candidate.Request.Id, ct);
-                if (latest?.Request is not { Category: RequestCategories.KeyOrder, KeyItems: { } items } request) continue;
-                for (var index = 0; index < items.Count; index++) keys.Add((request.Id, index, items[index]));
+                var request = candidate.Request;
+                if (request is not { Category: RequestCategories.KeyOrder, KeyItems: { } items }) continue;
+                for (var index = 0; index < items.Count; index++) keys.Add((request.Id, request.OwnerId, index));
             }
             cursor = batch.Cursor;
             if (cursor is not null && !seen.Add(cursor)) throw new InvalidOperationException("Repeated request cursor.");
         } while (cursor is not null);
         if (keys.Count == 0) return new([], 1, 25, 0);
+        var actual = Math.Min(page, Math.Max(1, (keys.Count + 24) / 25));
+        var selected = keys.OrderByDescending(key => key.RequestId).ThenBy(key => key.OwnerId).ThenBy(key => key.Index)
+            .Skip((actual - 1) * 25).Take(25).ToArray();
+        var requests = new Dictionary<(long OwnerId, long RequestId), ManagedRequest?>();
+        var current = new List<(long RequestId, int Index, KeyOrderItem Item)>();
+        foreach (var key in selected)
+        {
+            var identity = (key.OwnerId, key.RequestId);
+            if (!requests.TryGetValue(identity, out var latest))
+                requests[identity] = latest = await GetRequestAsync(key.OwnerId, key.RequestId, ct);
+            if (latest?.Request is not { Category: RequestCategories.KeyOrder, KeyItems: { } items } || key.Index >= items.Count) continue;
+            current.Add((key.RequestId, key.Index, items[key.Index]));
+        }
         var names = await GetKeyResidentNamesAsync(new MaintenanceRequest(0, 0, building, RequestCategories.KeyOrder,
-            "", "", DateTimeOffset.UnixEpoch, KeyItems: keys.Select(key => key.Item).ToArray()), ct);
-        var rows = keys.SelectMany((key, index) => names[index].Select(name => new ResidentKeyEntry(name, key.Item.Phone,
-            key.Item.SerialNumber, key.RequestId, key.Index))).OrderBy(row => row.Name, StringComparer.Create(CultureInfo.GetCultureInfo("uk-UA"), true))
-            .ThenBy(row => row.Phone, StringComparer.Ordinal).ThenBy(row => row.RequestId).ThenBy(row => row.KeyIndex).ToList();
-        var actual = Math.Min(page, Math.Max(1, (rows.Count + 24) / 25));
-        return new(rows.Skip((actual - 1) * 25).Take(25).ToArray(), actual, 25, rows.Count);
+            "", "", DateTimeOffset.UnixEpoch, KeyItems: current.Select(key => key.Item).ToArray()), ct);
+        var rows = current.Select((key, index) => new ResidentKeyEntry(
+            names[index].Count == 0 ? "Мешканця не знайдено" : string.Join(", ", names[index]), key.Item.Phone,
+            key.Item.SerialNumber, key.RequestId, key.Index)).ToArray();
+        return new(rows, actual, 25, keys.Count);
     }
 
     public async Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct)
