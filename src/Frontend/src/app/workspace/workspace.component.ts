@@ -102,7 +102,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       case 'requests':
         return p.complexRequests || p.keyOrders;
       case 'residents':
-        return p.registeredResidents || p.pendingResidents;
+        return p.registeredResidents || p.pendingResidents || p.keyOrders;
       case 'messages':
         return p.messages;
       case 'admins':

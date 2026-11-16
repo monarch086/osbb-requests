@@ -123,6 +123,19 @@ export interface Ticket {
   plannedDate: string | null;
   keyItems?: KeyOrderItem[] | null;
 }
+export interface ResidentKeyEntry {
+  name: string;
+  phone: string;
+  serialNumber: string | null;
+  requestId: number;
+  keyIndex: number;
+}
+export interface ResidentKeyPage {
+  items: ResidentKeyEntry[];
+  pageNumber: number;
+  pageSize: number;
+  total: number;
+}
 export interface RequestAuthor {
   phone?: string | null;
   personalDataDeleted?: boolean;

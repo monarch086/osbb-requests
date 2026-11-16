@@ -89,6 +89,13 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             var page = await store.ListAdminsAsync(cursor, ct);
             return Reply(200, new { items = page.Items.Where(a => a.IsActive).Select(a => new { a.UserId, a.Email }), page.Cursor });
         }
+        if (method == "GET" && path == "/admin/residents/keys")
+        {
+            if (!actor.EffectivePermissions.KeyOrders) throw new ApiError(403, "Недостатньо прав для перегляду замовлень ключів.");
+            if (!int.TryParse(query.GetValueOrDefault("page") ?? "1", out var number) || number < 1 || number > 1000000)
+                throw new ApiError(400, "Некоректна сторінка.");
+            return Reply(200, await store.ListResidentsWithKeysAsync(number, ct));
+        }
         if (method == "GET" && (path == "/admin/residents/export" || path == "/admin/registrations/export"))
         {
             var pending = path == "/admin/registrations/export";

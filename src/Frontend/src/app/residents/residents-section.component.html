@@ -5,9 +5,15 @@
   <div class="alert alert-success" role="status">{{ notice }}</div>
 }
 <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
-  <button class="btn btn-outline-secondary" (click)="exportExcel()" [disabled]="loading || saving">
-    Експортувати в Excel
-  </button>
+  @if (lists.residentView !== 'keys') {
+    <button
+      class="btn btn-outline-secondary"
+      (click)="exportExcel()"
+      [disabled]="loading || saving"
+    >
+      Експортувати в Excel
+    </button>
+  }
   <button class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
     ↻ Оновити
   </button>
@@ -18,6 +24,7 @@
   [counts]="loading ? null : lists.counts"
   [permissions]="me.effectivePermissions"
   [registeredResidents]="lists.registeredResidents"
+  [keyResidents]="lists.keyResidents"
   [filters]="lists.residentDirectory.filters"
   [pendingBuilding]="lists.pendingDirectory.building"
   (pendingBuildingChange)="applyPendingBuilding($event)"

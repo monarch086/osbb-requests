@@ -1,12 +1,42 @@
 using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.AdminApi.Data;
 
 public sealed partial class DynamoAdminStore
 {
+    public async Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct)
+    {
+        if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
+        var keys = new List<(long RequestId, int Index, KeyOrderItem Item)>();
+        var filters = new RequestFilters(null, null, null, null, null, Section: "keys");
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        string? cursor = null;
+        do
+        {
+            var batch = await ListRequestsAsync(filters, cursor, ct);
+            foreach (var candidate in batch.Items)
+            {
+                var latest = await GetRequestAsync(candidate.Request.OwnerId, candidate.Request.Id, ct);
+                if (latest?.Request is not { Category: RequestCategories.KeyOrder, KeyItems: { } items } request) continue;
+                for (var index = 0; index < items.Count; index++) keys.Add((request.Id, index, items[index]));
+            }
+            cursor = batch.Cursor;
+            if (cursor is not null && !seen.Add(cursor)) throw new InvalidOperationException("Repeated request cursor.");
+        } while (cursor is not null);
+        if (keys.Count == 0) return new([], 1, 25, 0);
+        var names = await GetKeyResidentNamesAsync(new MaintenanceRequest(0, 0, building, RequestCategories.KeyOrder,
+            "", "", DateTimeOffset.UnixEpoch, KeyItems: keys.Select(key => key.Item).ToArray()), ct);
+        var rows = keys.SelectMany((key, index) => names[index].Select(name => new ResidentKeyEntry(name, key.Item.Phone,
+            key.Item.SerialNumber, key.RequestId, key.Index))).OrderBy(row => row.Name, StringComparer.Create(CultureInfo.GetCultureInfo("uk-UA"), true))
+            .ThenBy(row => row.Phone, StringComparer.Ordinal).ThenBy(row => row.RequestId).ThenBy(row => row.KeyIndex).ToList();
+        var actual = Math.Min(page, Math.Max(1, (rows.Count + 24) / 25));
+        return new(rows.Skip((actual - 1) * 25).Take(25).ToArray(), actual, 25, rows.Count);
+    }
+
     public async Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct)
     {
         if (request.BuildingId != building || request.Category != RequestCategories.KeyOrder || residentsTable is null)

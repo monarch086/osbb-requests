@@ -58,6 +58,13 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     ) {
       this.lists.residentView = 'pending';
     }
+    if (
+      !this.me.effectivePermissions.registeredResidents &&
+      !this.me.effectivePermissions.pendingResidents &&
+      this.me.effectivePermissions.keyOrders
+    ) {
+      this.lists.residentView = 'keys';
+    }
     super.ngOnInit();
   }
   protected override async loadItems(
@@ -72,6 +79,15 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       return;
     }
     this.pendingCount = count.count;
+    if (this.lists.residentView === 'keys') {
+      const page = await this.api.getResidentsWithKeys(index + 1);
+      if (isCurrent()) {
+        this.lists.keyResidents = page.items;
+        this.lists.total = page.total;
+        this.lists.pagination.index = page.pageNumber - 1;
+      }
+      return;
+    }
     if (this.lists.residentView === 'registered') {
       const page = await this.api.getResidentDirectory(
         index + 1,
@@ -164,7 +180,8 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.loading ||
       view === this.lists.residentView ||
       (view === 'registered' && !this.me.effectivePermissions.registeredResidents) ||
-      (view === 'pending' && !this.me.effectivePermissions.pendingResidents)
+      (view === 'pending' && !this.me.effectivePermissions.pendingResidents) ||
+      (view === 'keys' && !this.me.effectivePermissions.keyOrders)
     ) {
       return;
     }
@@ -175,6 +192,9 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     await this.load();
   }
   protected async exportExcel(): Promise<void> {
+    if (this.lists.residentView === 'keys') {
+      return;
+    }
     await this.runExport((current) =>
       this.excel.exportResidents(
         this.lists.residentView,

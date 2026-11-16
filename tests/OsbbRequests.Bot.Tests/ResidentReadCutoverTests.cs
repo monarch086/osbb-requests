@@ -103,6 +103,36 @@ public sealed class ResidentReadCutoverTests
     }
 
     [Fact]
+    public async Task KeyResidentDirectoryPagesIndividualKeysWithCurrentNamesAndSerialNumbers()
+    {
+        using var db = new ReadDynamo();
+        const string phone = "+380671234567";
+        var keys = Enumerable.Range(0, 26).Select(i => new KeyOrderItem("Магніт", phone, $"serial-{i:D2}")).ToArray();
+        var ticket = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, KeyItems: keys);
+        var ticketRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
+        db.ItemsByIndex["BuildingRequestsIndex"] = [ticketRow];
+        db.RawRows["USER#99"] = ticketRow;
+        var key = OsbbRequests.Shared.Residents.ResidentPhoneIndex.ItemKey("complex", 42, phone);
+        var lookup = OsbbRequests.Shared.Residents.ResidentPhoneIndex.LookupKey("complex", phone);
+        db.ItemsByIndex["ResidentsByPhone"] = [new() { ["pk"] = new(key) }];
+        db.RawRows[key] = new() { ["complexId"] = new("complex"), ["phoneLookup"] = new(lookup), ["residentId"] = new() { N = "42" } };
+        var resident = new ResidentRegistration("ref", 42, "complex", RegistrationStage.Approved, 1, DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Ірина", LastName: "Тестова");
+        db.Rows["COMPLEX#complex#RECORD#USER#42#REGISTRATION"] = new() { ["payload"] = new(JsonSerializer.Serialize(resident)) };
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", prioritizeRequests: false, residentsTable: "residents");
+        var page = await store.ListResidentsWithKeysAsync(2, default);
+        Assert.Equal(26, page.Total);
+        Assert.Equal(2, page.PageNumber);
+        var row = Assert.Single(page.Items);
+        Assert.Equal("Ірина Тестова", row.Name);
+        Assert.Equal(phone, row.Phone);
+        Assert.Equal("serial-25", row.SerialNumber);
+        Assert.Single(db.Queries, q => q.IndexName == "ResidentsByPhone");
+        db.Rows["COMPLEX#complex#RECORD#USER#42#REGISTRATION"]["payload"] = new(JsonSerializer.Serialize(resident with { PersonalDataDeleted = true }));
+        Assert.Empty((await store.ListResidentsWithKeysAsync(1, default)).Items);
+    }
+
+    [Fact]
     public async Task KeyOrderAuthorizationUsesNewTableInAtomicTransaction()
     {
         using var db = new ReadDynamo();
@@ -221,8 +251,9 @@ public sealed class ResidentReadCutoverTests
         public List<GetItemRequest> Reads { get; } = [];
         public List<QueryRequest> Queries { get; } = [];
         public List<Dictionary<string, AttributeValue>> QueriedItems { get; } = [];
+        public Dictionary<string, List<Dictionary<string, AttributeValue>>> ItemsByIndex { get; } = [];
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
-        { Queries.Add(request); return Task.FromResult(new QueryResponse { Items = QueriedItems }); }
+        { Queries.Add(request); return Task.FromResult(new QueryResponse { Items = request.IndexName is { } index && ItemsByIndex.TryGetValue(index, out var items) ? items : QueriedItems }); }
         public TransactWriteItemsRequest? Transaction;
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
         {

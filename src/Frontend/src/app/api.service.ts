@@ -14,6 +14,7 @@ import type {
   RegistrationApproval,
   ResidentDataChange,
   ResidentDirectoryPage,
+  ResidentKeyPage,
   ResidentTypeHistory,
   Ticket,
   TicketFilters,
@@ -51,6 +52,12 @@ export class ApiService {
   ): Promise<ResidentDirectoryPage<RegisteredResident>> {
     const params = new URLSearchParams({ page: String(page), ...filters });
     return this.request('/residents/directory?' + params.toString());
+  }
+
+  getResidentsWithKeys(page: number): Promise<ResidentKeyPage> {
+    return this.request(
+      '/residents/keys?' + new URLSearchParams({ page: String(page) }).toString(),
+    );
   }
 
   getPendingDirectory(

@@ -7,6 +7,7 @@ import type {
   RegisteredResident,
   Registration,
   ResidentCounts,
+  ResidentKeyEntry,
 } from '../api.models';
 import { buildingNumbers } from '../shared/ticket-presentation';
 import type { ResidentFilters, ResidentView } from './resident-directory';
@@ -27,6 +28,7 @@ export class ResidentsComponent {
   @Output() readonly pendingBuildingChange = new EventEmitter<string>();
   protected readonly typeLabel = residentTypeLabel;
   @Input() registeredResidents: RegisteredResident[] = [];
+  @Input() keyResidents: ResidentKeyEntry[] = [];
   @Input() filters: ResidentFilters = {
     sort: 'registeredAt',
     direction: 'desc',

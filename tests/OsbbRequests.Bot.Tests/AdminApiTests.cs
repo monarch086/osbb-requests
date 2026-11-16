@@ -62,6 +62,23 @@ public sealed class AdminApiTests
     private static ApiHandler Handler(FakeStore store) => new(store, new FakeIdentity());
 
     [Fact]
+    public async Task ResidentsWithKeysRequiresKeyOrderPermissionAndValidPage()
+    {
+        var store = new FakeStore();
+        var handler = Handler(store);
+        store.Users["regular"] = Regular with { Permissions = new(false, false, true, false, false) };
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/residents/keys"), default))).Status);
+        Assert.Equal(0, store.KeyResidentReads);
+        store.Users["regular"] = Regular with { Permissions = new(false, true, false, false, false) };
+        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/residents/keys", query: new() { ["page"] = "0" }), default))).Status);
+        var response = await handler.HandleAsync(Request("/admin/residents/keys", query: new() { ["page"] = "2" }), default);
+        using var json = JsonDocument.Parse(response.Body);
+        Assert.Equal(2, json.RootElement.GetProperty("pageNumber").GetInt32());
+        Assert.Equal(1, store.KeyResidentReads);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/residents/keys", user: "target"), default))).Status);
+    }
+
+    [Fact]
     public async Task AnonymousAndIdTokensCannotReadPrivateData()
     {
         var store = new FakeStore();
@@ -920,6 +937,8 @@ public sealed class AdminApiTests
         public bool RepeatExportCursor;
         public int ExportReads;
         public int AuthorReads;
+        public int KeyResidentReads;
+        public Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct) { KeyResidentReads++; return Task.FromResult(new ResidentKeyPage([], page, 25, 0)); }
         public Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<IReadOnlyList<IReadOnlyList<string>>>(request.KeyItems!.Select(_ => (IReadOnlyList<string>)new[] { "Олена Тестова" }).ToArray());
         public int PermissionWrites;
         public Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct) { PermissionWrites++; return Task.CompletedTask; }

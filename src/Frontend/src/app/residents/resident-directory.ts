@@ -1,6 +1,6 @@
 import type { RegisteredResident, ResidentType } from '../api.models';
 
-export type ResidentView = 'pending' | 'registered';
+export type ResidentView = 'pending' | 'registered' | 'keys';
 
 export interface ResidentFilters {
   sort: 'registeredAt' | 'lastName';

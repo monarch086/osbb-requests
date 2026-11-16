@@ -28,6 +28,7 @@ public interface IAdminStore
     Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct);
     Task<ManagedRequest?> GetRequestAsync(long ownerId, long requestId, CancellationToken ct);
     Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct);
+    Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct);
     Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct);
     Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct);
     Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct);

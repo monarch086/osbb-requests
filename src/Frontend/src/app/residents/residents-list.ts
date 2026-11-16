@@ -1,4 +1,9 @@
-import type { RegisteredResident, Registration, ResidentCounts } from '../api.models';
+import type {
+  RegisteredResident,
+  Registration,
+  ResidentCounts,
+  ResidentKeyEntry,
+} from '../api.models';
 import { WorkspaceLists } from '../workspace/workspace-lists';
 import { PendingDirectory } from './pending-directory';
 import type { ResidentView } from './resident-directory';
@@ -6,6 +11,7 @@ import { ResidentDirectory } from './resident-directory';
 
 export class ResidentsList extends WorkspaceLists {
   residents: Registration[] = [];
+  keyResidents: ResidentKeyEntry[] = [];
   registeredResidents: RegisteredResident[] = [];
   residentView: ResidentView = 'registered';
   residentDirectory = new ResidentDirectory();
@@ -24,7 +30,9 @@ export class ResidentsList extends WorkspaceLists {
   override itemCount(): number {
     return this.residentView === 'registered'
       ? this.registeredResidents.length
-      : this.residents.length;
+      : this.residentView === 'keys'
+        ? this.keyResidents.length
+        : this.residents.length;
   }
   override showResidentPage(index: number): void {
     this.pagination.index = Math.min(index, this.availablePages() - 1);
@@ -40,6 +48,7 @@ export class ResidentsList extends WorkspaceLists {
     this.counts = null;
     this.residents = [];
     this.registeredResidents = [];
+    this.keyResidents = [];
     this.residentDirectory.setItems([]);
     this.pendingDirectory.setItems([]);
   }
