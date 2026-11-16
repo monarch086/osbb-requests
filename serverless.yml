@@ -15,6 +15,7 @@ stages:
   dev:
     params:
       botUsername: zeleniy_ostriv2_bot
+      phoneLookupMode: PhoneIndex
 custom:
   parameterPrefix: /${self:service}/${sls:stage}
   botUsername: ${env:TELEGRAM_BOT_USERNAME, param:botUsername}
