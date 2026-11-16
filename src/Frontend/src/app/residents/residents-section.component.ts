@@ -13,6 +13,7 @@ import { ExcelExportService } from '../export/excel-export.service';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
+import { PendingCountCache } from './pending-count-cache';
 import { changeResidentCounts } from './resident-counts';
 import { ResidentDetailsDialogComponent } from './resident-details-dialog.component';
 import type { ResidentFilters, ResidentView } from './resident-directory';
@@ -50,6 +51,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   protected historyLoading = false;
   protected historyError = '';
   private historySequence = 0;
+  private readonly pendingCountCache = new PendingCountCache();
   protected pendingCount = 0;
   override ngOnInit(): void {
     if (
@@ -72,13 +74,21 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     _cursor: string | null,
     isCurrent: () => boolean,
   ): Promise<void> {
-    const count = this.me.effectivePermissions.pendingResidents
-      ? await this.api.getRegistrationCount()
-      : { count: 0 };
+    let count = 0;
+    if (this.me.effectivePermissions.pendingResidents) {
+      const cached = this.pendingCountCache.get();
+      count = cached ?? (await this.api.getRegistrationCount()).count;
+      if (!isCurrent()) {
+        return;
+      }
+      if (cached === null) {
+        this.pendingCountCache.set(count);
+      }
+    }
     if (!isCurrent()) {
       return;
     }
-    this.pendingCount = count.count;
+    this.pendingCount = count;
     if (this.lists.residentView === 'keys') {
       const page = await this.api.getResidentsWithKeys(index + 1);
       if (isCurrent()) {
@@ -111,6 +121,10 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.lists.counts = page.counts;
       this.lists.pagination.index = page.pageNumber - 1;
     }
+  }
+  protected async refresh(): Promise<void> {
+    this.pendingCountCache.clear();
+    await this.load();
   }
   protected override async goToPage(number: number): Promise<void> {
     if (
@@ -231,6 +245,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     const pagination = { previousPage: null as number | null };
     await this.write(async () => {
       await this.api.decideRegistration(registration, approved, approved ? null : reason.trim());
+      this.pendingCountCache.clear();
       this.lists.residents = this.lists.residents.filter((item) => item.id !== registration.id);
       this.lists.total = Math.max(0, this.lists.total - 1);
       this.lists.counts = changeResidentCounts(
