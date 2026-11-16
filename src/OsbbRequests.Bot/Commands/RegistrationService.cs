@@ -245,7 +245,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         _ => Prompt(registration.Stage)
     };
 
-    private static bool TryPhone(string value, out string normalized)
+    public static bool TryPhone(string value, out string normalized)
     {
         normalized = string.Concat(value.Where(c => c is not (' ' or '(' or ')' or '-')));
         if (!normalized.StartsWith('+'))

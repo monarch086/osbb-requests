@@ -20,7 +20,9 @@ public enum ReplyKeyboard
     MainGuest,
     MainResident,
     PageNavigation,
-    Cancel
+    Cancel,
+    KeyNext,
+    KeyFinish
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion, bool AutomaticallyApproved = false);

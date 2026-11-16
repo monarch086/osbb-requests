@@ -147,6 +147,8 @@ class ResidentAdministrationTests(unittest.TestCase):
         self.assertEqual(1, len(old))
         self.assertTrue(old[0]['Item']['pk']['S'].startswith('NOTIFICATIONS#'))
         self.assertTrue(any(write.get('Put', {}).get('Item', {}).get('sourceSk', {}).get('S') == 'EVENT#DECIDED' for write in writes))
+        phone = next(write['Put']['Item'] for write in writes if write.get('Put', {}).get('Item', {}).get('phoneLookup'))
+        self.assertEqual('COMPLEX#building#PHONE#+380671234567', phone['phoneLookup']['S'])
 
     def test_decision_rejects_inconsistent_profile_before_writing(self):
         payload = json.dumps(self.registration)

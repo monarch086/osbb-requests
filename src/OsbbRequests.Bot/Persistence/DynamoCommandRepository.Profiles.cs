@@ -29,6 +29,18 @@ public sealed partial class DynamoCommandRepository
         var profile = update.Value;
         if (profile.UserId != command.UserId || outcome.ProfileDialog?.Value is not { Active: false } state || state.ComplexId != profile.BuildingId)
             throw new InvalidOperationException("Profile update identity mismatch.");
+        if (residentsTable is not null && complexId is not null)
+        {
+            var previous = await GetRegistrationAsync(command.UserId, ct) ?? throw new InvalidOperationException("Resident profile is unavailable.");
+            if (previous.BuildingId != profile.BuildingId || previous.Id != profile.Id || previous.Version != update.ExpectedVersion)
+                throw new InvalidOperationException("Resident profile changed.");
+            OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(previous.Phone, out var oldPhone);
+            string? newPhone = null;
+            if (profile.Stage == OsbbRequests.Shared.Models.RegistrationStage.Approved && !profile.PersonalDataDeleted)
+                OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(profile.Phone, out newPhone);
+            if (oldPhone is not null && oldPhone != newPhone) writes.Add(PhoneAssociationDelete(previous, oldPhone));
+            if (newPhone is not null) writes.Add(PhoneAssociationPut(profile, newPhone));
+        }
         var memberKey = Key("USER#" + Number(command.UserId), "MEMBERSHIP");
         var values = new Dictionary<string, AttributeValue> { [":complex"] = new(profile.BuildingId), [":yes"] = new() { BOOL = true } };
         var names = new Dictionary<string, string> { ["#active"] = "active" };

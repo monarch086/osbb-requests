@@ -116,6 +116,26 @@ def related_resident_delete(table, source, building, expected_version):
                        'ExpressionAttributeValues': {':expected': {'N': str(expected_version)}, ':complex': {'S': building}}}}
 
 
+def phone_association_put(table, registration):
+    phone = registration.get('Phone')
+    if not phone:
+        return None
+    phone = re.sub(r'[ ()-]', '', phone.strip())
+    if phone.startswith('0'):
+        phone = '+38' + phone
+    elif not phone.startswith('+'):
+        phone = '+' + phone
+    if not re.fullmatch(r'\+[1-9][0-9]{7,14}', phone):
+        return None
+    building, user = registration['BuildingId'], registration['UserId']
+    item = {'pk': {'S': f'COMPLEX#{building}#PHONE_ENTRY#{user}#{phone}'},
+            'phoneLookup': {'S': f'COMPLEX#{building}#PHONE#{phone}'},
+            'complexId': {'S': building}, 'residentId': {'N': str(user)}}
+    return {'Put': {'TableName': table, 'Item': item,
+                    'ConditionExpression': 'attribute_not_exists(pk) OR (complexId = :complex AND residentId = :resident)',
+                    'ExpressionAttributeValues': {':complex': {'S': building}, ':resident': {'N': str(user)}}}}
+
+
 def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None, user_snapshot=None, meta_snapshot=None, residents_only=False):
     if decision not in ('Approved', 'Rejected'):
         raise ValueError('Unsupported decision.')
@@ -183,6 +203,9 @@ def decision_transaction(table, registration, original_payload, decision, reason
         writes.append(related_resident_put(residents_table, audit, registration['BuildingId'], immutable=True))
         if decision == 'Approved':
             writes.append(related_resident_put(residents_table, resident, registration['BuildingId']))
+            phone_put = phone_association_put(residents_table, updated)
+            if phone_put:
+                writes.append(phone_put)
     if residents_only:
         if not residents_table:
             raise ValueError('Residents table is required.')

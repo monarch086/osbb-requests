@@ -68,9 +68,9 @@ public sealed class MainKeyboardTests
         var telegram = new FakeTelegram();
         var processor = new CommandProcessor(repository, new CommandHandler(repository, "Bot", "building"), telegram, "building");
         await processor.ProcessAsync(new(1, 42, 42, "/new"), default);
+        await processor.ProcessAsync(new(4, 42, 42, "Інше"), default);
         await processor.ProcessAsync(new(2, 42, 42, "4Б"), default);
         await processor.ProcessAsync(new(3, 42, 42, "1"), default);
-        await processor.ProcessAsync(new(4, 42, 42, "Інше"), default);
         Assert.Equal(ReplyKeyboard.Cancel, telegram.Keyboards[^1]);
         await processor.ProcessAsync(new(5, 42, 42, "Довідка: контакти диспетчерів"), default);
         Assert.Equal("Довідка: контакти диспетчерів", Assert.Single(repository.Requests).Description);

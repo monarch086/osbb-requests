@@ -66,7 +66,7 @@ export function requestLocationLabel(ticket: Ticket): string {
           : ' · без поверху')
     );
   }
-  return 'Будинок не уточнено';
+  return ticket.category === 'Замовлення ключів' ? '' : 'Будинок не уточнено';
 }
 
 export const ticketPriorities: { value: TicketPriority; label: string; badgeClass: string }[] = [

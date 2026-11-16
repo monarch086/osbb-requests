@@ -352,6 +352,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }
         if (decision.Approved)
         {
+            if (residentsTable is not null && OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(next.Phone, out _)) writes.Add(PhoneAssociationPut(next));
             var resident = Key("BUILDING#" + building, "RESIDENT#" + registration.UserId.ToString("D20", CultureInfo.InvariantCulture));
             resident["payload"] = S(JsonSerializer.Serialize(next));
             resident["version"] = N(next.Version);
@@ -406,7 +407,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }
         if (!string.IsNullOrEmpty(filters.Category)) { values[":requestCategory"] = S(filters.Category); parts.Add("requestCategory = :requestCategory"); }
         if (!string.IsNullOrWhiteSpace(filters.Search)) { values[":search"] = S(filters.Search.ToLowerInvariant()); parts.Add("contains(searchText, :search)"); }
-        if (filters.Target == "Unspecified") parts.Add("attribute_not_exists(requestTarget)");
+        if (filters.Target == "Unspecified") { values[":target"] = S("Unspecified"); parts.Add("(attribute_not_exists(requestTarget) OR requestTarget = :target)"); }
         else if (!string.IsNullOrEmpty(filters.Target)) { values[":target"] = S(filters.Target); parts.Add("requestTarget = :target"); }
         if (filters.Floor is { } floor) { values[":floor"] = N(floor); parts.Add("requestFloor = :floor"); }
         return parts.Count > 0 ? string.Join(" AND ", parts) : null;
@@ -430,7 +431,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     }
     public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
     {
-        if (!ComplexLayout.IsValid(next.Scope, next.BuildingNumber, next.Floor, next.Entrance)) throw new ApiError(400, "Некоректна прив’язка заявки.");
+        if (!ComplexLayout.IsValidRequest(next.Category, next.Scope, next.BuildingNumber, next.Floor, next.Entrance)) throw new ApiError(400, "Некоректна прив’язка заявки.");
         var timestamp = DateTimeOffset.UtcNow;
         var now = timestamp.ToString("O");
         var audit = Key("REQUEST#" + next.Id.ToString(CultureInfo.InvariantCulture), "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));

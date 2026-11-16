@@ -12,6 +12,7 @@ public interface ICommandRepository
     Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken cancellationToken);
     Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken);
     Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken);
+    Task<bool> ResidentPhoneExistsAsync(string complexId, string phone, CancellationToken cancellationToken);
     Task<ResidentRegistration?> GetRegistrationAsync(long userId, CancellationToken cancellationToken);
     Task<bool> IsResidentAsync(long userId, string buildingId, CancellationToken cancellationToken);
     Task<MaintenanceRequest?> GetRequestAsync(long userId, long requestId, CancellationToken cancellationToken);

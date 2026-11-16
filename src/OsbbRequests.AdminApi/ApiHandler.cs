@@ -285,7 +285,9 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 if (change.Resolution?.Length > 1000) throw new ApiError(400, "Пояснення має містити не більше 1000 символів.");
                 if (status == RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
                     throw new ApiError(400, "Для відхилення потрібне пояснення.");
-                if (!Enum.TryParse<RequestScope>(change.Scope, out var scope) || !ComplexLayout.IsValid(scope, change.BuildingNumber, change.Floor, change.Entrance))
+                RequestScope? scope = null;
+                if (change.Scope is not null && Enum.TryParse<RequestScope>(change.Scope, out var parsedScope) && Enum.IsDefined(parsedScope)) scope = parsedScope;
+                if ((change.Scope is not null && scope is null) || !ComplexLayout.IsValidRequest(current.Request.Category, scope, change.BuildingNumber, change.Floor, change.Entrance))
                     throw new ApiError(400, "Оберіть будинок 4Б, 4В, 4Г або 4Д або прибудинкову територію. Для будинку оберіть поверх 1–25 або «Парадне»; під’їзд - 1, 2 або «Не зазначено» (для 4Б лише 1 або «Не зазначено»).");
                 var date = Date(change.PlannedDate);
                 if (!string.IsNullOrEmpty(change.AssignedTo) && (await store.GetAdminAsync(change.AssignedTo, ct))?.IsActive != true)

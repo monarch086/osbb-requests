@@ -212,6 +212,7 @@ public sealed class ResidentDirectoryTests
         var store = new DynamoAdminStore(db, "admins", "data", "building", residentsTable: "residents");
         await store.DecideAsync(Actor, Registration.Id, new(approved, approved ? null : "Причина", 4), default);
         var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal)).Put;
+        Assert.Equal(approved ? 1 : 0, db.Transaction.TransactItems.Count(w => w.Put?.TableName == "residents" && w.Put.Item.ContainsKey("phoneLookup")));
         Assert.Equal("4", mirror.ExpressionAttributeValues[":version"].N);
         Assert.Equal(approved, mirror.Item.ContainsKey("directory"));
         Assert.DoesNotContain(db.Transaction.TransactItems, w => w.Update?.TableName == "data" || w.Delete?.TableName == "data");
@@ -365,6 +366,7 @@ public sealed class ResidentDirectoryTests
         Assert.Contains("requestFloor = :floor", db.Query.FilterExpression);
         await store.ListRequestsAsync(new(null, null, null, null, null, "Unspecified"), null, default);
         Assert.Contains("attribute_not_exists(requestTarget)", db.Query.FilterExpression);
+        Assert.Equal("Unspecified", db.Query.ExpressionAttributeValues[":target"].S);
     }
 
     [Theory]

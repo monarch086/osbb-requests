@@ -57,6 +57,8 @@ internal sealed class MemoryRepository : ICommandRepository
     public Dictionary<long, ResidentProfileDialog> ProfileDialogs { get; } = [];
     public Task<ResidentProfileDialog?> GetProfileDialogAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(ProfileDialogs.GetValueOrDefault(userId));
     public Dictionary<long, ResidentRegistration> Registrations { get; } = [];
+    public Task<bool> ResidentPhoneExistsAsync(string complexId, string phone, CancellationToken cancellationToken) =>
+        Task.FromResult(Registrations.Values.Any(r => r.BuildingId == complexId && r.Stage == RegistrationStage.Approved && !r.PersonalDataDeleted && r.Phone == phone));
     public Task<ResidentRegistration?> GetRegistrationAsync(long userId, CancellationToken cancellationToken) =>
         Task.FromResult(Registrations.GetValueOrDefault(userId));
     public int CommitCount { get; private set; }

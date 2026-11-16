@@ -443,6 +443,18 @@ public sealed class AdminApiTests
         Assert.Equal(400, error.Status);
         Assert.Equal(0, store.RequestWrites);
     }
+    [Fact]
+    public async Task KeyOrderWithoutLocationCanBeUpdated()
+    {
+        var store = new FakeStore();
+        store.Users["regular"] = Regular with { Permissions = new(false, true, false, false, false) };
+        store.ForcedRequest = new(1, 99, "building", RequestCategories.KeyOrder, "", "Магніт", DateTimeOffset.UtcNow);
+        var result = await Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "Completed", visibility = "Private", priority = "Normal", version = 1 }), default);
+        Assert.Equal(200, result.StatusCode);
+        Assert.Null(store.LastRequest!.Scope);
+    }
+
     [Theory]
     [InlineData("4Б", null, 200)]
     [InlineData("4Б", 1, 200)]

@@ -9,6 +9,7 @@ stages:
       botUsername: OsbbRequestsBot
       residentApprovalMode: Automatic
       requestSortMode: Priority
+      phoneLookupMode: Directory
       serviceNotificationChatId: '38627946'
       serviceBotTokenParameter: /shared/telegram/service-bot-token
   dev:
@@ -96,6 +97,7 @@ functions:
       TELEGRAM_BOT_USERNAME: ${self:custom.botUsername}
       BUILDING_ID: ${self:custom.buildingId}
       RESIDENT_APPROVAL_MODE: ${param:residentApprovalMode}
+      PHONE_LOOKUP_MODE: ${param:phoneLookupMode}
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
     events:
@@ -253,6 +255,8 @@ resources:
           AttributeType: S
         - AttributeName: nameOrder
           AttributeType: S
+        - AttributeName: phoneLookup
+          AttributeType: S
         - AttributeName: recordGroup
           AttributeType: S
         - AttributeName: recordOrder
@@ -281,6 +285,12 @@ resources:
             KeyType: RANGE
           Projection:
             ProjectionType: ALL
+        - IndexName: ResidentsByPhone
+          KeySchema:
+          - AttributeName: phoneLookup
+            KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
         - IndexName: ResidentRecordsByGroup
           KeySchema:
           - AttributeName: recordGroup
@@ -543,6 +553,32 @@ resources:
                 Fn::GetAtt:
                 - ResidentsTable
                 - Arn
+            - Effect: Allow
+              Action: dynamodb:DeleteItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#PHONE_ENTRY#*
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentsByPhone
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#PHONE#*
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentsByDate
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#Approved
             - Effect: Allow
               Action: dynamodb:Query
               Resource:

@@ -116,7 +116,7 @@ public sealed class RequestLookupTests
         await Apply(repository, 2, "/request");
         await Apply(repository, 3, "7");
         Assert.Equal(draft, repository.Drafts[42]);
-        Assert.Contains("Де виникла проблема", (await Apply(repository, 4, "/new")).Reply);
+        Assert.Contains("Оберіть категорію", (await Apply(repository, 4, "/new")).Reply);
     }
 
     [Fact]

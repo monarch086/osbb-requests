@@ -39,7 +39,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 .Select(command => command.Description).Chunk(2).ToArray();
             payload["reply_markup"] = new { keyboard = rows.Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = false, is_persistent = true };
         }
-        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation or ReplyKeyboard.OptionalEmail or ReplyKeyboard.PersonalDataConsent or ReplyKeyboard.ResidentType or ReplyKeyboard.OwnerRequestCategory or ReplyKeyboard.KeyType)
+        else if (keyboard is ReplyKeyboard.RequestScope or ReplyKeyboard.RequestFloor or ReplyKeyboard.RequestCategory or ReplyKeyboard.RequestEntrance or ReplyKeyboard.RegistrationBuilding or ReplyKeyboard.ProfileDeleteConfirmation or ReplyKeyboard.OptionalEmail or ReplyKeyboard.PersonalDataConsent or ReplyKeyboard.ResidentType or ReplyKeyboard.OwnerRequestCategory or ReplyKeyboard.KeyType or ReplyKeyboard.KeyNext or ReplyKeyboard.KeyFinish)
         {
             var rows = keyboard switch
             {
@@ -47,6 +47,8 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation]],
                 ReplyKeyboard.OwnerRequestCategory => RequestCreationService.Categories.Split(", ").Append(RequestCategories.KeyOrder).Select(category => new[] { category }).ToArray(),
                 ReplyKeyboard.KeyType => [["Магніт"], ["Перепустка"]],
+                ReplyKeyboard.KeyNext => [["Додати ще один ключ"], ["Завершити створення заявки"]],
+                ReplyKeyboard.KeyFinish => [["Завершити створення заявки"]],
                 ReplyKeyboard.ResidentType => [["Власник"], ["Член родини"], ["Орендар"], ["Працівник ОСББ"]],
                 ReplyKeyboard.PersonalDataConsent => [[RegistrationService.ConsentButton]],
                 ReplyKeyboard.OptionalEmail => [[RegistrationService.SkipEmail]],

@@ -194,6 +194,7 @@ public sealed class AutomaticResidentApprovalTests
         using var db = new Capture();
         await new DynamoCommandRepository(db, "data", residentsTable: "residents").CommitAsync(Message(6, "125"),
             new("ok", Registration: new(Approved, 5, AutomaticallyApproved: true)), default);
+        Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.ContainsKey("phoneLookup"));
         var related = db.Transaction!.TransactItems.Where(w => w.Put?.TableName == "residents" && w.Put.Item.ContainsKey("recordData")).Select(w => w.Put).ToArray();
         Assert.Equal(5, related.Length);
         var meta = Assert.Single(related, w => w.Item["sourceSk"].S == "META");

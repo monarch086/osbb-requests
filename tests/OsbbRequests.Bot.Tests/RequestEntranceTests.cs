@@ -27,6 +27,7 @@ public sealed class RequestEntranceTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
+        await Apply(repository, 6, "інше");
         var prompt = await Apply(repository, 2, "Будинок " + building);
         Assert.Equal(ReplyKeyboard.RequestEntrance, prompt.Keyboard);
         Assert.Equal(RequestDraftStage.Entrance, repository.Drafts[42].Stage);
@@ -36,7 +37,6 @@ public sealed class RequestEntranceTests
         Assert.Equal(RequestDraftStage.Floor, repository.Drafts[42].Stage);
         Assert.Equal(expected, repository.Drafts[42].Entrance);
         await Apply(repository, 5, "Парадне");
-        await Apply(repository, 6, "інше");
         await Apply(repository, 7, "Зламано двері парадного");
         var request = Assert.Single(repository.Requests);
         Assert.Equal(expected, request.Entrance);
@@ -55,12 +55,12 @@ public sealed class RequestEntranceTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
+        await Apply(repository, 4, "інше");
         var result = await Apply(repository, 2, "Будинок 4Б");
         Assert.Equal(RequestDraftStage.Floor, repository.Drafts[42].Stage);
         Assert.Equal(ReplyKeyboard.RequestFloor, result.Keyboard);
         Assert.Equal(1, repository.Drafts[42].Entrance);
         await Apply(repository, 3, "12");
-        await Apply(repository, 4, "інше");
         await Apply(repository, 5, "Не працює освітлення");
         Assert.Equal(1, Assert.Single(repository.Requests).Entrance);
     }
@@ -70,6 +70,7 @@ public sealed class RequestEntranceTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
+        await Apply(repository, 6, "інше");
         await Apply(repository, 2, "Будинок 4В");
         await Apply(repository, 3, "3");
         Assert.Equal(RequestDraftStage.Entrance, repository.Drafts[42].Stage);
@@ -85,7 +86,7 @@ public sealed class RequestEntranceTests
     {
         var repository = new MemoryRepository();
         var processor = new CommandProcessor(repository, Handler(repository), new FakeTelegram());
-        foreach (var (id, text) in new[] { (1, "/new"), (2, "Будинок 4В"), (3, "2"), (4, "12"), (5, "інше"), (6, "Не працює освітлення") })
+        foreach (var (id, text) in new[] { (1, "/new"), (5, "інше"), (2, "Будинок 4В"), (3, "2"), (4, "12"), (6, "Не працює освітлення") })
         {
             await processor.ProcessAsync(Message(id, text), default);
             await processor.ProcessAsync(Message(id, text), default);

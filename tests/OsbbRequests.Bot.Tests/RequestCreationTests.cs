@@ -20,13 +20,13 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
-        Assert.Equal(RequestDraftStage.Scope, repository.Drafts[42].Stage);
+        Assert.Equal(RequestDraftStage.InitialCategory, repository.Drafts[42].Stage);
+        await Apply(repository, 4, "електрика");
         await Apply(repository, 2, "Будинок 4Д");
         Assert.Equal(RequestDraftStage.Entrance, repository.Drafts[42].Stage);
         await Apply(repository, 30, "2");
         Assert.Equal(RequestDraftStage.Floor, repository.Drafts[42].Stage);
         await Apply(repository, 3, "25");
-        await Apply(repository, 4, "електрика");
         Assert.Equal(RequestDraftStage.Description, repository.Drafts[42].Stage);
         Assert.Empty(repository.Requests);
         var resume = await Handler(repository).HandleAsync(Message(5, "/new"), default);
@@ -53,9 +53,9 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
+        await Apply(repository, 4, "ліфт");
         await Apply(repository, 2, "Будинок 4Б");
         await Apply(repository, 3, "Парадне");
-        await Apply(repository, 4, "ліфт");
         Assert.Equal(RequestDraftStage.Description, repository.Drafts[42].Stage);
         await Apply(repository, 5, "Ліфт не працює");
         Assert.Equal("Ліфти", Assert.Single(repository.Requests).Category);
@@ -83,10 +83,10 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
+        await Apply(repository, 4, "інше");
         await Apply(repository, 2, "Будинок 4Б");
         await Apply(repository, 3, "Парадне");
         Assert.Equal(ComplexLayout.EntranceFloor, repository.Drafts[42].Floor);
-        await Apply(repository, 4, "інше");
         await Apply(repository, 5, "Зламано двері парадного");
         var request = Assert.Single(repository.Requests);
         Assert.Equal(0, request.Floor);
@@ -106,15 +106,15 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
-        await Apply(repository, 2, "Прибудинкова територія");
-        Assert.Equal(RequestDraftStage.Category, repository.Drafts[42].Stage);
         await Apply(repository, 3, "прибирання");
+        await Apply(repository, 2, "Прибудинкова територія");
+        Assert.Equal(RequestDraftStage.Description, repository.Drafts[42].Stage);
         await Apply(repository, 5, "/cancel");
         Assert.Equal(RequestDraftStage.Cancelled, repository.Drafts[42].Stage);
         Assert.Null(repository.Drafts[42].Location);
         Assert.Empty(repository.Requests);
         await Apply(repository, 6, "/new");
-        Assert.Equal(RequestDraftStage.Scope, repository.Drafts[42].Stage);
+        Assert.Equal(RequestDraftStage.InitialCategory, repository.Drafts[42].Stage);
     }
 
     [Theory]
@@ -163,13 +163,13 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
+        await Apply(repository, 6, "інше");
         await Apply(repository, 2, "Будинок 4А");
         Assert.Equal(RequestDraftStage.Scope, repository.Drafts[42].Stage);
         await Apply(repository, 3, "Будинок 4Б");
         await Apply(repository, 4, "26");
         Assert.Equal(RequestDraftStage.Floor, repository.Drafts[42].Stage);
         await Apply(repository, 5, "Без поверху");
-        await Apply(repository, 6, "інше");
         repository.Residents.Clear();
         await Apply(repository, 8, "Пошкоджено облицювання");
         Assert.Empty(repository.Requests);
@@ -182,7 +182,7 @@ public sealed class RequestCreationTests
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
         var processor = new CommandProcessor(repository, Handler(repository), telegram);
-        foreach (var (id, text) in new[] { (1, "/new"), (2, "Весь комплекс"), (3, "інше") })
+        foreach (var (id, text) in new[] { (1, "/new"), (3, "інше"), (2, "Весь комплекс") })
         {
             await processor.ProcessAsync(Message(id, text), default);
             await processor.ProcessAsync(Message(id, text), default);
@@ -203,10 +203,10 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
-        await Apply(repository, 2, "Весь комплекс");
         await Apply(repository, 3, "прибирання");
+        await Apply(repository, 2, "Весь комплекс");
         Assert.Equal(RequestDraftStage.Description, repository.Drafts[42].Stage);
-        Assert.Contains("Опишіть проблему", repository.Replies[3].Text);
+        Assert.Contains("Опишіть проблему", repository.Replies[2].Text);
         Assert.Empty(repository.Requests);
         await Apply(repository, 4, "Прибрати сміття на території");
         var request = Assert.Single(repository.Requests);
@@ -261,8 +261,8 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         await Apply(repository, 1, "/new");
-        await Apply(repository, 2, "Весь комплекс");
         await Apply(repository, 3, "інше");
+        await Apply(repository, 2, "Весь комплекс");
         await Apply(repository, 4, new string('О', length));
         Assert.Empty(repository.Requests);
         Assert.Equal(RequestDraftStage.Description, repository.Drafts[42].Stage);

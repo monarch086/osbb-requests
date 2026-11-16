@@ -6,6 +6,27 @@ namespace OsbbRequests.AdminApi.Data;
 
 public sealed partial class DynamoAdminStore
 {
+    private TransactWriteItem PhoneAssociationPut(ResidentRegistration resident)
+    {
+        var phone = resident.Phone ?? throw new InvalidOperationException("Resident phone is missing.");
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = S(ResidentPhoneIndex.ItemKey(resident.BuildingId, resident.UserId, phone)),
+            ["phoneLookup"] = S(ResidentPhoneIndex.LookupKey(resident.BuildingId, phone)),
+            ["complexId"] = S(resident.BuildingId),
+            ["residentId"] = new AttributeValue { N = resident.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+        };
+        return new()
+        {
+            Put = new()
+            {
+                TableName = residentsTable!,
+                Item = item,
+                ConditionExpression = "attribute_not_exists(pk) OR (complexId = :complex AND residentId = :resident)",
+                ExpressionAttributeValues = new() { [":complex"] = S(resident.BuildingId), [":resident"] = new AttributeValue { N = resident.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture) } }
+            }
+        };
+    }
     private TransactWriteItem ResidentMirrorWrite(ResidentRegistration resident, int? expectedVersion)
     {
         var value = ResidentProjection.Create(resident);

@@ -9,7 +9,7 @@ using OsbbRequests.Bot.Models;
 namespace OsbbRequests.Bot.Persistence;
 
 public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, string tableName,
-    TimeProvider? timeProvider = null, string? residentsTable = null, string? complexId = null) : ICommandRepository
+    TimeProvider? timeProvider = null, string? residentsTable = null, string? complexId = null, bool usePhoneIndex = false) : ICommandRepository
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     private static string Number(long value) => value.ToString(CultureInfo.InvariantCulture);
@@ -209,12 +209,15 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         }
         if (outcome.NewRequest is { } request)
         {
-            if (!ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor, request.Entrance))
+            if (!ComplexLayout.IsValidRequest(request.Category, request.Scope, request.BuildingNumber, request.Floor, request.Entrance))
                 throw new InvalidOperationException("Request scope is required.");
             if (request.Category == RequestCategories.KeyOrder)
             {
                 if (request.OwnerId != command.UserId || outcome.OwnerProfileVersion is not { } profileVersion ||
-                    request.Visibility != RequestVisibility.Private || request.KeyType is not ("Магніт" or "Перепустка") || request.KeyQuantity is not >= 1)
+                    request.Visibility != RequestVisibility.Private || request.KeyQuantity is not >= 1 ||
+                    (request.KeyItems is { } keys ? keys.Count != request.KeyQuantity || keys.Count > 30 ||
+                        keys.Any(key => key.Type is not ("Магніт" or "Перепустка") || !OsbbRequests.Bot.Commands.RegistrationService.TryPhone(key.Phone, out _)) :
+                        request.KeyType is not ("Магніт" or "Перепустка")))
                     throw new InvalidOperationException("Invalid key order authorization.");
                 writes.Add(new()
                 {

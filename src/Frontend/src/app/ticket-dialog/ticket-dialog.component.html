@@ -20,7 +20,9 @@
         ></button>
       </div>
       <div class="modal-body">
-        <p class="fw-semibold">{{ locationLabel(draft) }}</p>
+        @if (draft.category !== 'Замовлення ключів' || draft.scope) {
+          <p class="fw-semibold">{{ locationLabel(draft) }}</p>
+        }
         <p class="eyebrow">
           {{ draft.category }}
           @if (draft.location) {
@@ -49,61 +51,64 @@
         }
         <form #ticketForm="ngForm" (ngSubmit)="ticketForm.valid && saved.emit(draft)">
           <div class="row g-3 mb-3">
-            <div class="col-12 col-md-6">
-              <label class="form-label" for="ticket-target">Будинок / прибудинкова територія</label>
-              <ng-select
-                labelForId="ticket-target"
-                name="target"
-                [(ngModel)]="target"
-                [clearable]="false"
-                [searchable]="false"
-                [disabled]="saving"
-                appendTo="body"
-                placeholder="Уточніть локацію"
-                required
-              >
-                @for (item of targets; track item.value) {
-                  <ng-option [value]="item.value">{{ item.label }}</ng-option>
-                }
-              </ng-select>
-            </div>
-            @if (draft.scope === 'Building') {
+            @if (draft.category !== 'Замовлення ключів') {
               <div class="col-12 col-md-6">
-                <label class="form-label" for="ticket-entrance">Під’їзд</label>
+                <label class="form-label" for="ticket-target"
+                  >Будинок / прибудинкова територія</label
+                >
                 <ng-select
-                  labelForId="ticket-entrance"
-                  name="entrance"
-                  placeholder="Не зазначено"
-                  [(ngModel)]="draft.entrance"
+                  labelForId="ticket-target"
+                  name="target"
+                  [(ngModel)]="target"
                   [clearable]="false"
                   [searchable]="false"
                   [disabled]="saving"
                   appendTo="body"
+                  placeholder="Уточніть локацію"
+                  required
                 >
-                  @for (entrance of entrances; track entrance.value) {
-                    <ng-option [value]="entrance.value">{{ entrance.label }}</ng-option>
+                  @for (item of targets; track item.value) {
+                    <ng-option [value]="item.value">{{ item.label }}</ng-option>
                   }
                 </ng-select>
               </div>
-              <div class="col-12 col-md-6">
-                <label class="form-label" for="ticket-floor">Поверх</label>
-                <ng-select
-                  labelForId="ticket-floor"
-                  name="floor"
-                  [(ngModel)]="draft.floor"
-                  [clearable]="false"
-                  [disabled]="saving"
-                  appendTo="body"
-                  notFoundText="Нічого не знайдено"
-                >
-                  <ng-option [value]="null">Без поверху</ng-option>
-                  @for (floor of floors; track floor) {
-                    <ng-option [value]="floor">{{ floorLabel(floor) }}</ng-option>
-                  }
-                </ng-select>
-              </div>
+              @if (draft.scope === 'Building') {
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="ticket-entrance">Під’їзд</label>
+                  <ng-select
+                    labelForId="ticket-entrance"
+                    name="entrance"
+                    placeholder="Не зазначено"
+                    [(ngModel)]="draft.entrance"
+                    [clearable]="false"
+                    [searchable]="false"
+                    [disabled]="saving"
+                    appendTo="body"
+                  >
+                    @for (entrance of entrances; track entrance.value) {
+                      <ng-option [value]="entrance.value">{{ entrance.label }}</ng-option>
+                    }
+                  </ng-select>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="ticket-floor">Поверх</label>
+                  <ng-select
+                    labelForId="ticket-floor"
+                    name="floor"
+                    [(ngModel)]="draft.floor"
+                    [clearable]="false"
+                    [disabled]="saving"
+                    appendTo="body"
+                    notFoundText="Нічого не знайдено"
+                  >
+                    <ng-option [value]="null">Без поверху</ng-option>
+                    @for (floor of floors; track floor) {
+                      <ng-option [value]="floor">{{ floorLabel(floor) }}</ng-option>
+                    }
+                  </ng-select>
+                </div>
+              }
             }
-
             <div class="col-12 col-md-6">
               <label class="form-label" for="ticket-status">Статус</label>
               <ng-select

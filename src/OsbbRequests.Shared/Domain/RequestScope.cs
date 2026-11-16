@@ -18,6 +18,9 @@ public static class ComplexLayout
             (entrance is null or 1 or 2) && (buildingNumber != "4Б" || entrance is null or 1),
         _ => false
     };
+    public static bool IsValidRequest(string category, RequestScope? scope, string? buildingNumber, int? floor, int? entrance = null) =>
+        category == OsbbRequests.Shared.Models.RequestCategories.KeyOrder && scope is null && buildingNumber is null && floor is null && entrance is null ||
+        IsValid(scope, buildingNumber, floor, entrance);
     public static string Target(RequestScope? scope, string? buildingNumber) => scope == RequestScope.Complex ? "Complex" :
         scope == RequestScope.Building && buildingNumber is not null && BuildingNumbers.Contains(buildingNumber, StringComparer.Ordinal) ? "Building" + buildingNumber : "Unspecified";
     public static string Label(RequestScope? scope, string? buildingNumber, int? floor, int? entrance = null) => scope switch

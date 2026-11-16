@@ -22,7 +22,13 @@ public sealed class CommandFunction
     {
         var repository = new DynamoCommandRepository(new AmazonDynamoDBClient(),
             RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), residentsTable: RuntimeConfiguration.Required("RESIDENTS_TABLE"),
-            complexId: RuntimeConfiguration.Required("BUILDING_ID"));
+            complexId: RuntimeConfiguration.Required("BUILDING_ID"),
+            usePhoneIndex: Environment.GetEnvironmentVariable("PHONE_LOOKUP_MODE") switch
+            {
+                null or "Directory" => false,
+                "PhoneIndex" => true,
+                _ => throw new InvalidOperationException("Invalid phone lookup mode.")
+            });
         var secrets = new SsmSecretProvider(new AmazonSimpleSystemsManagementClient(),
             RuntimeConfiguration.Required("BOT_TOKEN_PARAMETER"));
         var telegram = new TelegramClient(Http, secrets);
