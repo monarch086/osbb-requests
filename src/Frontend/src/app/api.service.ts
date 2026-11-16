@@ -4,6 +4,7 @@ import type {
   Admin,
   Assignee,
   BroadcastMessage,
+  DailyStatistic,
   ManagedTicket,
   MessageChange,
   NotificationSettings,
@@ -28,6 +29,9 @@ import type { ResidentFilters } from './residents/resident-directory';
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly auth = inject(AuthService);
+  getStatistics(days: 1 | 7 | 30): Promise<{ items: DailyStatistic[]; days: number }> {
+    return this.request('/statistics?days=' + String(days));
+  }
   updateAdminPermissions(admin: Admin, permissions: PagePermissions): Promise<{ ok: boolean }> {
     return this.request('/administrators/' + admin.userId + '/permissions', 'PATCH', {
       version: admin.version,

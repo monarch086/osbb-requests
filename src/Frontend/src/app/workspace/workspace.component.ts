@@ -11,6 +11,7 @@ import { errorMessage } from '../error-message';
 import { MessagesSectionComponent } from '../messages/messages-section.component';
 import { RequestsSectionComponent } from '../requests/requests-section.component';
 import { ResidentsSectionComponent } from '../residents/residents-section.component';
+import { StatisticsComponent } from '../statistics/statistics.component';
 import type { WorkspaceTab } from './workspace-page.models';
 
 @Component({
@@ -21,6 +22,7 @@ import type { WorkspaceTab } from './workspace-page.models';
     ResidentsSectionComponent,
     MessagesSectionComponent,
     AdministratorsSectionComponent,
+    StatisticsComponent,
   ],
   templateUrl: './workspace.component.html',
 })
@@ -43,7 +45,13 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       this.route.paramMap.subscribe((params) => {
         const value = params.get('tab');
         const tab = value === 'administrators' ? 'admins' : value;
-        if (tab !== 'requests' && tab !== 'residents' && tab !== 'messages' && tab !== 'admins') {
+        if (
+          tab !== 'requests' &&
+          tab !== 'residents' &&
+          tab !== 'messages' &&
+          tab !== 'admins' &&
+          tab !== 'statistics'
+        ) {
           return;
         }
         this.tab = tab;
@@ -106,6 +114,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       case 'messages':
         return p.messages;
       case 'admins':
+      case 'statistics':
         return user.isSuperAdmin;
     }
   }
@@ -115,6 +124,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       { tab: 'residents', path: '/residents' },
       { tab: 'messages', path: '/messages' },
       { tab: 'admins', path: '/administrators' },
+      { tab: 'statistics', path: '/statistics' },
     ];
     const first = tabs.find((item) => this.allowed(item.tab, user));
     if (first && first.tab !== this.tab) {

@@ -191,8 +191,27 @@ functions:
       REQUEST_SORT_MODE: ${param:requestSortMode}
       RESIDENTS_TABLE:
         Ref: ResidentsTable
+      STATISTICS_TABLE:
+        Ref: StatisticsTable
 resources:
   Resources:
+    StatisticsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      Properties:
+        TableName: ${self:service}-${sls:stage}-statistics
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
     CommandDataTable:
       Type: AWS::DynamoDB::Table
       DeletionPolicy: Retain
@@ -689,6 +708,14 @@ resources:
             Version: '2012-10-17'
             Statement:
             - Effect: Allow
+              Action:
+              - dynamodb:Query
+              - dynamodb:UpdateItem
+              Resource:
+                Fn::GetAtt:
+                - StatisticsTable
+                - Arn
+            - Effect: Allow
               Action: ssm:GetParameter
               Resource:
                 Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${param:serviceBotTokenParameter}
@@ -850,7 +877,7 @@ resources:
         FunctionCode: |
           function handler(event) {
             var request = event.request;
-            if (/^\/(requests|residents|messages|administrators)\/?$/.test(request.uri)) {
+            if (/^\/(requests|residents|messages|administrators|statistics)\/?$/.test(request.uri)) {
               request.uri = '/index.html';
             }
             return request;

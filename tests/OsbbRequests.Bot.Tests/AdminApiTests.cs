@@ -8,6 +8,7 @@ using OsbbRequests.AdminApi.Data;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Domain;
+using OsbbRequests.AdminApi.Statistics;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -60,6 +61,28 @@ public sealed class AdminApiTests
             requestContext = new { http = new { method }, authorizer = user is null ? null : new { jwt = new { claims = new Dictionary<string, string> { ["sub"] = user, ["token_use"] = tokenUse } } } }
         }), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
     private static ApiHandler Handler(FakeStore store) => new(store, new FakeIdentity());
+
+    [Fact]
+    public async Task StatisticsRequiresActiveSuperAdminAndRecognizedPeriod()
+    {
+        var stats = new FakeStatistics();
+        var handler = new ApiHandler(new FakeStore(), new FakeIdentity(), stats);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics"), default))).Status);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics", user: "target"), default))).Status);
+        Assert.Equal(401, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics", user: null), default))).Status);
+        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics", user: "super", query: new() { ["days"] = "365" }), default))).Status);
+        Assert.Equal(200, (await handler.HandleAsync(Request("/admin/statistics", user: "super", query: new() { ["days"] = "30" }), default)).StatusCode);
+        Assert.Equal(30, stats.Days);
+    }
+
+    [Fact]
+    public async Task StatisticsWriteFailureDoesNotFailApiRequest()
+    {
+        var stats = new FakeStatistics { FailWrites = true };
+        var response = await new OsbbRequests.AdminApi.Function(Handler(new FakeStore()), statistics: stats)
+            .FunctionHandler(Request("/admin/me"), ContextProxy.Create());
+        Assert.Equal(200, response.StatusCode);
+    }
 
     [Fact]
     public async Task ResidentsWithKeysRequiresKeyOrderPermissionAndValidPage()
@@ -924,6 +947,13 @@ public sealed class AdminApiTests
 
     private sealed class FakeIdentity : IIdentityProvider
     { public Task<Identity> GetAsync(string token, string user, CancellationToken ct) => Task.FromResult(new Identity(user, user + "@example.org", user)); }
+    private sealed class FakeStatistics : IStatisticsStore
+    {
+        public int Days;
+        public bool FailWrites;
+        public Task<IReadOnlyList<DailyStatistic>> ReadAsync(int days, CancellationToken ct) { Days = days; return Task.FromResult<IReadOnlyList<DailyStatistic>>([]); }
+        public Task RecordAsync(string endpoint, double read, double write, long durationMs, CancellationToken ct) => FailWrites ? Task.FromException(new InvalidOperationException()) : Task.CompletedTask;
+    }
     private sealed class FakeStore : IAdminStore
     {
         public RegistrationStage HistoryStage = RegistrationStage.Pending;

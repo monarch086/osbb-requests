@@ -16,7 +16,9 @@ const canSwitchTab: CanActivateFn = () => {
 const workspaceMatcher: UrlMatcher = (segments) => {
   if (
     segments.length !== 1 ||
-    !['requests', 'residents', 'messages', 'administrators'].includes(segments[0].path)
+    !['requests', 'residents', 'messages', 'administrators', 'statistics'].includes(
+      segments[0].path,
+    )
   ) {
     return null;
   }

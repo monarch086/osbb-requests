@@ -1,1 +1,1 @@
-export type WorkspaceTab = 'requests' | 'residents' | 'messages' | 'admins';
+export type WorkspaceTab = 'requests' | 'residents' | 'messages' | 'admins' | 'statistics';

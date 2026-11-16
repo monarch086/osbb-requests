@@ -1,0 +1,120 @@
+<section aria-labelledby="statistics-title">
+  <h2 id="statistics-title" class="h5">Споживання DynamoDB</h2>
+  <p class="text-body-secondary">
+    Календарні дні за UTC, включно з поточним днем. Дані збираються від моменту ввімкнення
+    статистики.
+  </p>
+  <div class="btn-group mb-4" role="group" aria-label="Період статистики">
+    <button
+      type="button"
+      class="btn"
+      [class.btn-primary]="days === 1"
+      [class.btn-outline-secondary]="days !== 1"
+      [disabled]="loading"
+      (click)="load(1)"
+    >
+      День
+    </button>
+    <button
+      type="button"
+      class="btn"
+      [class.btn-primary]="days === 7"
+      [class.btn-outline-secondary]="days !== 7"
+      [disabled]="loading"
+      (click)="load(7)"
+    >
+      Тиждень
+    </button>
+    <button
+      type="button"
+      class="btn"
+      [class.btn-primary]="days === 30"
+      [class.btn-outline-secondary]="days !== 30"
+      [disabled]="loading"
+      (click)="load(30)"
+    >
+      Місяць
+    </button>
+  </div>
+  @if (error) {
+    <p class="alert alert-danger" role="alert">{{ error }}</p>
+  }
+  @if (loading) {
+    <p role="status">Завантажуємо статистику…</p>
+  }
+  @if (!loading && !error) {
+    <div class="card card-body mb-4">
+      <h3 class="h6">Одиниці читання за днями</h3>
+      @for (day of chart; track day.date) {
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="small">{{ day.date }}</span>
+          <div
+            class="progress flex-grow-1"
+            role="img"
+            [attr.aria-label]="day.date + ': ' + format(day.readUnits) + ' одиниць читання'"
+          >
+            <div
+              class="progress-bar"
+              [style.width.%]="maxRead ? (day.readUnits / maxRead) * 100 : 0"
+            ></div>
+          </div>
+          <strong class="small">{{ format(day.readUnits) }}</strong>
+        </div>
+      }
+    </div>
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <caption>
+          Загальні значення за днями
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Дата UTC</th>
+            <th scope="col">Запити</th>
+            <th scope="col">Читання</th>
+            <th scope="col">Запис</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (day of chart; track day.date) {
+            <tr>
+              <td>{{ day.date }}</td>
+              <td>{{ day.requests }}</td>
+              <td>{{ format(day.readUnits) }}</td>
+              <td>{{ format(day.writeUnits) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <caption>
+          Показники за ендпоінтами
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Дата UTC</th>
+            <th scope="col">Ендпоінт</th>
+            <th scope="col">Запити</th>
+            <th scope="col">Читання</th>
+            <th scope="col">Запис</th>
+            <th scope="col">Середній час, мс</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items; track item.date + item.endpoint) {
+            <tr>
+              <td>{{ item.date }}</td>
+              <td>{{ item.endpoint }}</td>
+              <td>{{ item.requests }}</td>
+              <td>{{ format(item.readUnits) }}</td>
+              <td>{{ format(item.writeUnits) }}</td>
+              <td>{{ format(item.durationMs / item.requests) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

@@ -136,6 +136,15 @@ export interface ResidentKeyPage {
   pageSize: number;
   total: number;
 }
+
+export interface DailyStatistic {
+  date: string;
+  endpoint: string;
+  requests: number;
+  readUnits: number;
+  writeUnits: number;
+  durationMs: number;
+}
 export interface RequestAuthor {
   phone?: string | null;
   personalDataDeleted?: boolean;

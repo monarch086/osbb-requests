@@ -35,7 +35,9 @@
                 ? 'Реєстрації мешканців'
                 : tab === 'messages'
                   ? 'Повідомлення мешканцям'
-                  : 'Команда адміністраторів'
+                  : tab === 'statistics'
+                    ? 'Статистика'
+                    : 'Команда адміністраторів'
           }}
         </h1>
         <p class="text-body-secondary">
@@ -46,7 +48,9 @@
                 ? 'Перевіряйте нові запити та переглядайте зареєстрованих мешканців.'
                 : tab === 'messages'
                   ? 'Надсилайте оголошення мешканцям комплексу.'
-                  : 'Надавайте або відкликайте доступ до роботи зі зверненнями.'
+                  : tab === 'statistics'
+                    ? 'Переглядайте використання ресурсів DynamoDB.'
+                    : 'Надавайте або відкликайте доступ до роботи зі зверненнями.'
           }}
         </p>
       </div>
@@ -95,6 +99,15 @@
           [routerLink]="saving ? null : '/administrators'"
           >Адміністратори</a
         >
+        <a
+          class="nav-link"
+          [class.active]="tab === 'statistics'"
+          [class.disabled]="saving"
+          [attr.aria-disabled]="saving"
+          [attr.aria-current]="tab === 'statistics' ? 'page' : null"
+          [routerLink]="saving ? null : '/statistics'"
+          >Статистика</a
+        >
       }
     </nav>
     @if (tab === 'requests' && allowed('requests', user)) {
@@ -108,6 +121,9 @@
     }
     @if (tab === 'admins' && user.isSuperAdmin) {
       <app-administrators-section [me]="user" (savingChange)="setSaving($event)" />
+    }
+    @if (tab === 'statistics' && user.isSuperAdmin) {
+      <app-statistics />
     }
     @if (
       !allowed('requests', user) &&

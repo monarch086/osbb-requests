@@ -8,10 +8,11 @@ using OsbbRequests.AdminApi.Data;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.AdminApi.Export;
 using OsbbRequests.Shared.Domain;
+using OsbbRequests.AdminApi.Statistics;
 
 namespace OsbbRequests.AdminApi;
 
-public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProvider)
+public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProvider, IStatisticsStore? statistics = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, Converters = { new JsonStringEnumConverter() } };
@@ -43,6 +44,14 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         var query = request.QueryStringParameters?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>();
         var cursor = query.GetValueOrDefault("cursor");
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (method == "GET" && path == "/admin/statistics")
+        {
+            if (!actor.IsSuperAdmin) throw new ApiError(403, "Статистика доступна лише супер адміністратору.");
+            if (!int.TryParse(query.GetValueOrDefault("days") ?? "7", out var days) || days is not (1 or 7 or 30))
+                throw new ApiError(400, "Оберіть період: день, тиждень або місяць.");
+            if (statistics is null) throw new ApiError(503, "Статистика тимчасово недоступна.");
+            return Reply(200, new { items = await statistics.ReadAsync(days, ct), days });
+        }
         if (path == "/admin/messages")
         {
             if (!actor.EffectivePermissions.Messages) throw new ApiError(403, "Недостатньо прав для роботи з повідомленнями.");
