@@ -71,8 +71,8 @@
           <tr>
             <th scope="col">Дата UTC</th>
             <th scope="col">Запити</th>
-            <th scope="col">Читання</th>
-            <th scope="col">Запис</th>
+            <th scope="col">Читання, RRU</th>
+            <th scope="col">Запис, WRU</th>
           </tr>
         </thead>
         <tbody>
@@ -96,10 +96,45 @@
           <tr>
             <th scope="col">Дата UTC</th>
             <th scope="col">Ендпоінт</th>
-            <th scope="col">Запити</th>
-            <th scope="col">Читання</th>
-            <th scope="col">Запис</th>
-            <th scope="col">Середній час, мс</th>
+            <th scope="col" [attr.aria-sort]="sortColumn === 'requests' ? sortDirection : null">
+              <button type="button" class="btn btn-link p-0" (click)="sort('requests')">
+                Запити
+                <span aria-hidden="true">{{
+                  sortColumn === 'requests' ? (sortDirection === 'ascending' ? '↑' : '↓') : '↕'
+                }}</span>
+              </button>
+            </th>
+            <th scope="col" [attr.aria-sort]="sortColumn === 'readUnits' ? sortDirection : null">
+              <button type="button" class="btn btn-link p-0" (click)="sort('readUnits')">
+                Читання, RRU
+                <span aria-hidden="true">{{
+                  sortColumn === 'readUnits' ? (sortDirection === 'ascending' ? '↑' : '↓') : '↕'
+                }}</span>
+              </button>
+            </th>
+            <th scope="col" [attr.aria-sort]="sortColumn === 'writeUnits' ? sortDirection : null">
+              <button type="button" class="btn btn-link p-0" (click)="sort('writeUnits')">
+                Запис, WRU
+                <span aria-hidden="true">{{
+                  sortColumn === 'writeUnits' ? (sortDirection === 'ascending' ? '↑' : '↓') : '↕'
+                }}</span>
+              </button>
+            </th>
+            <th
+              scope="col"
+              [attr.aria-sort]="sortColumn === 'averageDuration' ? sortDirection : null"
+            >
+              <button type="button" class="btn btn-link p-0" (click)="sort('averageDuration')">
+                Середній час, мс
+                <span aria-hidden="true">{{
+                  sortColumn === 'averageDuration'
+                    ? sortDirection === 'ascending'
+                      ? '↑'
+                      : '↓'
+                    : '↕'
+                }}</span>
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>

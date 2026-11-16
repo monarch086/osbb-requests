@@ -4,6 +4,8 @@ import { Component, inject } from '@angular/core';
 import type { DailyStatistic } from '../api.models';
 import { ApiService } from '../api.service';
 import { errorMessage } from '../error-message';
+import type { SortDirection, StatisticsSortColumn } from './statistics-sort';
+import { sortStatistics } from './statistics-sort';
 
 interface ChartDay {
   date: string;
@@ -25,6 +27,17 @@ export class StatisticsComponent implements OnInit, OnDestroy {
   protected items: DailyStatistic[] = [];
   protected chart: ChartDay[] = [];
   protected maxRead = 0;
+  protected sortColumn: StatisticsSortColumn | null = null;
+  protected sortDirection: SortDirection = 'descending';
+
+  protected sort(column: StatisticsSortColumn): void {
+    this.sortDirection =
+      this.sortColumn === column && this.sortDirection === 'descending'
+        ? 'ascending'
+        : 'descending';
+    this.sortColumn = column;
+    this.items = sortStatistics(this.items, column, this.sortDirection);
+  }
 
   ngOnInit(): void {
     void this.load(7);
@@ -42,7 +55,9 @@ export class StatisticsComponent implements OnInit, OnDestroy {
       if (sequence !== this.sequence) {
         return;
       }
-      this.items = result.items;
+      this.items = this.sortColumn
+        ? sortStatistics(result.items, this.sortColumn, this.sortDirection)
+        : result.items;
       const today = new Date();
       this.chart = Array.from({ length: days }, (_, i) => {
         const date = new Date(
