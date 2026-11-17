@@ -54,7 +54,8 @@ public sealed class WebhookHandler(ISecretProvider secretProvider, ICommandQueue
             BotCommand.Parse(text, botUsername) is null)
             return Response(200);
 
-        await queue.EnqueueAsync(new CommandEnvelope(update.UpdateId.Value, from.Id, chat.Id, text, message.Contact), cancellationToken);
+        await queue.EnqueueAsync(new CommandEnvelope(update.UpdateId.Value, from.Id, chat.Id, text, message.Contact,
+            message.ReplyToMessage?.MessageId), cancellationToken);
         return Response(200);
     }
 

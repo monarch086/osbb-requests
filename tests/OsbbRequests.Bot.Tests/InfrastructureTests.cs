@@ -473,6 +473,14 @@ public sealed class InfrastructureTests
         Assert.True(body.RootElement.GetProperty("link_preview_options").GetProperty("is_disabled").GetBoolean());
     }
 
+    [Fact]
+    public async Task TelegramReturnsSentNotificationMessageId()
+    {
+        using var http = new HttpClient(new HttpStub(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        { Content = new StringContent("{\"ok\":true,\"result\":{\"message_id\":123}}") })));
+        Assert.Equal(123, await new TelegramClient(http, new FakeSecret("token")).SendNotificationAsync(42, "Текст", default));
+    }
+
     [Theory]
     [InlineData(ReplyKeyboard.RequestScope, "Будинок 4Д")]
     [InlineData(ReplyKeyboard.RequestScope, "Прибудинкова територія")]

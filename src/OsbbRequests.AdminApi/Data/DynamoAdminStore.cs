@@ -478,7 +478,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }, ct);
         var items = response.Items ?? [];
         var creatorName = "Мешканець";
-        if (items.Any(item => item.GetValueOrDefault("sk")?.S == "EVENT#CREATED"))
+        if (items.Any(item => item.GetValueOrDefault("sk")?.S == "EVENT#CREATED" || item.GetValueOrDefault("action")?.S == "ResidentComment"))
         {
             var profile = await GetResidentRecordAsync("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION", ct);
             if (profile is not null)
@@ -502,6 +502,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
                 entry["action"] = "Created";
                 entry["actor"] = creatorName;
             }
+            else if (item.GetValueOrDefault("action")?.S == "ResidentComment") entry["actor"] = creatorName;
             return entry;
         }).OrderByDescending(item => item.GetValueOrDefault("createdAt")).ToList();
     }

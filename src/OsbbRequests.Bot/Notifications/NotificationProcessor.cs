@@ -30,8 +30,11 @@ public sealed class NotificationProcessor(INotificationRepository repository, IT
                 if (item.Notification.OwnerId > 0 && item.Notification.AdministratorEvent is null && item.Notification.AdministratorId is null &&
                     item.Notification.Id.StartsWith("registration-", StringComparison.Ordinal))
                     await telegram.SetCommandMenuAsync(item.Notification.OwnerId, registered: true, ct, force: true);
-                await telegram.SendMessageAsync(item.Notification.OwnerId, item.Notification.Text, ct);
-                await repository.CompleteAsync(item, lease, "Delivered", clock.GetUtcNow(), ct);
+                var text = item.Notification.RequestId is not null && item.Notification.AdministratorId is null
+                    ? item.Notification.Text + "\n\nЩоб відповісти, скористайтеся функцією «Відповісти» на це повідомлення."
+                    : item.Notification.Text;
+                var messageId = await telegram.SendNotificationAsync(item.Notification.OwnerId, text, ct);
+                await repository.CompleteDeliveredAsync(item, lease, clock.GetUtcNow(), messageId, ct);
                 log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=delivered");
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }

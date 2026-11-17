@@ -10,7 +10,9 @@ public sealed record TelegramMessage(
     [property: JsonPropertyName("from")] TelegramUser? From,
     [property: JsonPropertyName("chat")] TelegramChat? Chat,
     [property: JsonPropertyName("text")] string? Text,
-    [property: JsonPropertyName("contact")] TelegramContact? Contact = null);
+    [property: JsonPropertyName("contact")] TelegramContact? Contact = null,
+    [property: JsonPropertyName("message_id")] long? MessageId = null,
+    [property: JsonPropertyName("reply_to_message")] TelegramMessage? ReplyToMessage = null);
 
 public sealed record TelegramUser(
     [property: JsonPropertyName("id")] long Id,
@@ -21,7 +23,7 @@ public sealed record TelegramChat(
     [property: JsonPropertyName("type")] string? Type);
 
 // Only these fields cross into the command queue; full Telegram payloads are not retained.
-public sealed record CommandEnvelope(long UpdateId, long UserId, long ChatId, string Text, TelegramContact? Contact = null);
+public sealed record CommandEnvelope(long UpdateId, long UserId, long ChatId, string Text, TelegramContact? Contact = null, long? ReplyToMessageId = null);
 
 public sealed record TelegramContact(
     [property: JsonPropertyName("phone_number")] string? PhoneNumber,

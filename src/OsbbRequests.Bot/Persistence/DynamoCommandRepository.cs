@@ -32,6 +32,12 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         return response.Item ?? [];
     }
 
+    public async Task<long?> GetNotificationRequestAsync(long userId, long messageId, CancellationToken ct)
+    {
+        var item = await GetAsync("USER#" + Number(userId), "NOTIFICATION_MESSAGE#" + Number(messageId), ct);
+        return item.TryGetValue("requestId", out var id) && long.TryParse(id.N, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+    }
+
     public async Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken ct)
     {
         var item = await GetAsync("USER#" + Number(userId), RequestKey(requestId), ct);
@@ -190,6 +196,28 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
         replyItem["delivered"] = new AttributeValue { BOOL = false };
         replyItem["expiresAt"] = new AttributeValue { N = Number(clock.GetUtcNow().AddDays(30).ToUnixTimeSeconds()) };
         var writes = new List<TransactWriteItem> { Put(replyItem) };
+        if (outcome.Comment is { } comment)
+        {
+            if (comment.OwnerId != command.UserId || comment.ComplexId != complexId || string.IsNullOrWhiteSpace(comment.Text) || comment.Text.Length > 1000)
+                throw new InvalidOperationException("Invalid resident comment.");
+            writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, comment.ComplexId) });
+            writes.Add(new()
+            {
+                ConditionCheck = new()
+                {
+                    TableName = tableName,
+                    Key = Key("USER#" + Number(command.UserId), RequestKey(comment.RequestId)),
+                    ConditionExpression = "attribute_exists(pk) AND requestBuildingId = :complex",
+                    ExpressionAttributeValues = new() { [":complex"] = new(comment.ComplexId) }
+                }
+            });
+            var history = Key("REQUEST#" + Number(comment.RequestId), "EVENT#" + comment.CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#UPDATE#" + Number(command.UpdateId));
+            history["actorId"] = new() { N = Number(command.UserId) };
+            history["action"] = new("ResidentComment");
+            history["createdAt"] = new(comment.CreatedAt.ToString("O", CultureInfo.InvariantCulture));
+            history["resolution"] = new(comment.Text);
+            writes.Add(Put(history));
+        }
         if (outcome.Pagination is { } pagination) writes.Add(CursorWrite(command, pagination));
         if (outcome.PageNavigation is { } navigation)
         {

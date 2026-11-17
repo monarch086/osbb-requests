@@ -13,6 +13,12 @@ namespace OsbbRequests.Bot.Telegram;
 public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenProvider) : ITelegramClient
 {
     public async Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken, ReplyKeyboard? keyboard = null)
+        => _ = await SendAsync(chatId, text, cancellationToken, keyboard);
+
+    public Task<long?> SendNotificationAsync(long chatId, string text, CancellationToken cancellationToken) =>
+        SendAsync(chatId, text, cancellationToken);
+
+    private async Task<long?> SendAsync(long chatId, string text, CancellationToken cancellationToken, ReplyKeyboard? keyboard = null)
     {
         if (text.Length is < 1 or > 4096)
             throw new InvalidOperationException("Telegram message length is outside the supported range.");
@@ -63,7 +69,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         else if (keyboard == ReplyKeyboard.Remove)
             payload["reply_markup"] = new { remove_keyboard = true };
         // No parse_mode: all resident content is plain text, never Telegram HTML.
-        await CallAsync("sendMessage", payload, cancellationToken);
+        return await CallAsync("sendMessage", payload, cancellationToken);
     }
 
     private readonly Dictionary<long, bool> configuredMenus = [];
@@ -87,7 +93,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         }
     }
 
-    private async Task CallAsync(string method, object payload, CancellationToken cancellationToken, bool requireTrueResult = false)
+    private async Task<long?> CallAsync(string method, object payload, CancellationToken cancellationToken, bool requireTrueResult = false)
     {
         var token = await tokenProvider.GetAsync(cancellationToken);
         var operation = method == "sendMessage" ? TelegramOperation.SendMessage : TelegramOperation.SetCommandMenu;
@@ -118,6 +124,8 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 throw new TelegramApiException(TelegramFailureCategory.ApiRejected, (int)response.StatusCode, operation);
             if (requireTrueResult && (!body.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.True))
                 throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode, operation);
+            return body.RootElement.TryGetProperty("result", out var sent) && sent.ValueKind == JsonValueKind.Object &&
+                sent.TryGetProperty("message_id", out var id) && id.TryGetInt64(out var messageId) && messageId > 0 ? messageId : null;
         }
         catch (HttpRequestException error)
         {

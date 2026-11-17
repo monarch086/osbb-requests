@@ -56,6 +56,17 @@ public sealed class WebhookTests
         Assert.Equal("/START@OsbbBot", command.Text);
     }
 
+    [Fact]
+    public async Task QueuesReplyMessageIdWithoutCopyingOriginalMessage()
+    {
+        var queue = new FakeQueue();
+        var json = """{"update_id":100,"message":{"from":{"id":42,"is_bot":false},"chat":{"id":42,"type":"private"},"text":"Дякую","reply_to_message":{"message_id":123,"text":"Приватний текст"}}}""";
+        await new WebhookHandler(new FakeSecret("secret"), queue, "OsbbBot").HandleAsync(Request(json), default);
+        var command = Assert.Single(queue.Commands);
+        Assert.Equal(123, command.ReplyToMessageId);
+        Assert.DoesNotContain("Приватний текст", JsonSerializer.Serialize(command));
+    }
+
     [Theory]
     [InlineData("{broken", false)]
     [InlineData("not-base64!", true)]

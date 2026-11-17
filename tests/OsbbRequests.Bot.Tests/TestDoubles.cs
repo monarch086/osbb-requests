@@ -22,6 +22,9 @@ internal sealed class RecordingServiceNotifier(bool fail = false) : IServiceNoti
 
 internal sealed class MemoryRepository : ICommandRepository
 {
+    public Dictionary<(long UserId, long MessageId), long> NotificationRequests { get; } = [];
+    public Task<long?> GetNotificationRequestAsync(long userId, long messageId, CancellationToken cancellationToken) =>
+        Task.FromResult(NotificationRequests.TryGetValue((userId, messageId), out var id) ? (long?)id : null);
     public Dictionary<long, PageNavigation> PageNavigations { get; } = [];
     public Task<PageNavigation?> GetPageNavigationAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(PageNavigations.GetValueOrDefault(userId));
     public Dictionary<(long UserId, string ComplexId, string Token), string> ComplexCursors { get; } = [];

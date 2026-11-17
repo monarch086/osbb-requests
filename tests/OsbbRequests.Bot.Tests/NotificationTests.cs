@@ -9,6 +9,7 @@ using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Bot;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Notifications;
+using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Telegram;
 using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
@@ -24,6 +25,36 @@ public sealed class NotificationTests
         Scope: RequestScope.Building, BuildingNumber: "4Б", Floor: 12);
     private static NotificationWorkItem Work(string id = "7-v2", int attempts = 0) => new(ResidentNotification.DueKey(Now, id),
         new(id, "complex", 42, 7, 2, "Оновлення вашої заявки №7", Now), attempts);
+
+    [Fact]
+    public async Task DeliveredRequestNotificationStoresMessageMappingAtomically()
+    {
+        using var db = new RecordingDynamo();
+        await new DynamoNotificationRepository(db, "data", "complex").CompleteDeliveredAsync(Work(), "lease", Now, 123, default);
+        var writes = db.Transaction!.TransactItems;
+        Assert.Equal(3, writes.Count);
+        var mapping = Assert.Single(writes, w => w.Put?.Item.GetValueOrDefault("pk")?.S == "USER#42").Put.Item;
+        Assert.Equal("NOTIFICATION_MESSAGE#123", mapping["sk"].S);
+        Assert.Equal("7", mapping["requestId"].N);
+        Assert.Single(writes, w => w.Delete is not null);
+    }
+
+    [Fact]
+    public async Task ResidentCommentCommitsWithReceiptAndAccessChecks()
+    {
+        using var db = new RecordingDynamo();
+        var store = new DynamoCommandRepository(db, "data", residentsTable: "residents", complexId: "complex");
+        var command = new CommandEnvelope(100, 42, 42, "Текст");
+        await store.CommitAsync(command, new("Збережено", Comment: new(7, 42, "complex", "Текст", Now)), default);
+        var writes = db.Transaction!.TransactItems;
+        Assert.Equal(4, writes.Count);
+        Assert.Equal(2, writes.Count(w => w.ConditionCheck is not null));
+        var history = Assert.Single(writes, w => w.Put?.Item.GetValueOrDefault("pk")?.S == "REQUEST#7").Put.Item;
+        Assert.Equal("ResidentComment", history["action"].S);
+        Assert.Equal("Текст", history["resolution"].S);
+        Assert.Contains("UPDATE#100", history["sk"].S);
+        Assert.Single(writes, w => w.Put?.Item.GetValueOrDefault("pk")?.S == "UPDATE#100");
+    }
 
     [Fact]
     public async Task ApprovalNotificationRetriesThenDeliversOnlyToApprovedResident()

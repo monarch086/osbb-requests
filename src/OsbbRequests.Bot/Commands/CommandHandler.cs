@@ -27,11 +27,19 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         "/new - створити заявку для всіх мешканців комплексу: будинок або прибудинкова територія → поверх → категорія → опис\n" +
         "/my - власні заявки\n/complex - відкриті заявки для мешканців комплексу\n" +
         "/request номер - деталі власної заявки\n/delete номер - видалити власну нову заявку з підтвердженням\n" +
+        "/comment номер текст - додати коментар до своєї заявки\n" +
         "Номер можна ввести одразу або наступним повідомленням після /request або /delete.\n\n" +
-        "Для роботи із заявками завершіть реєстрацію. Фото та коментарі ще не підтримуються.";
+        "Для роботи із заявками завершіть реєстрацію. Фото ще не підтримуються.";
 
     public async Task<CommandOutcome> HandleAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (envelope.ReplyToMessageId is > 0 && envelope.Contact is null && !envelope.Text.StartsWith('/'))
+        {
+            var requestId = await repository.GetNotificationRequestAsync(envelope.UserId, envelope.ReplyToMessageId.Value, cancellationToken);
+            if (requestId is not null)
+                return await AddCommentAsync(envelope.UserId, requestId.Value, envelope.Text, cancellationToken);
+            return new("Не вдалося визначити заявку для цієї відповіді. Надішліть /comment номер заявки та текст коментаря.");
+        }
         var navigation = await repository.GetPageNavigationAsync(envelope.UserId, cancellationToken);
         if (navigation is not null && (navigation.UserId != envelope.UserId || navigation.ComplexId != buildingId))
             throw new InvalidOperationException("Page navigation identity mismatch.");
@@ -114,7 +122,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
                 return new CommandOutcome(DispatcherContacts);
             case "categories":
                 return new CommandOutcome("Категорії заявок: " + Categories + ".");
-            case not ("new" or "my" or "request" or "complex" or "delete" or "edit_profile" or "delete_profile" or "account"):
+            case not ("new" or "my" or "request" or "complex" or "delete" or "edit_profile" or "delete_profile" or "account" or "comment"):
                 return new CommandOutcome("Невідома команда. Перелік команд: /help.");
         }
 
@@ -123,6 +131,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
 
         return command.Name switch
         {
+            "comment" => await CommentCommandAsync(envelope.UserId, command.Arguments, cancellationToken),
             "account" => await profiles.StartAsync(envelope.UserId, ProfileAction.Account, cancellationToken),
             "edit_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Edit, cancellationToken),
             "delete_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Delete, cancellationToken),
@@ -132,6 +141,25 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             "my" => await ListAsync(envelope.UserId, command.Arguments, cancellationToken),
             _ => await lookup.StartAsync(envelope.UserId, command.Arguments, cancellationToken)
         };
+    }
+
+    private async Task<CommandOutcome> CommentCommandAsync(long userId, string arguments, CancellationToken ct)
+    {
+        var parts = arguments.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length != 2 || !TryId(parts[0], out var id)
+            ? new("Щоб додати коментар, надішліть /comment номер заявки та текст коментаря.")
+            : await AddCommentAsync(userId, id, parts[1], ct);
+    }
+
+    private async Task<CommandOutcome> AddCommentAsync(long userId, long id, string text, CancellationToken ct)
+    {
+        if (!await repository.IsResidentAsync(userId, buildingId, ct)) return await registrations.StatusAsync(userId, ct);
+        var comment = text.Trim();
+        if (comment.Length is < 1 or > 1000) return new("Коментар має містити від 1 до 1000 символів.");
+        var request = await repository.GetRequestAsync(userId, id, ct);
+        if (request is null || request.OwnerId != userId || request.BuildingId != buildingId)
+            return new("Заявку не знайдено серед ваших заявок.");
+        return new($"Коментар до заявки №{id} збережено.", Comment: new(id, userId, buildingId, comment, clock.GetUtcNow()));
     }
 
     private async Task<CommandOutcome> ListAsync(long userId, string arguments, CancellationToken cancellationToken)

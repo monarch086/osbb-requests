@@ -12,6 +12,42 @@ public sealed class CommandTests
     private static CommandEnvelope Command(string text, long updateId = 100, long userId = 42) =>
         new(updateId, userId, userId, text);
 
+    [Fact]
+    public async Task ReplyToNotificationCreatesCommentForOwnRequest()
+    {
+        var repository = new MemoryRepository();
+        repository.Requests.Add(new MaintenanceRequest(7, 42, "building", "інше", "", "Опис", DateTimeOffset.UtcNow));
+        repository.NotificationRequests[(42, 123)] = 7;
+        var outcome = await Handler(repository).HandleAsync(Command(" Дякую ") with { ReplyToMessageId = 123 }, default);
+        Assert.Equal(7, outcome.Comment!.RequestId);
+        Assert.Equal("Дякую", outcome.Comment.Text);
+        Assert.Equal(42, outcome.Comment.OwnerId);
+    }
+
+    [Fact]
+    public async Task CommentCannotAccessAnotherResidentsRequest()
+    {
+        var repository = new MemoryRepository();
+        repository.Requests.Add(new MaintenanceRequest(7, 99, "building", "інше", "", "Опис", DateTimeOffset.UtcNow));
+        repository.NotificationRequests[(42, 123)] = 7;
+        var reply = await Handler(repository).HandleAsync(Command("Коментар") with { ReplyToMessageId = 123 }, default);
+        var fallback = await Handler(repository).HandleAsync(Command("/comment 7 Коментар"), default);
+        Assert.Null(reply.Comment);
+        Assert.Null(fallback.Comment);
+        Assert.Contains("не знайдено", reply.Reply);
+    }
+
+    [Fact]
+    public async Task CommentCommandProvidesFallbackForOwnRequest()
+    {
+        var repository = new MemoryRepository();
+        repository.Requests.Add(new MaintenanceRequest(7, 42, "building", "інше", "", "Опис", DateTimeOffset.UtcNow));
+        var result = await Handler(repository).HandleAsync(Command("/comment 7 Новий коментар"), default);
+        Assert.Equal("Новий коментар", result.Comment!.Text);
+        repository.Residents.Clear();
+        Assert.Null((await Handler(repository).HandleAsync(Command("/comment 7 Текст"), default)).Comment);
+    }
+
     [Theory]
     [InlineData("/START", "start", "")]
     [InlineData("/HeLp@oSbBbOt", "help", "")]

@@ -34,6 +34,20 @@ public sealed class RequestHistoryTests
     };
 
     [Fact]
+    public async Task ResidentCommentShowsCurrentResidentNameWithoutExposingId()
+    {
+        var comment = Updated();
+        comment.Remove("actor");
+        comment["action"] = new("ResidentComment");
+        comment["actorId"] = new() { N = "99" };
+        using var db = new HistoryDynamo { Resident = Resident, Items = [comment] };
+        var entry = Assert.Single(await new DynamoAdminStore(db, "admins", "data", "complex").HistoryAsync(Request, default));
+        Assert.Equal("Олена Ковальчук", entry["actor"]);
+        Assert.Equal("ResidentComment", entry["action"]);
+        Assert.False(entry.ContainsKey("actorId"));
+    }
+
+    [Fact]
     public async Task OldCreationEventResolvesOwnerNameWithoutModifyingAuditOrAdminActor()
     {
         using var db = new HistoryDynamo { Resident = Resident, Items = [Created(), Updated()] };

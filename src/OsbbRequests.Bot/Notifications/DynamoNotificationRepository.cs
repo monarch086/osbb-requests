@@ -86,6 +86,21 @@ public sealed partial class DynamoNotificationRepository(IAmazonDynamoDB db, str
     {
         await db.TransactWriteItemsAsync(new TransactWriteItemsRequest { TransactItems = CompletionWrites(item, lease, disposition, now) }, ct);
     }
+    public async Task CompleteDeliveredAsync(NotificationWorkItem item, string lease, DateTimeOffset now, long? messageId, CancellationToken ct)
+    {
+        var writes = CompletionWrites(item, lease, "Delivered", now);
+        if (messageId is > 0 && item.Notification.RequestId is { } requestId && item.Notification.OwnerId > 0 && item.Notification.AdministratorId is null)
+        {
+            var mapping = new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = S("USER#" + item.Notification.OwnerId.ToString(CultureInfo.InvariantCulture)),
+                ["sk"] = S("NOTIFICATION_MESSAGE#" + messageId.Value.ToString(CultureInfo.InvariantCulture)),
+                ["requestId"] = N(requestId)
+            };
+            writes.Add(new() { Put = new() { TableName = table, Item = mapping, ConditionExpression = "attribute_not_exists(pk)" } });
+        }
+        await db.TransactWriteItemsAsync(new TransactWriteItemsRequest { TransactItems = writes }, ct);
+    }
     public async Task PauseAsync(DateTimeOffset until, CancellationToken ct)
     {
         try
