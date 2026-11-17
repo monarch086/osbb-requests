@@ -4,9 +4,15 @@ export type StatisticsSortColumn = 'requests' | 'readUnits' | 'writeUnits' | 'av
 export type SortDirection = 'ascending' | 'descending';
 export type EndpointStatistic = Omit<DailyStatistic, 'date'>;
 
-export function aggregateStatistics(items: DailyStatistic[]): EndpointStatistic[] {
+export function aggregateStatistics(
+  items: DailyStatistic[],
+  date: string | null = null,
+): EndpointStatistic[] {
   const endpoints = new Map<string, EndpointStatistic>();
   for (const item of items) {
+    if (date !== null && item.date !== date) {
+      continue;
+    }
     const current = endpoints.get(item.endpoint) ?? {
       endpoint: item.endpoint,
       requests: 0,

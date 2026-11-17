@@ -33,4 +33,9 @@ test('aggregates every endpoint across dates before sorting by weighted average'
   });
   assert.deepEqual(sortStatistics(totals, 'averageDuration', 'ascending').map((item) => item.endpoint), ['a', 'b']);
   assert.deepEqual(aggregateStatistics([]), []);
+  assert.deepEqual(aggregateStatistics(rows, '2026-01-01'), [
+    { endpoint: 'a', requests: 1, readUnits: 2, writeUnits: 1, durationMs: 100 },
+  ]);
+  assert.equal(aggregateStatistics(rows, '2026-01-02').length, 2);
+  assert.deepEqual(aggregateStatistics(rows, '2026-01-03'), []);
 });

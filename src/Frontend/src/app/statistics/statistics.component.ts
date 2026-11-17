@@ -1,6 +1,7 @@
 import type { OnDestroy, OnInit } from '@angular/core';
 import { Component, inject } from '@angular/core';
 
+import type { DailyStatistic } from '../api.models';
 import { ApiService } from '../api.service';
 import { errorMessage } from '../error-message';
 import type { EndpointStatistic, SortDirection, StatisticsSortColumn } from './statistics-sort';
@@ -20,12 +21,14 @@ interface ChartDay {
 export class StatisticsComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private sequence = 0;
+  private dailyItems: DailyStatistic[] = [];
   protected days: 1 | 7 | 30 = 7;
   protected loading = false;
   protected error = '';
   protected items: EndpointStatistic[] = [];
   protected chart: ChartDay[] = [];
   protected maxRead = 0;
+  protected selectedDay: string | null = null;
   protected sortColumn: StatisticsSortColumn | null = null;
   protected sortDirection: SortDirection = 'descending';
 
@@ -36,6 +39,23 @@ export class StatisticsComponent implements OnInit, OnDestroy {
         : 'descending';
     this.sortColumn = column;
     this.items = sortStatistics(this.items, column, this.sortDirection);
+  }
+
+  protected selectDay(day: string): void {
+    this.selectedDay = this.selectedDay === day ? null : day;
+    this.updateItems();
+  }
+
+  protected clearDay(): void {
+    this.selectedDay = null;
+    this.updateItems();
+  }
+
+  private updateItems(): void {
+    const totals = aggregateStatistics(this.dailyItems, this.selectedDay);
+    this.items = this.sortColumn
+      ? sortStatistics(totals, this.sortColumn, this.sortDirection)
+      : totals;
   }
 
   ngOnInit(): void {
@@ -54,10 +74,9 @@ export class StatisticsComponent implements OnInit, OnDestroy {
       if (sequence !== this.sequence) {
         return;
       }
-      const totals = aggregateStatistics(result.items);
-      this.items = this.sortColumn
-        ? sortStatistics(totals, this.sortColumn, this.sortDirection)
-        : totals;
+      this.dailyItems = result.items;
+      this.selectedDay = null;
+      this.updateItems();
       const today = new Date();
       this.chart = Array.from({ length: days }, (_, i) => {
         const date = new Date(

@@ -46,20 +46,26 @@
     <div class="card card-body mb-4">
       <h3 class="h6">Одиниці читання за днями</h3>
       @for (day of chart; track day.date) {
-        <div class="d-flex align-items-center gap-2 mb-2">
+        <button
+          type="button"
+          class="btn w-100 d-flex align-items-center gap-2 mb-2 text-start"
+          [class.btn-outline-primary]="selectedDay === day.date"
+          [class.btn-light]="selectedDay !== day.date"
+          [attr.aria-pressed]="selectedDay === day.date"
+          [attr.aria-label]="
+            'Показати ендпоінти за ' + day.date + ': ' + format(day.readUnits) + ' RRU'
+          "
+          (click)="selectDay(day.date)"
+        >
           <span class="small">{{ day.date }}</span>
-          <div
-            class="progress flex-grow-1"
-            role="img"
-            [attr.aria-label]="day.date + ': ' + format(day.readUnits) + ' одиниць читання'"
-          >
+          <div class="progress flex-grow-1" aria-hidden="true">
             <div
               class="progress-bar"
               [style.width.%]="maxRead ? (day.readUnits / maxRead) * 100 : 0"
             ></div>
           </div>
           <strong class="small">{{ format(day.readUnits) }}</strong>
-        </div>
+        </button>
       }
     </div>
     <div class="table-responsive">
@@ -77,8 +83,18 @@
         </thead>
         <tbody>
           @for (day of chart; track day.date) {
-            <tr>
-              <td>{{ day.date }}</td>
+            <tr class="position-relative" [class.table-active]="selectedDay === day.date">
+              <td>
+                <button
+                  type="button"
+                  class="btn btn-link p-0 stretched-link"
+                  [attr.aria-pressed]="selectedDay === day.date"
+                  [attr.aria-label]="'Показати ендпоінти за ' + day.date"
+                  (click)="selectDay(day.date)"
+                >
+                  {{ day.date }}
+                </button>
+              </td>
               <td>{{ day.requests }}</td>
               <td>{{ format(day.readUnits) }}</td>
               <td>{{ format(day.writeUnits) }}</td>
@@ -87,10 +103,21 @@
         </tbody>
       </table>
     </div>
+    @if (selectedDay; as day) {
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2" role="status">
+        <span>Ендпоінти за {{ day }} (UTC)</span>
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearDay()">
+          Показати весь період
+        </button>
+      </div>
+    }
     <div class="table-responsive">
       <table class="table table-sm">
         <caption>
-          Показники за ендпоінтами за обраний період
+          Показники за ендпоінтами
+          {{
+            selectedDay ? 'за ' + selectedDay : 'за обраний період'
+          }}
         </caption>
         <thead>
           <tr>
@@ -148,6 +175,9 @@
           }
         </tbody>
       </table>
+      @if (!items.length) {
+        <p class="text-body-secondary">За обраний період немає даних.</p>
+      }
     </div>
   }
 </section>
