@@ -449,7 +449,7 @@ public sealed class AdminApiTests
         Assert.Equal(200, response.StatusCode);
         Assert.Equal(1, store.RequestWrites);
         Assert.Equal(RequestStatus.Completed, store.LastRequest!.Status);
-        Assert.Equal(resolution?.Trim(), store.LastRequest.Resolution);
+        Assert.Equal(string.IsNullOrWhiteSpace(resolution) ? null : resolution.Trim(), store.LastRequest.Resolution);
     }
 
     [Theory]
@@ -484,6 +484,35 @@ public sealed class AdminApiTests
             new { status = "Rejected", visibility = "Public", resolution = " Причина ", priority = "Normal", version = 1, scope = "Complex" }), default);
         Assert.Equal(200, response.StatusCode);
         Assert.Equal("Причина", store.LastRequest!.Resolution);
+    }
+
+    [Fact]
+    public async Task ExistingExplanationIsPreservedWhenUpdatingWithoutComment()
+    {
+        var store = new FakeStore
+        {
+            ForcedRequest = new(1, 99, "building", "інше", "", "Опис", DateTimeOffset.UtcNow,
+            Status: RequestStatus.Rejected, Visibility: RequestVisibility.Public, Resolution: "Стара причина")
+        };
+        var response = await Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "Rejected", visibility = "Public", resolution = "  ", priority = "Normal", version = 1, scope = "Complex" }), default);
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("Стара причина", store.LastRequest!.Resolution);
+        Assert.Null(store.LastComment);
+    }
+
+    [Fact]
+    public async Task RepeatingTheSameExplanationIsANewComment()
+    {
+        var store = new FakeStore
+        {
+            ForcedRequest = new(1, 99, "building", "інше", "", "Опис", DateTimeOffset.UtcNow,
+            Resolution: "Пояснення")
+        };
+        await Handler(store).HandleAsync(Request("/admin/requests/99/1", "PATCH", body:
+            new { status = "New", visibility = "Public", resolution = " Пояснення ", priority = "Normal", version = 1, scope = "Complex" }), default);
+        Assert.Equal("Пояснення", store.LastRequest!.Resolution);
+        Assert.Equal("Пояснення", store.LastComment);
     }
 
     [Fact]
@@ -988,6 +1017,7 @@ public sealed class AdminApiTests
         public Task<Page<BroadcastMessage>> ListMessagesAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<BroadcastMessage>([], null));
         public Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct) => Task.FromResult(new BroadcastMessage(change.Id, change.Text, actor.Email, actor.UserId, DateTimeOffset.UtcNow));
         public Dictionary<string, AdminUser> Users { get; } = new() { ["super"] = Super, ["regular"] = Regular, ["target"] = new("target", "new@example.org", "New", false, false, 1) };
+        public string? LastComment;
         public MaintenanceRequest? LastRequest;
         public MaintenanceRequest? ForcedRequest;
         public RequestFilters? LastFilters;
@@ -1042,7 +1072,7 @@ public sealed class AdminApiTests
             return Task.FromResult<RequestAuthor?>(request.OwnerId == 100 ? new(null, null, null, "999", true) : new("Олена", "Ковальчук", "4Д", MissingAuthorApartment ? null : "125", Phone: "+380500000000"));
         }
         public bool MissingAuthorApartment;
-        public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct) { RequestWrites++; LastRequest = next; return Task.CompletedTask; }
+        public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct, string? comment = null) { RequestWrites++; LastComment = comment; LastRequest = next; return Task.CompletedTask; }
         public Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct) { LastHistoryRequest = request; return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>([]); }
     }
 }

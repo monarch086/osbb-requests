@@ -230,10 +230,10 @@
             name="resolution"
             [(ngModel)]="draft.resolution"
             maxlength="1000"
-            [required]="draft.status === 'Rejected'"
+            [required]="draft.status === 'Rejected' && originalStatus !== 'Rejected'"
             [disabled]="saving"
             rows="3"
-            placeholder="Обов’язково для відхилених заявок"
+            placeholder="Нове пояснення (обов’язкове при відхиленні)"
           ></textarea>
           <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
             <button

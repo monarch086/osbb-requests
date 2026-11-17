@@ -120,6 +120,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
     this.selected = ticket;
     this.draft = {
       ...ticket.request,
+      resolution: null,
       entrance: ticket.request.entrance ?? null,
       keyItems: ticket.request.keyItems?.map((item) => ({ ...item })) ?? null,
     };

@@ -306,7 +306,7 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 if (current.Request.Category == RequestCategories.KeyOrder && visibility != RequestVisibility.Private)
                     throw new ApiError(400, "Замовлення ключів має бути приватним.");
                 if (change.Resolution?.Length > 1000) throw new ApiError(400, "Пояснення має містити не більше 1000 символів.");
-                if (status == RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
+                if (status == RequestStatus.Rejected && current.Request.Status != RequestStatus.Rejected && string.IsNullOrWhiteSpace(change.Resolution))
                     throw new ApiError(400, "Для відхилення потрібне пояснення.");
                 RequestScope? scope = null;
                 if (change.Scope is not null && Enum.TryParse<RequestScope>(change.Scope, out var parsedScope) && Enum.IsDefined(parsedScope)) scope = parsedScope;
@@ -332,12 +332,12 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                     Entrance = change.Entrance,
                     Status = status,
                     Visibility = visibility,
-                    Resolution = change.Resolution?.Trim(),
+                    Resolution = string.IsNullOrWhiteSpace(change.Resolution) ? current.Request.Resolution : change.Resolution.Trim(),
                     AssignedTo = string.IsNullOrEmpty(change.AssignedTo) ? null : change.AssignedTo,
                     Priority = change.Priority,
                     PlannedDate = date is null ? null : DateOnly.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture)
                 };
-                await store.UpdateRequestAsync(actor, current, next, ct);
+                await store.UpdateRequestAsync(actor, current, next, ct, string.IsNullOrWhiteSpace(change.Resolution) ? null : change.Resolution.Trim());
                 return Reply(200, new { ok = true });
             }
         }

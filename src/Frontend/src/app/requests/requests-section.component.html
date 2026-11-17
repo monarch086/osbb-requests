@@ -66,6 +66,7 @@
 @if (selected && draft) {
   <app-ticket-dialog
     [draft]="draft"
+    [originalStatus]="selected.request.status"
     [assignees]="assignees"
     [history]="history"
     [author]="author"

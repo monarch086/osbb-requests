@@ -7,7 +7,7 @@ import {
   NgSelectComponent,
 } from '@ng-select/ng-select';
 
-import type { RequestAuthor, Ticket } from '../api.models';
+import type { RequestAuthor, Ticket, TicketStatus } from '../api.models';
 import {
   buildingFloors,
   entranceOptions,
@@ -34,6 +34,7 @@ import {
 })
 export class TicketDialogComponent {
   @Input({ required: true }) draft!: Ticket;
+  @Input({ required: true }) originalStatus!: TicketStatus;
   @Input() assignees: {
     userId: string;
     email: string;

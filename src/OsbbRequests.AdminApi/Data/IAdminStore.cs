@@ -30,6 +30,6 @@ public interface IAdminStore
     Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct);
     Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct);
     Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct);
-    Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct);
+    Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct, string? comment = null);
     Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct);
 }

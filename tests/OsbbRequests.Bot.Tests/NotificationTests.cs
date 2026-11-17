@@ -67,7 +67,7 @@ public sealed class NotificationTests
     public void StatusChangeCreatesOwnerNotificationWithUkrainianStatusAndDate(RequestStatus status, string label)
     {
         var old = Request();
-        var notification = ResidentNotification.Create(old, old with { Status = status, Resolution = "Пояснення" }, 5, Now)!;
+        var notification = ResidentNotification.Create(old, old with { Status = status, Resolution = "Пояснення" }, 5, Now, "Пояснення")!;
         Assert.Equal(42, notification.OwnerId);
         Assert.Equal("complex", notification.ComplexId);
         Assert.Equal("7-v5", notification.Id);
@@ -79,25 +79,24 @@ public sealed class NotificationTests
     }
 
     [Theory]
-    [InlineData(null, "Новий коментар")]
-    [InlineData("Попередній", "Виправлений")]
-    [InlineData("Попередній", null)]
-    public void CommentChangeNotifiesWithoutStatusChange(string? previous, string? next)
+    [InlineData("Попередній", "Новий коментар")]
+    [InlineData("Коментар", "Коментар")]
+    public void NewCommentNotifiesEvenWhenIdenticalToPrevious(string previous, string comment)
     {
         var old = Request() with { Resolution = previous };
-        var result = ResidentNotification.Create(old, old with { Resolution = next }, 2, Now)!;
+        var result = ResidentNotification.Create(old, old with { Resolution = comment }, 2, Now, comment)!;
         Assert.DoesNotContain("→", result.Text);
-        Assert.Contains(next ?? "видалено", result.Text);
+        Assert.Contains(comment, result.Text);
     }
 
     [Theory]
-    [InlineData(null, "")]
-    [InlineData("Коментар", " Коментар ")]
-    [InlineData("Коментар", "Коментар")]
-    public void UnchangedStatusAndCommentDoNotCreateNotification(string? previous, string? next)
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UnchangedStatusWithoutNewCommentDoesNotCreateNotification(string? comment)
     {
-        var old = Request() with { Resolution = previous };
-        Assert.Null(ResidentNotification.Create(old, old with { Resolution = next, Priority = "High", AssignedTo = "admin", Visibility = RequestVisibility.Public }, 2, Now));
+        var old = Request() with { Resolution = "Попереднє пояснення" };
+        Assert.Null(ResidentNotification.Create(old, old with { Priority = "High" }, 2, Now, comment));
     }
 
     [Fact]
@@ -112,7 +111,7 @@ public sealed class NotificationTests
     public void MaximumCommentFitsSinglePlainTextTelegramMessage()
     {
         var old = Request();
-        var result = ResidentNotification.Create(old, old with { Status = RequestStatus.Completed, Resolution = "<b>" + new string('О', 993) + "</b>" }, 2, Now)!;
+        var result = ResidentNotification.Create(old, old with { Status = RequestStatus.Completed, Resolution = "<b>" + new string('О', 993) + "</b>" }, 2, Now, "<b>" + new string('О', 993) + "</b>")!;
         Assert.True(result.Text.Length <= 4096);
         Assert.Contains("<b>", result.Text);
     }
@@ -127,11 +126,13 @@ public sealed class NotificationTests
         using var db = new RecordingDynamo();
         var old = Request();
         var next = old with { Status = statusChanged ? RequestStatus.InProgress : old.Status, Resolution = commentChanged ? "Уточніть проблему" : null };
-        await new DynamoAdminStore(db, "admins", "data", "complex").UpdateRequestAsync(Admin, new(old, 4), next, default);
+        await new DynamoAdminStore(db, "admins", "data", "complex").UpdateRequestAsync(Admin, new(old, 4), next, default, commentChanged ? "Уточніть проблему" : null);
         var writes = db.Transaction!.TransactItems;
         Assert.Equal(statusChanged || commentChanged ? 4 : 3, writes.Count);
         Assert.Single(writes, w => w.ConditionCheck is not null); // Active administrator checked in same transaction.
         Assert.Equal("4", Assert.Single(writes, w => w.Update is not null).Update.ExpressionAttributeValues[":expected"].N);
+        var audit = Assert.Single(writes, w => w.Put?.Item["pk"].S == "REQUEST#7").Put.Item;
+        Assert.Equal(commentChanged ? "Уточніть проблему" : "", audit["resolution"].S);
         if (!statusChanged && !commentChanged) return;
         var pending = Assert.Single(writes, w => w.Put?.Item["pk"].S == "NOTIFICATIONS#complex").Put;
         var job = JsonSerializer.Deserialize<ResidentNotification>(pending.Item["payload"].S)!;
@@ -141,6 +142,18 @@ public sealed class NotificationTests
         Assert.False(pending.Item.ContainsKey("expiresAt"));
         Assert.Equal("attribute_not_exists(pk)", pending.ConditionExpression);
         Assert.StartsWith("DUE#", pending.Item["sk"].S);
+    }
+
+    [Fact]
+    public async Task RepeatedCommentIsWrittenToHistoryAndNotified()
+    {
+        using var db = new RecordingDynamo();
+        var old = Request() with { Resolution = "Пояснення" };
+        await new DynamoAdminStore(db, "admins", "data", "complex").UpdateRequestAsync(Admin, new(old, 4), old, default, "Пояснення");
+        var writes = db.Transaction!.TransactItems;
+        Assert.Equal("Пояснення", Assert.Single(writes, w => w.Put?.Item["pk"].S == "REQUEST#7").Put.Item["resolution"].S);
+        var notification = JsonSerializer.Deserialize<ResidentNotification>(Assert.Single(writes, w => w.Put?.Item["pk"].S == "NOTIFICATIONS#complex").Put.Item["payload"].S)!;
+        Assert.Contains("Пояснення", notification.Text);
     }
 
     [Fact]

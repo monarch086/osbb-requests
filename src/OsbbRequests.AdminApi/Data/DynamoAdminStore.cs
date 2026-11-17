@@ -429,14 +429,14 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         return resident.HasDeletedPersonalData ? new(null, null, null, null, true)
             : new(resident.FirstName?.Trim(), resident.LastName?.Trim(), resident.BuildingNumber, resident.ApartmentNumber, Phone: resident.Phone);
     }
-    public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct)
+    public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct, string? comment = null)
     {
         if (!ComplexLayout.IsValidRequest(next.Category, next.Scope, next.BuildingNumber, next.Floor, next.Entrance)) throw new ApiError(400, "Некоректна прив’язка заявки.");
         var timestamp = DateTimeOffset.UtcNow;
         var now = timestamp.ToString("O");
         var audit = Key("REQUEST#" + next.Id.ToString(CultureInfo.InvariantCulture), "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
         audit["actor"] = S(actor.Email); audit["createdAt"] = S(now); audit["status"] = S(next.Status.ToString());
-        audit["previousStatus"] = S(current.Request.Status.ToString()); audit["resolution"] = S(next.Resolution ?? "");
+        audit["previousStatus"] = S(current.Request.Status.ToString()); audit["resolution"] = S(comment ?? "");
         audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility, next.Scope, next.BuildingNumber, next.Floor, next.Entrance, KeySerialNumbersChanged = !Enumerable.SequenceEqual(current.Request.KeyItems?.Select(k => k.SerialNumber) ?? [], next.KeyItems?.Select(k => k.SerialNumber) ?? []) }));
         var writes = new List<TransactWriteItem> { ActorCheck(actor), new() { Update = new() {
             TableName = dataTable, Key = Key("USER#" + next.OwnerId.ToString(CultureInfo.InvariantCulture), RequestKey(next.Id)),
@@ -449,7 +449,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
                 [":priorityOrder"] = S(RequestPriorityOrder.Key(next)),
                 [":floor"] = next.Floor is { } floor ? N(floor) : new() { NULL = true } }
         } }, Put(dataTable, audit) };
-        if (ResidentNotification.Create(current.Request, next, current.Version + 1, timestamp) is { } notification)
+        if (ResidentNotification.Create(current.Request, next, current.Version + 1, timestamp, comment) is { } notification)
         {
             writes.Add(NotificationWrite(notification));
         }

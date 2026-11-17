@@ -9,22 +9,19 @@ public sealed record ResidentNotification(string Id, string ComplexId, long Owne
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsBroadcast => OwnerId == 0 && AdministratorId is null && (AdministratorEvent is not null || ResidentBroadcastId is not null);
 
-    public static ResidentNotification? Create(MaintenanceRequest previous, MaintenanceRequest next, int version, DateTimeOffset now)
+    public static ResidentNotification? Create(MaintenanceRequest previous, MaintenanceRequest next, int version, DateTimeOffset now, string? newComment = null)
     {
         if (previous.Id != next.Id || previous.OwnerId != next.OwnerId || previous.BuildingId != next.BuildingId)
             throw new InvalidOperationException("Notification request identity mismatch.");
-        var oldComment = previous.Resolution?.Trim() ?? "";
-        var comment = next.Resolution?.Trim() ?? "";
+        var comment = newComment?.Trim() ?? "";
         var statusChanged = previous.Status != next.Status;
-        var commentChanged = oldComment != comment;
-        if (!statusChanged && !commentChanged) return null;
+        if (!statusChanged && comment.Length == 0) return null;
         var date = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         var text = $"Оновлення вашої заявки №{next.Id}\n" +
             $"{ComplexLayout.Label(next.Scope, next.BuildingNumber, next.Floor, next.Entrance)}\n" +
             $"Оновлено: {date:dd.MM.yyyy HH:mm} (Київ)\n" +
             (statusChanged ? $"Статус: {Label(previous.Status)} → {Label(next.Status)}" : $"Статус: {Label(next.Status)}");
         if (comment.Length > 0) text += "\n\nПояснення для мешканця:\n" + comment;
-        else if (commentChanged) text += "\n\nПояснення для мешканця видалено.";
         text += $"\n\nДеталі: /request {next.Id}";
         return new(next.Id.ToString(CultureInfo.InvariantCulture) + "-v" + version.ToString(CultureInfo.InvariantCulture),
             next.BuildingId, next.OwnerId, next.Id, version, text, now);
