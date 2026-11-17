@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ ! -f "$project_root/.env.data.local" ]]; then
+  printf '%s\n' 'Відсутній файл .env.data.local.' >&2
+  exit 1
+fi
+set -a
+source "$project_root/.env.data.local"
+set +a
+umask 077
+lock_dir="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/osbb-requests}"
+mkdir -p -- "$lock_dir"
+exec 9>"$lock_dir/osbb-data-weekly.lock"
+if ! flock -n 9; then
+  printf '%s\n' 'Попередній запланований імпорт ще виконується.' >&2
+  exit 1
+fi
+cd "$project_root"
+docker compose --env-file .env.data.local -f compose.data.yml up -d --wait --no-deps postgres
+./scripts/osbb-data import --stage dev --region eu-central-1
+./scripts/osbb-data backup
