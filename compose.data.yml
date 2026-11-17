@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: osbb
+      POSTGRES_USER: osbb
+      POSTGRES_PASSWORD: ${OSBB_POSTGRES_PASSWORD:?Set OSBB_POSTGRES_PASSWORD}
+    ports:
+      - '127.0.0.1:${OSBB_POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - osbb_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U osbb -d osbb']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  adminer:
+    image: adminer:5.5.1
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - '${OSBB_ADMINER_BIND:-127.0.0.1}:${OSBB_ADMINER_PORT:-8081}:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  osbb_postgres_data:

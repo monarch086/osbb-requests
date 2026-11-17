@@ -23,6 +23,7 @@ node_modules/
 *.local.json
 *.pem
 *.key
+/backups/
 
 # OS / editor / logs
 .DS_Store
