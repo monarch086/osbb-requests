@@ -90,11 +90,10 @@
     <div class="table-responsive">
       <table class="table table-sm">
         <caption>
-          Показники за ендпоінтами
+          Показники за ендпоінтами за обраний період
         </caption>
         <thead>
           <tr>
-            <th scope="col">Дата UTC</th>
             <th scope="col">Ендпоінт</th>
             <th scope="col" [attr.aria-sort]="sortColumn === 'requests' ? sortDirection : null">
               <button type="button" class="btn btn-link p-0" (click)="sort('requests')">
@@ -138,14 +137,13 @@
           </tr>
         </thead>
         <tbody>
-          @for (item of items; track item.date + item.endpoint) {
+          @for (item of items; track item.endpoint) {
             <tr>
-              <td>{{ item.date }}</td>
               <td>{{ item.endpoint }}</td>
               <td>{{ item.requests }}</td>
               <td>{{ format(item.readUnits) }}</td>
               <td>{{ format(item.writeUnits) }}</td>
-              <td>{{ format(item.durationMs / item.requests) }}</td>
+              <td>{{ format(item.requests ? item.durationMs / item.requests : 0) }}</td>
             </tr>
           }
         </tbody>

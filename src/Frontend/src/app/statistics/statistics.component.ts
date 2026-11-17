@@ -1,11 +1,10 @@
 import type { OnDestroy, OnInit } from '@angular/core';
 import { Component, inject } from '@angular/core';
 
-import type { DailyStatistic } from '../api.models';
 import { ApiService } from '../api.service';
 import { errorMessage } from '../error-message';
-import type { SortDirection, StatisticsSortColumn } from './statistics-sort';
-import { sortStatistics } from './statistics-sort';
+import type { EndpointStatistic, SortDirection, StatisticsSortColumn } from './statistics-sort';
+import { aggregateStatistics, sortStatistics } from './statistics-sort';
 
 interface ChartDay {
   date: string;
@@ -24,7 +23,7 @@ export class StatisticsComponent implements OnInit, OnDestroy {
   protected days: 1 | 7 | 30 = 7;
   protected loading = false;
   protected error = '';
-  protected items: DailyStatistic[] = [];
+  protected items: EndpointStatistic[] = [];
   protected chart: ChartDay[] = [];
   protected maxRead = 0;
   protected sortColumn: StatisticsSortColumn | null = null;
@@ -55,9 +54,10 @@ export class StatisticsComponent implements OnInit, OnDestroy {
       if (sequence !== this.sequence) {
         return;
       }
+      const totals = aggregateStatistics(result.items);
       this.items = this.sortColumn
-        ? sortStatistics(result.items, this.sortColumn, this.sortDirection)
-        : result.items;
+        ? sortStatistics(totals, this.sortColumn, this.sortDirection)
+        : totals;
       const today = new Date();
       this.chart = Array.from({ length: days }, (_, i) => {
         const date = new Date(
