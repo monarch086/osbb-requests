@@ -204,6 +204,19 @@
                     <strong>{{ item.type }}</strong> · {{ item.phone }} ·
                     @if (authorLoading) {
                       Завантажуємо дані…
+                    } @else if (keyResidents[index]?.length) {
+                      @for (resident of keyResidents[index]; track $index; let last = $last) {
+                        {{ resident.name }}
+                        @if (resident.buildingNumber) {
+                          · будинок {{ resident.buildingNumber }}
+                        }
+                        @if (resident.apartmentNumber) {
+                          · квартира {{ resident.apartmentNumber }}
+                        }
+                        @if (!last) {
+                          ;
+                        }
+                      }
                     } @else {
                       {{ keyResidentNames[index]?.join(', ') || 'Мешканця не знайдено' }}
                     }

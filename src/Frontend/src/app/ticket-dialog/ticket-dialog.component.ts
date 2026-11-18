@@ -7,7 +7,7 @@ import {
   NgSelectComponent,
 } from '@ng-select/ng-select';
 
-import type { RequestAuthor, Ticket, TicketStatus } from '../api.models';
+import type { KeyResident, RequestAuthor, Ticket, TicketStatus } from '../api.models';
 import {
   buildingFloors,
   entranceOptions,
@@ -42,6 +42,7 @@ export class TicketDialogComponent {
   @Input() author: RequestAuthor | null = null;
   @Input() authorLoading = false;
   @Input() keyResidentNames: string[][] = [];
+  @Input() keyResidents: KeyResident[][] = [];
   @Input() history: Record<string, string>[] = [];
   @Input() saving = false;
   @Input() error = '';

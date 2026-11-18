@@ -156,8 +156,15 @@ export interface RequestAuthor {
 export interface ManagedTicket {
   request: Ticket;
   author?: RequestAuthor | null;
+  /** @deprecated Use keyResidents; retained temporarily for older API versions. */
   keyResidentNames?: string[][] | null;
+  keyResidents?: KeyResident[][] | null;
   version: number;
+}
+export interface KeyResident {
+  name: string;
+  buildingNumber: string | null;
+  apartmentNumber: string | null;
 }
 export interface Page<T> {
   items: T[];

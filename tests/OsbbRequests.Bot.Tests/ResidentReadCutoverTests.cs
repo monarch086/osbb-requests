@@ -83,21 +83,28 @@ public sealed class ResidentReadCutoverTests
         using var db = new ReadDynamo();
         const string phone = "+380671234567";
         var lookup = OsbbRequests.Shared.Residents.ResidentPhoneIndex.LookupKey("complex", phone);
-        foreach (var id in new[] { 42L, 43L })
+        foreach (var id in new[] { 42L, 43L, 44L })
         {
             var key = OsbbRequests.Shared.Residents.ResidentPhoneIndex.ItemKey("complex", id, phone);
             db.QueriedItems.Add(new() { ["pk"] = new(key) });
             db.RawRows[key] = new() { ["complexId"] = new("complex"), ["phoneLookup"] = new(lookup), ["residentId"] = new() { N = id.ToString() } };
             var resident = new ResidentRegistration("ref", id, "complex", RegistrationStage.Approved, 1, DateTimeOffset.UnixEpoch,
-                DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Ім’я", LastName: id.ToString(), PersonalDataDeleted: id == 43);
+                DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Ім’я", LastName: id.ToString(), PersonalDataDeleted: id == 43,
+                BuildingNumber: id == 44 ? null : "4В", ApartmentNumber: id == 44 ? null : "25");
             db.Rows[$"COMPLEX#complex#RECORD#USER#{id}#REGISTRATION"] = new() { ["payload"] = new(JsonSerializer.Serialize(resident)) };
         }
         var request = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
             KeyItems: [new("Магніт", phone), new("Перепустка", phone)]);
         var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
-        var result = await store.GetKeyResidentNamesAsync(request, default);
-        Assert.Equal(new[] { "Ім’я 42" }, result[0]);
-        Assert.Equal(new[] { "Ім’я 42" }, result[1]);
+        var result = await store.GetKeyResidentsAsync(request, default);
+        Assert.Equal(2, result[0].Count);
+        Assert.Equal("Ім’я 42", result[0][0].Name);
+        Assert.Equal("4В", result[0][0].BuildingNumber);
+        Assert.Equal("25", result[0][0].ApartmentNumber);
+        Assert.Equal("Ім’я 44", result[0][1].Name);
+        Assert.Null(result[0][1].BuildingNumber);
+        Assert.Null(result[0][1].ApartmentNumber);
+        Assert.Equal(result[0], result[1]);
         Assert.Single(db.Queries);
         Assert.All(db.Reads, read => Assert.True(read.ConsistentRead));
     }

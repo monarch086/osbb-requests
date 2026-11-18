@@ -30,7 +30,10 @@ public sealed record ResidentTypeChange(string PreviousType, string NewType, str
 public sealed record RequestChange(string Status, string Visibility, string? Resolution, string? AssignedTo,
     string Priority, string? PlannedDate, int Version, string? Scope = null, string? BuildingNumber = null, int? Floor = null, int? Entrance = null, IReadOnlyList<string?>? KeySerialNumbers = null);
 public sealed record RequestAuthor(string? FirstName, string? LastName, string? BuildingNumber, string? ApartmentNumber, bool PersonalDataDeleted = false, string? Phone = null);
-public sealed record ManagedRequest(MaintenanceRequest Request, int Version, RequestAuthor? Author = null, IReadOnlyList<IReadOnlyList<string>>? KeyResidentNames = null);
+public sealed record KeyResident(string Name, string? BuildingNumber, string? ApartmentNumber);
+public sealed record ManagedRequest(MaintenanceRequest Request, int Version, RequestAuthor? Author = null,
+    [property: Obsolete("Use KeyResidents; retained temporarily for older frontend versions.")] IReadOnlyList<IReadOnlyList<string>>? KeyResidentNames = null,
+    IReadOnlyList<IReadOnlyList<KeyResident>>? KeyResidents = null);
 public sealed record ResidentKeyEntry(string Name, string Phone, string? SerialNumber, long RequestId, int KeyIndex);
 public sealed record ResidentKeyPage(IReadOnlyList<ResidentKeyEntry> Items, int PageNumber, int PageSize, int Total);
 public sealed record RequestCounts(int Total, int NewCount, int ProgressCount);

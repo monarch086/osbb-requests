@@ -290,12 +290,19 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             if (current.Request.Category == RequestCategories.KeyOrder ? !actor.EffectivePermissions.KeyOrders : !actor.EffectivePermissions.ComplexRequests)
                 throw new ApiError(403, "Недостатньо прав для роботи із заявкою.");
             if (method == "GET" && segments.Length == 5 && segments[4] == "history") return Reply(200, new { items = await store.HistoryAsync(current.Request, ct) });
-            if (method == "GET" && segments.Length == 4) return Reply(200, current with
+            if (method == "GET" && segments.Length == 4)
             {
-                Author = await store.GetRequestAuthorAsync(current.Request, ct),
-                KeyResidentNames = current.Request.Category == RequestCategories.KeyOrder && current.Request.KeyItems is { Count: > 0 }
-                    ? await store.GetKeyResidentNamesAsync(current.Request, ct) : null
-            });
+                var residents = current.Request.Category == RequestCategories.KeyOrder && current.Request.KeyItems is { Count: > 0 }
+                    ? await store.GetKeyResidentsAsync(current.Request, ct) : null;
+                return Reply(200, current with
+                {
+                    Author = await store.GetRequestAuthorAsync(current.Request, ct),
+#pragma warning disable CS0618 // Populate the legacy response until older frontend versions are retired.
+                    KeyResidentNames = residents?.Select(group => (IReadOnlyList<string>)group.Select(resident => resident.Name).ToArray()).ToArray(),
+#pragma warning restore CS0618
+                    KeyResidents = residents
+                });
+            }
             if (method == "PATCH" && segments.Length == 4)
             {
                 var change = Body<RequestChange>(request);

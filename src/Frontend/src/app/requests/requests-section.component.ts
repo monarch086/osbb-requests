@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 
-import type { ManagedTicket, RequestAuthor, Ticket } from '../api.models';
+import type { KeyResident, ManagedTicket, RequestAuthor, Ticket } from '../api.models';
 import { errorMessage } from '../error-message';
 import { ExcelExportService } from '../export/excel-export.service';
 import { PaginationComponent } from '../pagination/pagination.component';
@@ -26,6 +26,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
   protected author: RequestAuthor | null = null;
   protected authorLoading = false;
   protected keyResidentNames: string[][] = [];
+  protected keyResidents: KeyResident[][] = [];
   private assigneesReady = false;
   private detailSequence = 0;
   private readonly countsCache = new RequestCountsCache();
@@ -128,6 +129,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
     this.error = '';
     this.author = null;
     this.keyResidentNames = [];
+    this.keyResidents = [];
     this.authorLoading = true;
     const sequence = ++this.detailSequence;
     const epoch = this.epoch;
@@ -142,6 +144,7 @@ export class RequestsSectionComponent extends WorkspaceSection {
     if (detail.status === 'fulfilled') {
       this.author = detail.value.author ?? null;
       this.keyResidentNames = detail.value.keyResidentNames ?? [];
+      this.keyResidents = detail.value.keyResidents ?? [];
     } else {
       this.error = errorMessage(detail.reason);
     }

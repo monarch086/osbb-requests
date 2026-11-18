@@ -42,26 +42,26 @@ public sealed partial class DynamoAdminStore
             if (latest?.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || key.Index >= items.Count) continue;
             current.Add((key.RequestId, key.Index, items[key.Index]));
         }
-        var names = await GetKeyResidentNamesAsync(new MaintenanceRequest(0, 0, building, RequestCategories.KeyOrder,
+        var residents = await GetKeyResidentsAsync(new MaintenanceRequest(0, 0, building, RequestCategories.KeyOrder,
             "", "", DateTimeOffset.UnixEpoch, KeyItems: current.Select(key => key.Item).ToArray()), ct);
         var rows = current.Select((key, index) => new ResidentKeyEntry(
-            names[index].Count == 0 ? "Мешканця не знайдено" : string.Join(", ", names[index]), key.Item.Phone,
+            residents[index].Count == 0 ? "Мешканця не знайдено" : string.Join(", ", residents[index].Select(resident => resident.Name)), key.Item.Phone,
             key.Item.SerialNumber, key.RequestId, key.Index)).ToArray();
         return new(rows, actual, 25, keys.Count);
     }
 
-    public async Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct)
+    public async Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct)
     {
         if (request.BuildingId != building || request.Category != RequestCategories.KeyOrder || residentsTable is null)
             throw new InvalidOperationException("Invalid key order.");
-        var cache = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
-        var results = new List<IReadOnlyList<string>>();
+        var cache = new Dictionary<string, IReadOnlyList<KeyResident>>(StringComparer.Ordinal);
+        var results = new List<IReadOnlyList<KeyResident>>();
         foreach (var item in request.KeyItems ?? [])
         {
             if (!ResidentPhoneIndex.TryNormalize(item.Phone, out var phone)) { results.Add([]); continue; }
             if (!cache.TryGetValue(phone!, out var names))
             {
-                var matches = new List<string>();
+                var matches = new List<KeyResident>();
                 var lookup = ResidentPhoneIndex.LookupKey(building, phone!);
                 Dictionary<string, AttributeValue>? cursor = null;
                 do
@@ -87,7 +87,7 @@ public sealed partial class DynamoAdminStore
                         if (resident.UserId != id || resident.BuildingId != building || resident.Stage != RegistrationStage.Approved || resident.PersonalDataDeleted ||
                             !ResidentPhoneIndex.TryNormalize(resident.Phone, out var currentPhone) || currentPhone != phone) continue;
                         var name = string.Join(" ", new[] { resident.FirstName, resident.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
-                        if (name.Length > 0) matches.Add(name);
+                        if (name.Length > 0) matches.Add(new(name, resident.BuildingNumber, resident.ApartmentNumber));
                     }
                     cursor = page.LastEvaluatedKey;
                 } while (cursor is { Count: > 0 });

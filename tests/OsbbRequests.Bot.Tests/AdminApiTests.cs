@@ -891,6 +891,10 @@ public sealed class AdminApiTests
         var details = await handler.HandleAsync(Request("/admin/requests/99/7"), default);
         using var body = JsonDocument.Parse(details.Body);
         Assert.Equal("Олена Тестова", body.RootElement.GetProperty("keyResidentNames")[0][0].GetString());
+        var resident = body.RootElement.GetProperty("keyResidents")[0][0];
+        Assert.Equal("Олена Тестова", resident.GetProperty("name").GetString());
+        Assert.Equal("4Б", resident.GetProperty("buildingNumber").GetString());
+        Assert.Equal("12", resident.GetProperty("apartmentNumber").GetString());
         var result = await handler.HandleAsync(Request("/admin/requests/99/7", "PATCH", body: new
         {
             status = "New",
@@ -1010,7 +1014,7 @@ public sealed class AdminApiTests
         public int AuthorReads;
         public int KeyResidentReads;
         public Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct) { KeyResidentReads++; return Task.FromResult(new ResidentKeyPage([], page, 25, 0)); }
-        public Task<IReadOnlyList<IReadOnlyList<string>>> GetKeyResidentNamesAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<IReadOnlyList<IReadOnlyList<string>>>(request.KeyItems!.Select(_ => (IReadOnlyList<string>)new[] { "Олена Тестова" }).ToArray());
+        public Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<IReadOnlyList<IReadOnlyList<KeyResident>>>(request.KeyItems!.Select(_ => (IReadOnlyList<KeyResident>)new[] { new KeyResident("Олена Тестова", "4Б", "12") }).ToArray());
         public int PermissionWrites;
         public Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct) { PermissionWrites++; return Task.CompletedTask; }
         public Exception? ReadError;
