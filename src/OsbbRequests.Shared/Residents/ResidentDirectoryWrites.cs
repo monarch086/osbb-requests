@@ -38,6 +38,8 @@ public static class ResidentDirectoryWrites
         var type = next.ResidentType.ToString();
         var groups = $"COMPLEX#{next.BuildingId}#APPROVED#";
         var previousVersion = previousRow?["sourceVersion"].N;
+        var nameOrder = eligible ? ResidentNameOrder.Create(next.Id, next.FirstName, next.LastName) : default;
+        var oversizedNameOrder = nameOrder.Ascending?.Length > ResidentNameOrder.MaxKeyBytes;
         if (eligible)
         {
             var ticks = (next.ApprovedAt ?? next.UpdatedAt).UtcTicks;
@@ -54,6 +56,11 @@ public static class ResidentDirectoryWrites
                     ["buildingNumber"] = new(building),
                     ["sourceVersion"] = Number(next.Version)
                 };
+                if (!oversizedNameOrder)
+                {
+                    row["listNameOrder"] = new() { B = new MemoryStream(nameOrder.Ascending!, writable: false) };
+                    row["listNameOrderDescending"] = new() { B = new MemoryStream(nameOrder.Descending!, writable: false) };
+                }
                 if (next.FirstName is not null) row["firstName"] = new(next.FirstName);
                 if (next.LastName is not null) row["lastName"] = new(next.LastName);
                 if (next.ApartmentNumber is not null) row["apartmentNumber"] = new(next.ApartmentNumber);
@@ -107,14 +114,22 @@ public static class ResidentDirectoryWrites
                 values[":delta" + index] = Number(change);
                 terms.Add($"#type{index} :delta{index}");
             }
-            if (terms.Count == 0) continue;
+            var set = "";
+            if (oversizedNameOrder && (scope == All || scope == Building + "#" + building))
+            {
+                names["#blocked"] = "nameOrderUnsupported";
+                values[":true"] = new() { BOOL = true };
+                set = "SET #blocked = :true";
+            }
+            if (terms.Count == 0 && set.Length == 0) continue;
+            var updateExpression = terms.Count == 0 ? set : (set.Length == 0 ? "" : set + " ") + "ADD " + string.Join(", ", terms);
             writes.Add(new()
             {
                 Update = new()
                 {
                     TableName = table,
                     Key = new() { ["pk"] = new($"COMPLEX#{next.BuildingId}#DIRECTORY_COUNT#{scope}") },
-                    UpdateExpression = "ADD " + string.Join(", ", terms),
+                    UpdateExpression = updateExpression,
                     ExpressionAttributeNames = names,
                     ExpressionAttributeValues = values
                 }

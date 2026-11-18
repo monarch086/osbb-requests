@@ -53,6 +53,13 @@ class Dynamo:
                     item = write['Put']['Item']
                     assert item['pk']['S'] not in self.items
                     self.items[item['pk']['S']] = deepcopy(item)
+                elif write['Update']['UpdateExpression'].startswith('SET '):
+                    update = write['Update']
+                    item = self.items[update['Key']['pk']['S']]
+                    assert 'sourceVersion = :version' in update['ConditionExpression']
+                    for name, attribute in update['ExpressionAttributeNames'].items():
+                        assert attribute not in item
+                        item[attribute] = update['ExpressionAttributeValues'][name.replace('#', ':')]
                 else:
                     update = write['Update']
                     key = update['Key']['pk']['S']
@@ -95,6 +102,20 @@ class BackfillTests(unittest.TestCase):
         self.assertEqual(0, applied['index_group_mismatches'])
         self.assertEqual(0, self.run_migration(fake, apply=True)['written'])
         self.assertEqual(2, len(fake.transactions))
+
+    def test_backfill_enriches_existing_rows_without_incrementing_counts(self):
+        fake = Dynamo(profile())
+        self.run_migration(fake, apply=True)
+        keys = {'listNameOrder': {'B': 'AA=='}, 'listNameOrderDescending': {'B': 'AQ=='}}
+        result = self.run_migration(fake, apply=True, name_key_generator=lambda profiles: [keys])
+        self.assertEqual(0, result['counter_mismatches'])
+        self.assertEqual(0, result['changed_rows'])
+        self.assertEqual(1, result['written'])
+        updates = fake.transactions[-1]['TransactItems'][1:]
+        self.assertEqual(2, len(updates))
+        self.assertTrue(all('DIRECTORY_ROW' in w['Update']['Key']['pk']['S'] for w in updates))
+        repeat = self.run_migration(fake, apply=True, name_key_generator=lambda profiles: [keys])
+        self.assertEqual(0, repeat['written'])
 
     def test_race_never_creates_rows_or_increments_counts_for_deleted_profile(self):
         fake = Dynamo(profile())

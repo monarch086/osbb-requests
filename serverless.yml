@@ -12,6 +12,9 @@ stages:
       phoneLookupMode: Directory
       residentDirectoryDescendingIndex: "false"
       compactResidentDirectory: "false"
+      residentDirectoryNameIndex: "false"
+      residentDirectoryNameDescendingIndex: "false"
+      compactResidentNameDirectory: "false"
       serviceNotificationChatId: '38627946'
       serviceBotTokenParameter: /shared/telegram/service-bot-token
   dev:
@@ -92,6 +95,7 @@ functions:
       - CommandProcessorRole
       - Arn
     environment:
+      DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU: "72.1.0.3"
       BOT_TOKEN_PARAMETER: ${self:custom.parameterPrefix}/telegram-bot-token
       COMMAND_DATA_TABLE:
         Ref: CommandDataTable
@@ -187,12 +191,14 @@ functions:
       - AdminApiRole
       - Arn
     environment:
+      DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU: "72.1.0.3"
       ADMINISTRATORS_TABLE:
         Ref: AdministratorsTable
       COMMAND_DATA_TABLE:
         Ref: CommandDataTable
       BUILDING_ID: ${self:custom.buildingId}
       REQUEST_SORT_MODE: ${param:requestSortMode}
+      COMPACT_RESIDENT_NAME_DIRECTORY: "${param:compactResidentNameDirectory}"
       COMPACT_RESIDENT_DIRECTORY: "${param:compactResidentDirectory}"
       RESIDENTS_TABLE:
         Ref: ResidentsTable
@@ -203,6 +209,14 @@ resources:
     CreateResidentDirectoryDescendingIndex:
       Fn::Equals:
       - '${param:residentDirectoryDescendingIndex}'
+      - 'true'
+    CreateResidentDirectoryNameIndex:
+      Fn::Equals:
+      - '${param:residentDirectoryNameIndex}'
+      - 'true'
+    CreateResidentDirectoryNameDescendingIndex:
+      Fn::Equals:
+      - '${param:residentDirectoryNameDescendingIndex}'
       - 'true'
   Resources:
     StatisticsTable:
@@ -300,6 +314,16 @@ resources:
           - AttributeName: listOrderDescending
             AttributeType: S
           - Ref: AWS::NoValue
+        - Fn::If:
+          - CreateResidentDirectoryNameIndex
+          - AttributeName: listNameOrder
+            AttributeType: B
+          - Ref: AWS::NoValue
+        - Fn::If:
+          - CreateResidentDirectoryNameDescendingIndex
+          - AttributeName: listNameOrderDescending
+            AttributeType: B
+          - Ref: AWS::NoValue
         KeySchema:
         - AttributeName: pk
           KeyType: HASH
@@ -360,6 +384,42 @@ resources:
             - AttributeName: listGroup
               KeyType: HASH
             - AttributeName: listOrderDescending
+              KeyType: RANGE
+            Projection:
+              ProjectionType: INCLUDE
+              NonKeyAttributes:
+              - registrationId
+              - firstName
+              - lastName
+              - residentType
+              - buildingNumber
+              - apartmentNumber
+          - Ref: AWS::NoValue
+        - Fn::If:
+          - CreateResidentDirectoryNameIndex
+          - IndexName: ResidentDirectoryByName
+            KeySchema:
+            - AttributeName: listGroup
+              KeyType: HASH
+            - AttributeName: listNameOrder
+              KeyType: RANGE
+            Projection:
+              ProjectionType: INCLUDE
+              NonKeyAttributes:
+              - registrationId
+              - firstName
+              - lastName
+              - residentType
+              - buildingNumber
+              - apartmentNumber
+          - Ref: AWS::NoValue
+        - Fn::If:
+          - CreateResidentDirectoryNameDescendingIndex
+          - IndexName: ResidentDirectoryByNameDescending
+            KeySchema:
+            - AttributeName: listGroup
+              KeyType: HASH
+            - AttributeName: listNameOrderDescending
               KeyType: RANGE
             Projection:
               ProjectionType: INCLUDE
@@ -891,6 +951,8 @@ resources:
               Resource:
               - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByDate
               - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByDateDescending
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByName
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByNameDescending
               Condition:
                 ForAllValues:StringLike:
                   dynamodb:LeadingKeys:

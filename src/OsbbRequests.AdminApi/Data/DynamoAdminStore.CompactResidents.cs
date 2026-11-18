@@ -10,12 +10,12 @@ namespace OsbbRequests.AdminApi.Data;
 public sealed partial class DynamoAdminStore
 {
     private const int ResidentPageSize = 25;
-    private sealed record ResidentCursor(string Group, bool Ascending, string? Type, int Offset, string RowKey, string Order);
+    private sealed record ResidentCursor(string Group, bool Ascending, string? Type, int Offset, string RowKey, string Order, bool ByName = false);
 
     public async Task<CompactResidentPage?> ListCompactResidentsAsync(int page, string? buildingNumber, string? residentType,
-        string? direction, string? cursor, CancellationToken ct)
+        string? direction, string? cursor, CancellationToken ct, bool byName = false)
     {
-        if (!compactResidentDirectory) return null;
+        if (!compactResidentDirectory || byName && !compactResidentNameDirectory) return null;
         if (page is < 1 or > 1_000_000) throw new ApiError(400, "Некоректна сторінка.");
         ValidateResidentFilters(buildingNumber, residentType, "registeredAt", direction);
         var table = residentsTable ?? throw new InvalidOperationException("Residents table is not configured.");
@@ -26,11 +26,17 @@ public sealed partial class DynamoAdminStore
         var group = prefix + "APPROVED#" + scope;
         var rowPrefix = prefix + "DIRECTORY_ROW#" + kind + "#";
         var ascending = direction == "asc";
-        var sortKey = ascending ? "listOrder" : "listOrderDescending";
-        var index = ascending ? "ResidentDirectoryByDate" : "ResidentDirectoryByDateDescending";
+        var sortKey = byName ? "listNameOrder" : "listOrder";
+        var index = byName ? "ResidentDirectoryByName" : "ResidentDirectoryByDate";
+        if (!ascending)
+        {
+            sortKey += "Descending";
+            index += "Descending";
+        }
         var type = string.IsNullOrEmpty(residentType) ? null : residentType;
 
         var counters = await Get(table, new() { ["pk"] = S(prefix + "DIRECTORY_COUNT#" + scope) }, ct);
+        if (byName && counters?.GetValueOrDefault("nameOrderUnsupported")?.BOOL == true) return null;
         int Count(ResidentType resident) => int.Parse(counters?.GetValueOrDefault(resident.ToString())?.N ?? "0", CultureInfo.InvariantCulture);
         var owners = Count(ResidentType.Owner);
         var family = Count(ResidentType.FamilyMember);
@@ -42,14 +48,14 @@ public sealed partial class DynamoAdminStore
         if (total == 0) return new([], 1, ResidentPageSize, 0, counts, null, null);
 
         var target = (actualPage - 1) * ResidentPageSize;
-        var anchor = ReadResidentCursor(cursor, group, ascending, type, rowPrefix);
+        var anchor = ReadResidentCursor(cursor, group, ascending, type, rowPrefix, byName);
         if (anchor?.Offset > target) anchor = null;
         var offset = anchor?.Offset ?? 0;
         var start = anchor is null ? null : new Dictionary<string, AttributeValue>
         {
             ["pk"] = S(anchor.RowKey),
             ["listGroup"] = S(group),
-            [sortKey] = S(anchor.Order)
+            [sortKey] = byName ? new() { B = new MemoryStream(Convert.FromBase64String(anchor.Order)) } : S(anchor.Order)
         };
 
         Task<QueryResponse> QueryAsync(int limit, bool countOnly)
@@ -73,7 +79,8 @@ public sealed partial class DynamoAdminStore
         }
 
         string? CursorAt(int position) => start is { Count: > 0 }
-            ? Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new ResidentCursor(group, ascending, type, position, start["pk"].S, start[sortKey].S)))
+            ? Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new ResidentCursor(group, ascending, type, position, start["pk"].S,
+                byName ? Convert.ToBase64String(start[sortKey].B.ToArray()) : start[sortKey].S, byName)))
             : null;
 
         void Advance(QueryResponse result)
@@ -124,20 +131,18 @@ public sealed partial class DynamoAdminStore
             items.Count == ResidentPageSize && target + items.Count < total ? CursorAt(target + items.Count) : null);
     }
 
-    private static ResidentCursor? ReadResidentCursor(string? cursor, string group, bool ascending, string? type, string rowPrefix)
+    private static ResidentCursor? ReadResidentCursor(string? cursor, string group, bool ascending, string? type, string rowPrefix, bool byName)
     {
         if (string.IsNullOrEmpty(cursor)) return null;
         try
         {
-            if (cursor.Length > 2048) throw new FormatException();
+            if (cursor.Length > 4096) throw new FormatException();
             var value = JsonSerializer.Deserialize<ResidentCursor>(Convert.FromBase64String(cursor));
-            if (value is null || value.Group != group || value.Ascending != ascending || value.Type != type ||
+            if (value is null || value.Group != group || value.Ascending != ascending || value.Type != type || value.ByName != byName ||
                 value.Offset <= 0 || value.Offset % ResidentPageSize != 0 ||
                 value.RowKey?.StartsWith(rowPrefix, StringComparison.Ordinal) != true ||
                 !long.TryParse(value.RowKey.AsSpan(rowPrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var userId) || userId <= 0 ||
-                value.Order is not { Length: 52 } || value.Order[19] != '#' ||
-                !long.TryParse(value.Order.AsSpan(0, 19), NumberStyles.None, CultureInfo.InvariantCulture, out _) ||
-                !value.Order.AsSpan(20).ToString().All(Uri.IsHexDigit))
+                !ValidResidentOrder(value.Order, byName))
                 throw new FormatException();
             return value;
         }
@@ -145,5 +150,12 @@ public sealed partial class DynamoAdminStore
         {
             throw new ApiError(400, "Некоректна сторінка. Оновіть список мешканців.");
         }
+    }
+    private static bool ValidResidentOrder(string? order, bool byName)
+    {
+        if (byName) return order is { Length: > 0 } && Convert.FromBase64String(order).Length is >= 33 and <= 1024;
+        return order is { Length: 52 } && order[19] == '#' &&
+            long.TryParse(order.AsSpan(0, 19), NumberStyles.None, CultureInfo.InvariantCulture, out _) &&
+            order[20..].All(Uri.IsHexDigit);
     }
 }

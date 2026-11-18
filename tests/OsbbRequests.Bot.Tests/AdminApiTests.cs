@@ -1064,7 +1064,7 @@ public sealed class AdminApiTests
         { AccessWrites++; Users[target.UserId] = target with { IsActive = change.IsActive }; return Task.CompletedTask; }
         public Task<int> CountRegistrationsAsync(CancellationToken ct) => Task.FromResult(0);
         public CompactResidentPage? CompactPage;
-        public Task<CompactResidentPage?> ListCompactResidentsAsync(int page, string? buildingNumber, string? residentType, string? direction, string? cursor, CancellationToken ct) => Task.FromResult(CompactPage);
+        public Task<CompactResidentPage?> ListCompactResidentsAsync(int page, string? buildingNumber, string? residentType, string? direction, string? cursor, CancellationToken ct, bool byName = false) => Task.FromResult(byName ? null : CompactPage);
         public Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new ResidentDirectoryPage([], page, 25, 0, new(0, 0, 0, 0, 0))); }
         public Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)

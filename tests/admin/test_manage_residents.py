@@ -147,7 +147,9 @@ class ResidentAdministrationTests(unittest.TestCase):
         profile = dict(admin.key('USER#99', 'REGISTRATION'), payload={'S': payload}, version={'N': '4'})
         def related(row):
             return {'Item': {'complexId': {'S': 'building'}, 'recordData': {'M': row}}}
+        name_keys = {'listNameOrder': {'B': 'AA=='}, 'listNameOrderDescending': {'B': 'AQ=='}}
         with patch.object(admin, 'call_aws', side_effect=[related(meta), related(profile), {'Arn': 'operator'}, {}]) as aws, \
+             patch.object(admin, 'resident_name_keys', return_value=[name_keys]), \
              patch('sys.argv', ['manage-residents.py', '--building-id', 'building', 'approve', 'a' * 32]), \
              patch('sys.stdout', io.StringIO()):
             admin.main()

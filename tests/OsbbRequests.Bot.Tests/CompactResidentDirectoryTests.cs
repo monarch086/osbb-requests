@@ -48,6 +48,20 @@ public sealed class CompactResidentDirectoryTests
         Assert.All(db.Queries, q => Assert.Equal("ResidentDirectoryByDateDescending", q.IndexName));
     }
 
+    [Fact]
+    public async Task NamePageUsesBinaryCursorAndRejectsDateCursor()
+    {
+        using var db = new DirectoryDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "complex", residentsTable: "residents",
+            compactResidentDirectory: true, compactResidentNameDirectory: true);
+        var first = (await store.ListCompactResidentsAsync(1, null, null, "desc", null, default, byName: true))!;
+        var second = (await store.ListCompactResidentsAsync(2, null, null, "desc", first.NextCursor, default, byName: true))!;
+        Assert.Equal(25, second.Items.Count);
+        Assert.All(db.Queries, query => Assert.Equal("ResidentDirectoryByNameDescending", query.IndexName));
+        Assert.NotNull(db.Queries[1].ExclusiveStartKey["listNameOrderDescending"].B);
+        await Assert.ThrowsAsync<ApiError>(() => store.ListCompactResidentsAsync(2, null, null, "desc", first.NextCursor, default));
+    }
+
     private sealed class DirectoryDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public List<QueryRequest> Queries { get; } = [];
@@ -65,12 +79,14 @@ public sealed class CompactResidentDirectoryTests
             var start = int.Parse(request.ExclusiveStartKey?.GetValueOrDefault("pk")?.S.Split('#')[^1] ?? "0", CultureInfo.InvariantCulture);
             var group = request.ExpressionAttributeValues[":group"];
             var kind = group.S.Contains("#BUILDING#", StringComparison.Ordinal) ? "BUILDING" : "ALL";
-            var order = request.IndexName.EndsWith("Descending", StringComparison.Ordinal) ? "listOrderDescending" : "listOrder";
+            var byName = request.IndexName.Contains("ByName", StringComparison.Ordinal);
+            var order = byName ? "listNameOrder" : "listOrder";
+            if (request.IndexName.EndsWith("Descending", StringComparison.Ordinal)) order += "Descending";
             Dictionary<string, AttributeValue> Key(int i) => new()
             {
                 ["pk"] = new($"COMPLEX#complex#DIRECTORY_ROW#{kind}#{i}"),
                 ["listGroup"] = group,
-                [order] = new($"{i:D19}#{i:x32}")
+                [order] = byName ? new() { B = new MemoryStream(System.Text.Encoding.UTF8.GetBytes($"{i:D19}#{i:x32}")) } : new($"{i:D19}#{i:x32}")
             };
             var end = Math.Min(160, start + request.Limit!.Value);
             var items = Enumerable.Range(start + 1, end - start)

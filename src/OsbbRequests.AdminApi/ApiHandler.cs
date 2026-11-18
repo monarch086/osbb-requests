@@ -128,10 +128,10 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
             if (!int.TryParse(query.GetValueOrDefault("page") ?? "1", out var number)) throw new ApiError(400, "Некоректна сторінка.");
             var sort = query.GetValueOrDefault("sort");
-            if (!pending && query.GetValueOrDefault("compact") == "true" && sort is null or "" or "registeredAt")
+            if (!pending && query.GetValueOrDefault("compact") == "true" && sort is null or "" or "registeredAt" or "lastName")
             {
                 var compact = await store.ListCompactResidentsAsync(number, query.GetValueOrDefault("building"),
-                    query.GetValueOrDefault("residentType"), query.GetValueOrDefault("direction"), cursor, ct);
+                    query.GetValueOrDefault("residentType"), query.GetValueOrDefault("direction"), cursor, ct, byName: sort == "lastName");
                 if (compact is not null) return Reply(200, compact);
             }
             var directory = await store.ListResidentDirectoryAsync(pending, number, query.GetValueOrDefault("building"),

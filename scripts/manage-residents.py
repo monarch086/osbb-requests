@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Review resident registrations with an operator's AWS credentials; no Telegram IDs in the UI."""
 import argparse
+from base64 import b64decode
 import copy
 from datetime import datetime, timezone
+from pathlib import Path
 import json
 import re
 import subprocess
@@ -136,7 +138,23 @@ def phone_association_put(table, registration):
                     'ExpressionAttributeValues': {':complex': {'S': building}, ':resident': {'N': str(user)}}}}
 
 
-def directory_approval_writes(table, registration):
+def resident_name_keys(registrations):
+    names = [{key: profile.get(key) for key in ('Id', 'FirstName', 'LastName')} for profile in registrations]
+    project = Path(__file__).resolve().parents[1] / 'src' / 'OsbbRequests.ResidentNameKeys' / 'OsbbRequests.ResidentNameKeys.csproj'
+    # Names stay on stdin. Diagnostics may contain profile data and are suppressed.
+    result = subprocess.run(['dotnet', 'run', '--project', str(project), '--verbosity', 'quiet', '-p:RestoreLockedMode=true'],
+                            input=json.dumps(names), text=True, capture_output=True, check=False)
+    if result.returncode:
+        raise RuntimeError('Failed to generate compact resident name keys.')
+    keys = json.loads(result.stdout)
+    if len(keys) != len(names):
+        raise RuntimeError('Incomplete resident name keys.')
+    return [{'listNameOrder': {'B': pair['Ascending']},
+             'listNameOrderDescending': {'B': pair['Descending']}}
+            if len(b64decode(pair['Ascending'])) <= 1024 else {} for pair in keys]
+
+
+def directory_approval_writes(table, registration, name_keys=None):
     if registration.get('PersonalDataDeleted', False):
         return []
     prefix = f'COMPLEX#{registration["BuildingId"]}'
@@ -164,14 +182,20 @@ def directory_approval_writes(table, registration):
         for source, target in (('FirstName', 'firstName'), ('LastName', 'lastName'), ('ApartmentNumber', 'apartmentNumber')):
             if registration.get(source) is not None:
                 row[target] = {'S': registration[source]}
+        row.update(name_keys or {})
         writes.append({'Put': {'TableName': table, 'Item': row, 'ConditionExpression': 'attribute_not_exists(pk)'}})
-        writes.append({'Update': {'TableName': table, 'Key': {'pk': {'S': f'{prefix}#DIRECTORY_COUNT#{group}'}},
-                                  'UpdateExpression': 'ADD #type :one', 'ExpressionAttributeNames': {'#type': resident_type},
-                                  'ExpressionAttributeValues': {':one': {'N': '1'}}}})
+        update = {'TableName': table, 'Key': {'pk': {'S': f'{prefix}#DIRECTORY_COUNT#{group}'}},
+                  'UpdateExpression': 'ADD #type :one', 'ExpressionAttributeNames': {'#type': resident_type},
+                  'ExpressionAttributeValues': {':one': {'N': '1'}}}
+        if name_keys == {}:
+            update['UpdateExpression'] = 'SET #blocked = :true ' + update['UpdateExpression']
+            update['ExpressionAttributeNames']['#blocked'] = 'nameOrderUnsupported'
+            update['ExpressionAttributeValues'][':true'] = {'BOOL': True}
+        writes.append({'Update': update})
     return writes
 
 
-def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None, user_snapshot=None, meta_snapshot=None, residents_only=False):
+def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None, user_snapshot=None, meta_snapshot=None, residents_only=False, name_keys=None):
     if decision not in ('Approved', 'Rejected'):
         raise ValueError('Unsupported decision.')
     if registration['Stage'] != 'Pending':
@@ -237,7 +261,7 @@ def decision_transaction(table, registration, original_payload, decision, reason
         writes.append(related_resident_put(residents_table, membership, registration['BuildingId']))
         writes.append(related_resident_put(residents_table, audit, registration['BuildingId'], immutable=True))
         if decision == 'Approved':
-            writes.extend(directory_approval_writes(residents_table, updated))
+            writes.extend(directory_approval_writes(residents_table, updated, name_keys))
             writes.append(related_resident_put(residents_table, resident, registration['BuildingId']))
             phone_put = phone_association_put(residents_table, updated)
             if phone_put:
@@ -346,9 +370,10 @@ def main():
     if not user_snapshot or user_snapshot.get('payload', {}).get('S') != original_payload:
         raise ValueError('Resident profile is missing or inconsistent.')
     actor = call_aws('sts', 'get-caller-identity', args.region)['Arn']
+    name_keys = resident_name_keys([registration])[0] if decision == "Approved" else None
     transaction = decision_transaction(table, registration, original_payload, decision, reason, actor,
                                        datetime.now(timezone.utc).isoformat(), residents_table,
-                                       user_snapshot, meta_snapshot, residents_only=True)
+                                       user_snapshot, meta_snapshot, residents_only=True, name_keys=name_keys)
     call_aws('dynamodb', 'transact-write-items', args.region, transaction)
     print('Access approved.' if decision == 'Approved' else 'Registration rejected.')
     print('Telegram approval notification queued for delivery.' if decision == 'Approved' else

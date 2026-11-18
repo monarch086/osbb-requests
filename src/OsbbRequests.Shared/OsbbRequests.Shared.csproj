@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Microsoft.ICU.ICU4C.Runtime" Version="72.1.0.3" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.108" />
     <PackageReference Include="AWSSDK.SimpleSystemsManagement" Version="4.0.104.5" />
   </ItemGroup>

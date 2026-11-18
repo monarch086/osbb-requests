@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" />
     <ProjectReference Include="../../src/OsbbRequests.AdminApi/OsbbRequests.AdminApi.csproj" />
     <ProjectReference Include="../../src/OsbbRequests.Bot/OsbbRequests.Bot.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />

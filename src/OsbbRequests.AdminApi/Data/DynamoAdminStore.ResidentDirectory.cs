@@ -1,7 +1,7 @@
-using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.AdminApi.Data;
 
@@ -67,21 +67,13 @@ public sealed partial class DynamoAdminStore
             cursor = response.LastEvaluatedKey;
         } while (cursor is { Count: > 0 });
 
-        var compare = CultureInfo.GetCultureInfo("uk-UA").CompareInfo;
         var sign = direction == "asc" ? 1 : -1;
         items.Sort((a, b) =>
         {
             int result;
             if (pending) result = string.CompareOrdinal(a.Id, b.Id);
             else if (sort == "lastName")
-            {
-                var left = a.LastName?.Trim() ?? "";
-                var right = b.LastName?.Trim() ?? "";
-                if ((left.Length == 0) != (right.Length == 0)) return left.Length == 0 ? 1 : -1;
-                result = compare.Compare(left, right, CompareOptions.IgnoreCase);
-                if (result == 0) result = compare.Compare(a.FirstName ?? "", b.FirstName ?? "", CompareOptions.IgnoreCase);
-                result *= sign;
-            }
+                return ResidentNameOrder.Compare(a.Id, a.FirstName, a.LastName, b.Id, b.FirstName, b.LastName, direction == "asc");
             else result = DateTimeOffset.Compare(a.ApprovedAt ?? a.UpdatedAt, b.ApprovedAt ?? b.UpdatedAt) * sign;
             return result != 0 ? result : string.CompareOrdinal(a.Id, b.Id);
         });
