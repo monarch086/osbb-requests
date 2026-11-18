@@ -60,7 +60,7 @@ python3 scripts/backfill-resident-directory.py --stage dev --region eu-central-1
 
 Компактні рядки мають два двійкові ключі `listNameOrder` та `listNameOrderDescending`. Генератор використовує правила `uk-UA`, порівнює прізвище й ім’я без урахування регістру, а за рівності впорядковує за ID реєстрації. Записи без прізвища стоять в кінці в обох напрямках. Бот, Admin API та операторський .NET-генератор використовують однакову зафіксовану версію ICU. Для операторських скриптів потрібен .NET SDK із `global.json`. Курсори прив’язані до виду сортування, групи, фільтра типу та напрямку.
 
-`ResidentDirectoryByName` та `ResidentDirectoryByNameDescending` є розрідженими індексами компактних рядків. Вони використовують чинні `ALL` / `BUILDING` групи та ті самі лічильники. Старий `ResidentsByName` не використовується для нового читання.
+`ResidentDirectoryByName` та `ResidentDirectoryByNameDescending` є розрідженими індексами компактних рядків. Вони використовують чинні `ALL` / `BUILDING` групи та ті самі лічильники.
 
 1. Розгорніть підтримку запису та перший GSI через `--param=residentDirectoryNameIndex=true`. Після `ACTIVE` додайте до цієї команди `--param=residentDirectoryNameDescendingIndex=true` і дочекайтеся `ACTIVE` другого GSI. Використовуйте оновлений `manage-residents.py`. Обидва GSI вже включені до конфігурації dev після поетапного деплою.
 2. Запустіть dry-run `scripts/backfill-resident-directory.py` з відповідним stage і region. Скрипт перевірить порядок ключів проти поточного компаратора. З `--apply --confirm-stage STAGE` він допише відсутні ключі до наявних рядків у транзакції з перевіркою версії, без повторного збільшення лічильників.

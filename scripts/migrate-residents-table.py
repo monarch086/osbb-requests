@@ -52,7 +52,7 @@ def migrate(source, target, building, region, apply=False, aws=manage.call_aws):
                         actual_payload = json.loads(existing['payload']['S'])
                         required_payload = json.loads(expected['payload']['S'])
                         fields_match = all(actual_payload.get(k) == v for k, v in required_payload.items())
-                        indexes = ('directory', 'dateOrder', 'nameOrder', 'buildingNumber', 'residentType')
+                        indexes = ('directory', 'dateOrder', 'buildingNumber', 'residentType')
                         if fields_match and all(existing.get(k) == expected.get(k) for k in indexes):
                             local['current'] += 1
                             break

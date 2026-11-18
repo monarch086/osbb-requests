@@ -157,7 +157,6 @@ public sealed partial class DynamoCommandRepository
         {
             item["directory"] = new(value.Directory);
             item["dateOrder"] = new(value.DateOrder);
-            item["nameOrder"] = new(value.NameOrder);
             item["buildingNumber"] = new(value.BuildingNumber);
             item["residentType"] = new(value.ResidentType);
         }

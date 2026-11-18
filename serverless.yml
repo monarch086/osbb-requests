@@ -300,8 +300,6 @@ resources:
           AttributeType: S
         - AttributeName: dateOrder
           AttributeType: S
-        - AttributeName: nameOrder
-          AttributeType: S
         - AttributeName: phoneLookup
           AttributeType: S
         - AttributeName: recordGroup
@@ -340,14 +338,6 @@ resources:
           - AttributeName: directory
             KeyType: HASH
           - AttributeName: dateOrder
-            KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-        - IndexName: ResidentsByName
-          KeySchema:
-          - AttributeName: directory
-            KeyType: HASH
-          - AttributeName: nameOrder
             KeyType: RANGE
           Projection:
             ProjectionType: ALL

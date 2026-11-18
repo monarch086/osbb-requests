@@ -74,11 +74,10 @@ class ResidentAdministrationTests(unittest.TestCase):
         self.assertFalse(writes[3]['Put']['Item']['active']['BOOL'])
         self.assertEqual('Rejected', writes[4]['Put']['Item']['decision']['S'])
 
-    def test_projection_order_matches_backend_ukrainian_sort_key(self):
+    def test_projection_date_matches_backend_utc_sort_key(self):
         profile = dict(self.registration, Stage='Approved', Version=5, FirstName='Іван', LastName='Ґалаґан',
                        UpdatedAt='2026-10-20T11:00:00Z')
         item = admin.resident_mirror_put('residents', profile, 4)['Put']['Item']
-        self.assertEqual('0#20000420000020000F200000200004200000200011#20000B200002200000200011#00000000000000000099', item['nameOrder']['S'])
         self.assertEqual('2026-10-20T11:00:00.0000000+00:00#00000000000000000099', item['dateOrder']['S'])
 
     def test_operator_decisions_mirror_in_same_transaction(self):

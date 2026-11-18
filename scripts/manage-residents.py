@@ -9,7 +9,6 @@ import json
 import re
 import subprocess
 import tempfile
-import unicodedata
 from zoneinfo import ZoneInfo
 
 
@@ -58,27 +57,13 @@ def resident_mirror_put(table, registration, expected_version):
         'version': {'N': str(registration['Version'])},
     }
     if registration['Stage'] in ('Pending', 'Approved') and not registration.get('PersonalDataDeleted', False):
-        alphabet = 'абвгґдеєжзиіїйклмнопрстуфхцчшщьюя'
-        upper_alphabet = 'АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ'
-        def order(value):
-            text = unicodedata.normalize('NFC', (value or '').strip())
-            def weight(c):
-                if c in upper_alphabet:
-                    return 0x200000 + upper_alphabet.index(c)
-                if c in alphabet:
-                    return 0x200000 + alphabet.index(c)
-                return ord(c) + 32 if 'A' <= c <= 'Z' else ord(c)
-            return ''.join(f'{weight(c):06X}' for c in text)
-        last = registration.get('LastName') or ''
-        first = registration.get('FirstName') or ''
-        name = ('0#' + order(last) if last.strip() else '1#') + '#' + order(first) + '#' + str(user_id).zfill(20)
         timestamp = registration.get('ApprovedAt') or registration['UpdatedAt'] if registration['Stage'] == 'Approved' else registration['UpdatedAt']
         instant = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).astimezone(timezone.utc)
         fraction = re.search(r'\.(\d{1,7})', timestamp)
         tick = (fraction.group(1).ljust(7, '0')[6] if fraction else '0')
         date = instant.strftime('%Y-%m-%dT%H:%M:%S.') + f'{instant.microsecond:06d}{tick}+00:00#{user_id:020d}'
         item.update(directory={'S': f'COMPLEX#{building}#{registration["Stage"]}'}, dateOrder={'S': date},
-                    nameOrder={'S': name}, buildingNumber={'S': registration.get('BuildingNumber') or ''},
+                    buildingNumber={'S': registration.get('BuildingNumber') or ''},
                     residentType={'S': registration.get('ResidentType') or 'FamilyMember'})
     return {'Put': {'TableName': table, 'Item': item,
                     'ConditionExpression': 'attribute_not_exists(pk) OR (#version = :version AND complexId = :complex)',
