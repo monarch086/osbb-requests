@@ -93,8 +93,8 @@ public sealed partial class DynamoNotificationRepository(IAmazonDynamoDB db, str
         {
             var mapping = new Dictionary<string, AttributeValue>
             {
-                ["pk"] = S("USER#" + item.Notification.OwnerId.ToString(CultureInfo.InvariantCulture)),
-                ["sk"] = S("NOTIFICATION_MESSAGE#" + messageId.Value.ToString(CultureInfo.InvariantCulture)),
+                ["pk"] = S(ResidentNotification.Partition(complexId)),
+                ["sk"] = S(ResidentNotification.MessageKey(item.Notification.OwnerId, messageId.Value)),
                 ["requestId"] = N(requestId)
             };
             writes.Add(new() { Put = new() { TableName = table, Item = mapping, ConditionExpression = "attribute_not_exists(pk)" } });

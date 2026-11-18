@@ -33,10 +33,33 @@ public sealed class NotificationTests
         await new DynamoNotificationRepository(db, "data", "complex").CompleteDeliveredAsync(Work(), "lease", Now, 123, default);
         var writes = db.Transaction!.TransactItems;
         Assert.Equal(3, writes.Count);
-        var mapping = Assert.Single(writes, w => w.Put?.Item.GetValueOrDefault("pk")?.S == "USER#42").Put.Item;
-        Assert.Equal("NOTIFICATION_MESSAGE#123", mapping["sk"].S);
+        Assert.All(writes, w => Assert.Equal("NOTIFICATIONS#complex", (w.Put?.Item ?? w.Delete!.Key)["pk"].S));
+        var mapping = Assert.Single(writes, w => w.Put?.Item.GetValueOrDefault("sk")?.S == "MESSAGE#42#123").Put.Item;
         Assert.Equal("7", mapping["requestId"].N);
         Assert.Single(writes, w => w.Delete is not null);
+    }
+
+    [Fact]
+    public async Task NotificationLookupUsesComplexAndResidentSpecificKey()
+    {
+        using var db = new RecordingDynamo { Control = new() { ["requestId"] = new() { N = "7" } } };
+        var store = new DynamoCommandRepository(db, "data", complexId: "complex");
+        Assert.Equal(7, await store.GetNotificationRequestAsync(42, 123, default));
+        Assert.Equal("NOTIFICATIONS#complex", db.Get!.Key["pk"].S);
+        Assert.Equal("MESSAGE#42#123", db.Get.Key["sk"].S);
+        Assert.True(db.Get.ConsistentRead);
+    }
+
+    [Fact]
+    public async Task NotificationLookupFallsBackToPreviouslyStoredMapping()
+    {
+        using var db = new RecordingDynamo();
+        db.GetResults.Enqueue([]);
+        db.GetResults.Enqueue(new() { ["requestId"] = new() { N = "7" } });
+        var store = new DynamoCommandRepository(db, "data", complexId: "complex");
+        Assert.Equal(7, await store.GetNotificationRequestAsync(42, 123, default));
+        Assert.Equal("USER#42", db.Get!.Key["pk"].S);
+        Assert.Equal("NOTIFICATION_MESSAGE#123", db.Get.Key["sk"].S);
     }
 
     [Fact]
@@ -524,6 +547,8 @@ public sealed class NotificationTests
     private sealed class RecordingDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
     {
         public QueryRequest? Query;
+        public GetItemRequest? Get;
+        public Queue<Dictionary<string, AttributeValue>> GetResults = new();
         public QueryResponse QueryResult = new() { Items = [] };
         public UpdateItemRequest? Update;
         public TransactWriteItemsRequest? Transaction;
@@ -531,7 +556,7 @@ public sealed class NotificationTests
         public bool Conflict;
         public bool Leased;
         public int TransactionCalls;
-        public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken ct = default) => Task.FromResult(new GetItemResponse { Item = Control });
+        public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken ct = default) { Get = request; return Task.FromResult(new GetItemResponse { Item = GetResults.Count > 0 ? GetResults.Dequeue() : Control }); }
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken ct = default)
         { Query = request; return Task.FromResult(QueryResult); }
         public override Task<UpdateItemResponse> UpdateItemAsync(UpdateItemRequest request, CancellationToken ct = default)

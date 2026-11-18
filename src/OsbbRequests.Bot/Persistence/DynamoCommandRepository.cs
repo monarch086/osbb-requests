@@ -34,7 +34,8 @@ public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, stri
 
     public async Task<long?> GetNotificationRequestAsync(long userId, long messageId, CancellationToken ct)
     {
-        var item = await GetAsync("USER#" + Number(userId), "NOTIFICATION_MESSAGE#" + Number(messageId), ct);
+        var item = complexId is null ? [] : await GetAsync(ResidentNotification.Partition(complexId), ResidentNotification.MessageKey(userId, messageId), ct);
+        if (item.Count == 0) item = await GetAsync("USER#" + Number(userId), "NOTIFICATION_MESSAGE#" + Number(messageId), ct);
         return item.TryGetValue("requestId", out var id) && long.TryParse(id.N, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
     }
 
