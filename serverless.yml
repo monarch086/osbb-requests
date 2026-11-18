@@ -25,6 +25,7 @@ stages:
       compactResidentDirectory: "true"
       residentDirectoryNameIndex: "true"
       residentDirectoryNameDescendingIndex: "true"
+      compactResidentNameDirectory: "true"
 custom:
   parameterPrefix: /${self:service}/${sls:stage}
   botUsername: ${env:TELEGRAM_BOT_USERNAME, param:botUsername}
