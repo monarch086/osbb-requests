@@ -4,7 +4,6 @@ public sealed record ResidentRecordKey(string Key, string Group, string Order)
 {
     public const string IndexGroupAttribute = "recordIndexGroup";
     public const string CompactIndex = "ResidentRecordKeysByGroup";
-    public const string FullIndex = "ResidentRecordsByGroup";
 
     public static ResidentRecordKey Create(string complexId, string sourcePk, string sourceSk) =>
         new("COMPLEX#" + complexId + "#RECORD#" + sourcePk + "#" + sourceSk,

@@ -79,16 +79,16 @@ class TelegramMenuTests(unittest.TestCase):
         self.assertIn('--exclusive-start-key', run.call_args_list[3].args[0])
         self.assertNotIn('scan', query)
 
-    def test_full_index_override_keeps_deleted_profile_in_menu_reset(self):
+    def test_compact_index_keeps_deleted_profile_in_menu_reset(self):
         building = 'osbb-requests-dev'
         order = 'RESIDENT#' + str(99).zfill(20)
         candidate = {'pk': {'S': f'COMPLEX#{building}#RECORD#BUILDING#{building}#{order}'},
-                     'recordGroup': {'S': f'COMPLEX#{building}#BUILDING#{building}'}, 'recordOrder': {'S': order}}
+                     'recordIndexGroup': {'S': f'COMPLEX#{building}#BUILDING#{building}'}, 'recordOrder': {'S': order}}
         payload = json.dumps({'UserId': 99, 'BuildingId': building, 'Stage': 'Deleted'})
         responses = [{'Items': [candidate]}, {'Item': {'recordData': {'M': {'payload': {'S': payload}}}}}]
         with patch.object(menu.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0, stdout=json.dumps(page)) for page in responses]) as run:
-            self.assertEqual(([], [99]), menu.load_resident_chats('dev', 'eu-central-1', resident_index='full'))
-        self.assertIn('ResidentRecordsByGroup', run.call_args_list[0].args[0])
+            self.assertEqual(([], [99]), menu.load_resident_chats('dev', 'eu-central-1'))
+        self.assertIn('ResidentRecordKeysByGroup', run.call_args_list[0].args[0])
 
     def test_deleted_residents_get_guest_chat_menu(self):
         calls = []

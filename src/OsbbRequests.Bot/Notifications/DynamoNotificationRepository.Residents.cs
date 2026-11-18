@@ -14,7 +14,7 @@ public sealed partial class DynamoNotificationRepository
         if (!notification.IsBroadcast || notification.ComplexId != complexId || notification.AdministratorEvent is not null)
             throw new InvalidOperationException("Invalid resident broadcast.");
         var partition = "BUILDING#" + complexId;
-        var groupField = compactResidentRecords ? ResidentRecordKey.IndexGroupAttribute : "recordGroup";
+        const string groupField = ResidentRecordKey.IndexGroupAttribute;
         var legacy = residentsTable is null || item.AudienceCursor?.ContainsKey("sk") == true;
         QueryResponse page;
         if (legacy)
@@ -42,7 +42,7 @@ public sealed partial class DynamoNotificationRepository
             page = await db.QueryAsync(new QueryRequest
             {
                 TableName = residentsTable,
-                IndexName = compactResidentRecords ? ResidentRecordKey.CompactIndex : ResidentRecordKey.FullIndex,
+                IndexName = ResidentRecordKey.CompactIndex,
                 Limit = 25,
                 KeyConditionExpression = groupField + " = :group AND begins_with(recordOrder, :prefix)",
                 ExpressionAttributeValues = new() { [":group"] = S(group), [":prefix"] = S("RESIDENT#") },
@@ -50,8 +50,8 @@ public sealed partial class DynamoNotificationRepository
                 ExclusiveStartKey = item.AudienceCursor?.ToDictionary(
                     pair => pair.Key == "recordGroup" ? groupField : pair.Key, pair => S(pair.Value))
             }, ct);
-            // Keep persisted cursors compatible with the full index during rollback.
-            if (compactResidentRecords && page.LastEvaluatedKey is { Count: > 0 } next)
+            // Preserve the cursor format for broadcasts already in progress.
+            if (page.LastEvaluatedKey is { Count: > 0 } next)
                 page.LastEvaluatedKey = next.ToDictionary(pair => pair.Key == groupField ? "recordGroup" : pair.Key, pair => pair.Value);
         }
         var writes = new List<TransactWriteItem>();

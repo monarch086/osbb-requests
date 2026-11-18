@@ -93,7 +93,7 @@ public sealed class ResidentDirectoryPagingTests
     }
 
     [Fact]
-    public async Task ApprovalAndHistoryUseMigratedRecords()
+    public async Task ApprovalUsesMigratedRecords()
     {
         using var db = new RelatedDynamo();
         var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
@@ -101,17 +101,13 @@ public sealed class ResidentDirectoryPagingTests
         Assert.Equal("admin@example.org", approval!.Actor);
         Assert.True(db.GetRequest!.ConsistentRead);
         Assert.Equal("residents", db.GetRequest.TableName);
-        var history = await store.RegistrationHistoryAsync("reference", null, default);
-        Assert.Equal("admin@example.org", Assert.Single(history.Items).Actor);
-        Assert.Equal("ResidentRecordsByGroup", db.QueryRequest!.IndexName);
-        Assert.Equal("COMPLEX#complex#REGISTRATION#reference", db.QueryRequest.ExpressionAttributeValues[":group"].S);
     }
 
     [Fact]
     public async Task CompactHistoryResumesOldCursorAndPreservesOrderAcrossBatchRetries()
     {
         using var db = new CompactHistoryDynamo();
-        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents", compactResidentRecords: true);
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
         var original = new Dictionary<string, string>
         {
             ["pk"] = CompactHistoryDynamo.Prefix + "3",
@@ -174,7 +170,6 @@ public sealed class ResidentDirectoryPagingTests
     private sealed class RelatedDynamo() : AmazonDynamoDBClient(new BasicAWSCredentials("test", "test"), RegionEndpoint.EUCentral1)
     {
         public GetItemRequest? GetRequest { get; private set; }
-        public QueryRequest? QueryRequest { get; private set; }
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
         {
             GetRequest = request;
@@ -191,16 +186,6 @@ public sealed class ResidentDirectoryPagingTests
                         }
                     }
                 }
-            });
-        }
-        public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
-        {
-            QueryRequest = request;
-            var entry = new ResidentTypeChange("FamilyMember", "Owner", "admin@example.org", DateTimeOffset.UnixEpoch, false, false);
-            return Task.FromResult(new QueryResponse
-            {
-                Items = [new() { ["recordData"] = new() { M = new() {
-                ["payload"] = new(JsonSerializer.Serialize(entry)) } } }]
             });
         }
     }

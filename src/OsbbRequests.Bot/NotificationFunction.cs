@@ -20,8 +20,7 @@ public sealed class NotificationFunction
         notifier = TelegramServiceNotifier.FromEnvironment(Http);
         processor = new(new DynamoNotificationRepository(new AmazonDynamoDBClient(),
             RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), RuntimeConfiguration.Required("BUILDING_ID"), RuntimeConfiguration.Required("ADMINISTRATORS_TABLE"),
-            RuntimeConfiguration.Required("RESIDENTS_TABLE"),
-            Environment.GetEnvironmentVariable("COMPACT_RESIDENT_RECORDS") == "true"), telegram, notifier);
+            RuntimeConfiguration.Required("RESIDENTS_TABLE")), telegram, notifier);
     }
     public NotificationFunction(NotificationProcessor processor, IServiceNotifier? notifier = null)
     { this.processor = processor; this.notifier = notifier; }

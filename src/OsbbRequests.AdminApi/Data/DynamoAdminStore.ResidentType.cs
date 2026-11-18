@@ -137,8 +137,8 @@ public sealed partial class DynamoAdminStore
                 startKey.GetValueOrDefault("recordOrder")?.S?.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) != true ||
                 startKey.GetValueOrDefault("pk")?.S != ResidentRecordKey.Create(building, pk, startKey["recordOrder"].S).Key))
                 throw new ApiError(400, "Некоректна сторінка.");
-            var groupField = compactResidentRecords ? ResidentRecordKey.IndexGroupAttribute : "recordGroup";
-            if (compactResidentRecords && startKey is not null)
+            const string groupField = ResidentRecordKey.IndexGroupAttribute;
+            if (startKey is not null)
             {
                 startKey[groupField] = startKey["recordGroup"];
                 startKey.Remove("recordGroup");
@@ -146,21 +146,16 @@ public sealed partial class DynamoAdminStore
             var response = await db.QueryAsync(new QueryRequest
             {
                 TableName = residentsTable,
-                IndexName = compactResidentRecords ? ResidentRecordKey.CompactIndex : ResidentRecordKey.FullIndex,
+                IndexName = ResidentRecordKey.CompactIndex,
                 KeyConditionExpression = groupField + " = :group AND begins_with(recordOrder, :prefix)",
                 ExpressionAttributeValues = new() { [":group"] = S(group), [":prefix"] = S("EVENT#TYPE#") },
                 ExclusiveStartKey = startKey,
                 ScanIndexForward = false,
                 Limit = 25
             }, ct);
-            var items = response.Items ?? [];
-            if (compactResidentRecords)
-            {
-                items = await LoadHistoryRecordsAsync(residentsTable, pk, items, ct);
-                // Use the same public cursor format for both indexes.
-                if (response.LastEvaluatedKey is { Count: > 0 } next)
-                    response.LastEvaluatedKey = next.ToDictionary(pair => pair.Key == groupField ? "recordGroup" : pair.Key, pair => pair.Value);
-            }
+            var items = await LoadHistoryRecordsAsync(residentsTable, pk, response.Items ?? [], ct);
+            if (response.LastEvaluatedKey is { Count: > 0 } next)
+                response.LastEvaluatedKey = next.ToDictionary(pair => pair.Key == groupField ? "recordGroup" : pair.Key, pair => pair.Value);
             return new Page<ResidentTypeChange>(items.Select(item => Payload<ResidentTypeChange>(item["recordData"].M)).ToList(), Encode(response.LastEvaluatedKey));
         }
         var start = Decode(cursor, "pk", pk);

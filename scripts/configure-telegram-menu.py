@@ -58,22 +58,19 @@ def configure(token, expected_username, call=call_telegram, registered_chat_ids=
         raise RuntimeError('Telegram menu button verification failed.')
 
 
-def load_resident_chats(stage, region, complex_id=None, resident_index=None):
+def load_resident_chats(stage, region, complex_id=None):
     building = complex_id or 'osbb-requests-' + stage
     table = 'osbb-requests-' + stage + '-residents'
     group = 'COMPLEX#' + building + '#BUILDING#' + building
-    compact = (resident_index or ('compact' if stage == 'dev' else 'full')) == 'compact'
-    index = 'ResidentRecordKeysByGroup' if compact else 'ResidentRecordsByGroup'
-    group_field = 'recordIndexGroup' if compact else 'recordGroup'
     cursor = None
     chats = set()
     deleted_chats = set()
     while True:
         command = ['aws', 'dynamodb', 'query', '--table-name', table,
-                   '--index-name', index,
-                   '--key-condition-expression', group_field + ' = :group AND begins_with(recordOrder, :prefix)',
+                   '--index-name', 'ResidentRecordKeysByGroup',
+                   '--key-condition-expression', 'recordIndexGroup = :group AND begins_with(recordOrder, :prefix)',
                    '--expression-attribute-values', json.dumps({':group': {'S': group}, ':prefix': {'S': 'RESIDENT#'}}),
-                   '--projection-expression', 'pk, ' + group_field + ', recordOrder',
+                   '--projection-expression', 'pk, recordIndexGroup, recordOrder',
                    '--limit', '25', '--no-paginate', '--region', region, '--output', 'json', '--no-cli-pager']
         if cursor:
             command.extend(['--exclusive-start-key', json.dumps(cursor)])
@@ -84,7 +81,7 @@ def load_resident_chats(stage, region, complex_id=None, resident_index=None):
             page = json.loads(result.stdout)
             for item in page.get('Items', []):
                 order = item['recordOrder']['S']
-                if (not re.fullmatch(r'RESIDENT#[0-9]{20}', order) or item[group_field]['S'] != group or
+                if (not re.fullmatch(r'RESIDENT#[0-9]{20}', order) or item['recordIndexGroup']['S'] != group or
                         item['pk']['S'] != 'COMPLEX#' + building + '#RECORD#BUILDING#' + building + '#' + order):
                     raise ValueError('Invalid directory key')
                 get = ['aws', 'dynamodb', 'get-item', '--table-name', table, '--key',
@@ -138,7 +135,6 @@ def main():
     parser.add_argument('--bot-username', required=True, help='Expected bot username; checked before any changes.')
     parser.add_argument('--include-residents', action='store_true', help='Also configure chat menus for existing approved residents.')
     parser.add_argument('--complex-id', help='Override the default complex ID if BUILDING_ID is customized.')
-    parser.add_argument('--resident-index', choices=('compact', 'full'), help='Override the stage default for the resident directory.')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
     if not re.fullmatch(r'[a-zA-Z0-9-]+', args.stage):
@@ -150,7 +146,7 @@ def main():
         if args.include_residents:
             print('Would also configure existing resident and deleted-profile chat menus.')
         return
-    chats, guests = load_resident_chats(args.stage, args.region, args.complex_id, args.resident_index) if args.include_residents else ([], [])
+    chats, guests = load_resident_chats(args.stage, args.region, args.complex_id) if args.include_residents else ([], [])
     configure(load_token(args.stage, args.region), args.bot_username, registered_chat_ids=chats, unregistered_chat_ids=guests)
     print('Command menu and menu button configured and verified for @' + args.bot_username.lstrip('@') + '.')
     print('No messages were sent. Bot token was not displayed.')
