@@ -11,11 +11,13 @@ import type {
   Page,
   PagePermissions,
   RegisteredResident,
+  RegisteredResidentDetails,
   Registration,
   RegistrationApproval,
   ResidentDataChange,
   ResidentDirectoryPage,
   ResidentKeyPage,
+  ResidentListRow,
   ResidentTypeHistory,
   Ticket,
   TicketFilters,
@@ -53,8 +55,12 @@ export class ApiService {
   getResidentDirectory(
     page: number,
     filters: ResidentFilters,
-  ): Promise<ResidentDirectoryPage<RegisteredResident>> {
-    const params = new URLSearchParams({ page: String(page), ...filters });
+    cursor: string | null,
+  ): Promise<ResidentDirectoryPage<ResidentListRow>> {
+    const params = new URLSearchParams({ page: String(page), compact: 'true', ...filters });
+    if (cursor) {
+      params.set('cursor', cursor);
+    }
     return this.request('/residents/directory?' + params.toString());
   }
 
@@ -105,6 +111,9 @@ export class ApiService {
       version: resident.version,
       ...change,
     });
+  }
+  getRegisteredResident(id: string): Promise<RegisteredResidentDetails> {
+    return this.request('/residents/' + encodeURIComponent(id));
   }
   getRegistrationApproval(id: string): Promise<RegistrationApproval | null> {
     return this.request('/registrations/' + id + '/approval');

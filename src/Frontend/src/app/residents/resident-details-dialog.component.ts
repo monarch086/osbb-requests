@@ -21,8 +21,7 @@ export class ResidentDetailsDialogComponent implements AfterViewInit {
   @Input() saving = false;
   @Input() error = '';
   @Input() approval: RegistrationApproval | null = null;
-  @Input() approvalLoading = false;
-  @Input() approvalError = false;
+  @Input() loading = false;
   @Output() readonly closed = new EventEmitter<void>();
   @Output() readonly edit = new EventEmitter<Registration | RegisteredResident>();
   @Output() readonly history = new EventEmitter<Registration | RegisteredResident>();

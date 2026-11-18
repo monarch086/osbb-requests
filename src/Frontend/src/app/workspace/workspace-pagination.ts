@@ -11,6 +11,16 @@ export class WorkspacePagination {
     return this.starts.at(index);
   }
 
+  nearestStart(index: number): string | null {
+    for (let page = Math.min(index, this.starts.length - 1); page > 0; page--) {
+      const start = this.starts[page];
+      if (start) {
+        return start;
+      }
+    }
+    return null;
+  }
+
   reset(): void {
     this.index = 0;
     this.cursor = null;

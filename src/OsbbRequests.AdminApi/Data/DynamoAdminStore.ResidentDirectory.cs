@@ -24,10 +24,7 @@ public sealed partial class DynamoAdminStore
     private async Task<(List<ResidentRegistration> Items, ResidentCounts Counts)> LoadResidentDirectoryAsync(bool pending, string? buildingNumber,
         string? residentType, string? sort, string? direction, CancellationToken ct)
     {
-        if ((buildingNumber is not (null or "" or "Unspecified" or "4Б" or "4В" or "4Г" or "4Д")) ||
-            (residentType is not (null or "" or "Owner" or "FamilyMember" or "Tenant" or "Employee")) ||
-            (sort is not (null or "" or "registeredAt" or "lastName")) || (direction is not (null or "" or "asc" or "desc")))
-            throw new ApiError(400, "Некоректні параметри списку мешканців.");
+        ValidateResidentFilters(buildingNumber, residentType, sort, direction);
         if (string.IsNullOrEmpty(residentsTable)) throw new InvalidOperationException("Residents table is not configured.");
 
         // The index must be read in full to return an exact filtered count. Reuse those
@@ -89,5 +86,13 @@ public sealed partial class DynamoAdminStore
             return result != 0 ? result : string.CompareOrdinal(a.Id, b.Id);
         });
         return (items, new(total, owners, familyMembers, tenants, employees));
+    }
+
+    private static void ValidateResidentFilters(string? buildingNumber, string? residentType, string? sort, string? direction)
+    {
+        if ((buildingNumber is not (null or "" or "Unspecified" or "4Б" or "4В" or "4Г" or "4Д")) ||
+            (residentType is not (null or "" or "Owner" or "FamilyMember" or "Tenant" or "Employee")) ||
+            (sort is not (null or "" or "registeredAt" or "lastName")) || (direction is not (null or "" or "asc" or "desc")))
+            throw new ApiError(400, "Некоректні параметри списку мешканців.");
     }
 }

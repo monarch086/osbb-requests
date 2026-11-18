@@ -4,10 +4,10 @@ import { NgOptionComponent, NgSelectComponent } from '@ng-select/ng-select';
 
 import type {
   PagePermissions,
-  RegisteredResident,
   Registration,
   ResidentCounts,
   ResidentKeyEntry,
+  ResidentListRow,
 } from '../api.models';
 import { buildingNumbers } from '../shared/ticket-presentation';
 import type { ResidentFilters, ResidentView } from './resident-directory';
@@ -27,7 +27,7 @@ export class ResidentsComponent {
   @Input() pendingBuilding = '';
   @Output() readonly pendingBuildingChange = new EventEmitter<string>();
   protected readonly typeLabel = residentTypeLabel;
-  @Input() registeredResidents: RegisteredResident[] = [];
+  @Input() registeredResidents: ResidentListRow[] = [];
   @Input() keyResidents: ResidentKeyEntry[] = [];
   @Input() filters: ResidentFilters = {
     sort: 'registeredAt',
@@ -41,7 +41,7 @@ export class ResidentsComponent {
   @Input() loading = false;
   @Input() saving = false;
   @Output() readonly selectPending = new EventEmitter<Registration>();
-  @Output() readonly selectRegistered = new EventEmitter<RegisteredResident>();
+  @Output() readonly selectRegistered = new EventEmitter<ResidentListRow>();
   protected readonly buildings = buildingNumbers;
   protected changeFilters(change: Partial<ResidentFilters>): void {
     this.filtersChange.emit({ ...this.filters, ...change });

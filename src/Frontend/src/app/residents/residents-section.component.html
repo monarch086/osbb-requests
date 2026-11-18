@@ -39,14 +39,13 @@
 @if (loading) {
   <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>
 }
-@if ((selectedPending || selectedRegistered) && !changingType && !historyResident && !rejecting) {
+@if ((selectedPending || residentDetailsOpen) && !changingType && !historyResident && !rejecting) {
   <app-resident-details-dialog
     [pending]="selectedPending"
     [resident]="selectedRegistered"
     [permissions]="me.effectivePermissions"
     [approval]="approval"
-    [approvalLoading]="approvalLoading"
-    [approvalError]="approvalError"
+    [loading]="residentDetailsLoading"
     [saving]="saving"
     [error]="error"
     (closed)="closeDetails()"

@@ -11,12 +11,15 @@ stages:
       requestSortMode: Priority
       phoneLookupMode: Directory
       residentDirectoryDescendingIndex: "false"
+      compactResidentDirectory: "false"
       serviceNotificationChatId: '38627946'
       serviceBotTokenParameter: /shared/telegram/service-bot-token
   dev:
     params:
       botUsername: zeleniy_ostriv2_bot
       phoneLookupMode: PhoneIndex
+      residentDirectoryDescendingIndex: "true"
+      compactResidentDirectory: "true"
 custom:
   parameterPrefix: /${self:service}/${sls:stage}
   botUsername: ${env:TELEGRAM_BOT_USERNAME, param:botUsername}
@@ -190,6 +193,7 @@ functions:
         Ref: CommandDataTable
       BUILDING_ID: ${self:custom.buildingId}
       REQUEST_SORT_MODE: ${param:requestSortMode}
+      COMPACT_RESIDENT_DIRECTORY: "${param:compactResidentDirectory}"
       RESIDENTS_TABLE:
         Ref: ResidentsTable
       STATISTICS_TABLE:
@@ -882,6 +886,15 @@ resources:
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByDate
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByDateDescending
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#APPROVED#*
             - Effect: Allow
               Action: dynamodb:Query
               Resource:

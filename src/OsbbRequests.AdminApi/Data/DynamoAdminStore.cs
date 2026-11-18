@@ -10,7 +10,7 @@ using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
-public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null) : IAdminStore
+public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null, bool compactResidentDirectory = false) : IAdminStore
 {
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(int value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };

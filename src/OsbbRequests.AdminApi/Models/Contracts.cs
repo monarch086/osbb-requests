@@ -17,6 +17,8 @@ public sealed record NotificationSettingsChange(string? TelegramChatId, bool Not
 public sealed record Identity(string UserId, string Email, string DisplayName);
 public sealed record Page<T>(IReadOnlyList<T> Items, string? Cursor);
 public sealed record ResidentCounts(int Total, int Owners, int FamilyMembers, int Tenants, int Employees);
+public sealed record ResidentListRow(string Id, string? FirstName, string? LastName, ResidentType ResidentType, string? BuildingNumber, string? ApartmentNumber);
+public sealed record CompactResidentPage(IReadOnlyList<ResidentListRow> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts, string? StartCursor, string? NextCursor);
 public sealed record ResidentDirectoryPage(IReadOnlyList<ResidentRegistration> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts);
 public sealed record MessageChange(string Id, string Text);
 public sealed record BroadcastMessage(string Id, string Text, string CreatedBy, string CreatedById, DateTimeOffset CreatedAt);

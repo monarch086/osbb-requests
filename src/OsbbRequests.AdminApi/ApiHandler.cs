@@ -127,6 +127,13 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             if (pending ? !actor.EffectivePermissions.PendingResidents : !actor.EffectivePermissions.RegisteredResidents)
                 throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
             if (!int.TryParse(query.GetValueOrDefault("page") ?? "1", out var number)) throw new ApiError(400, "Некоректна сторінка.");
+            var sort = query.GetValueOrDefault("sort");
+            if (!pending && query.GetValueOrDefault("compact") == "true" && sort is null or "" or "registeredAt")
+            {
+                var compact = await store.ListCompactResidentsAsync(number, query.GetValueOrDefault("building"),
+                    query.GetValueOrDefault("residentType"), query.GetValueOrDefault("direction"), cursor, ct);
+                if (compact is not null) return Reply(200, compact);
+            }
             var directory = await store.ListResidentDirectoryAsync(pending, number, query.GetValueOrDefault("building"),
                 query.GetValueOrDefault("residentType"), query.GetValueOrDefault("sort"), query.GetValueOrDefault("direction"), ct);
             if (pending) return Reply(200, new
@@ -211,6 +218,20 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             if (registrationId.Length != 32 || !registrationId.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");
             await store.ChangeResidentTypeAsync(actor, registrationId, Body<ResidentTypeChangeRequest>(request), ct);
             return Reply(200, new { ok = true });
+        }
+        if (segments is ["admin", "residents", var detailId] && method == "GET")
+        {
+            if (!actor.EffectivePermissions.RegisteredResidents) throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
+            if (detailId.Length != 32 || !detailId.All(Uri.IsHexDigit)) throw new ApiError(400, "Некоректний запит.");
+            var resident = await store.GetCurrentRegisteredResidentAsync(detailId, ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
+            var approval = await store.GetRegistrationApprovalAsync(detailId, ct);
+            return Reply(200, new
+            {
+                resident = new RegisteredResident(resident.Id, resident.FirstName, resident.LastName, resident.Phone,
+                    resident.ApprovedAt ?? resident.UpdatedAt, resident.UserId.ToString(CultureInfo.InvariantCulture), resident.BuildingNumber,
+                    resident.ApartmentNumber, resident.PersonalDataDeleted, resident.Email, resident.ConsentAt, resident.ResidentType, resident.TypeChangeCount, resident.Version),
+                approval
+            });
         }
         if (segments is ["admin", "registrations", var approvalId, "approval"] && method == "GET")
         {

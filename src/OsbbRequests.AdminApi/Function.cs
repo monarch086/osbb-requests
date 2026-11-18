@@ -31,7 +31,7 @@ public sealed class Function
     {
         statistics = new StatisticsStore(new AmazonDynamoDBClient(), Config("STATISTICS_TABLE"));
         handler = new ApiHandler(new DynamoAdminStore(new MeteredDynamoDb(), Config("ADMINISTRATORS_TABLE"),
-            Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting(), Config("RESIDENTS_TABLE")), new CognitoIdentity(new AmazonCognitoIdentityProviderClient()), statistics);
+            Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting(), Config("RESIDENTS_TABLE"), Environment.GetEnvironmentVariable("COMPACT_RESIDENT_DIRECTORY") == "true"), new CognitoIdentity(new AmazonCognitoIdentityProviderClient()), statistics);
         notifier = TelegramServiceNotifier.FromEnvironment(Http);
     }
     public Function(ApiHandler handler, IServiceNotifier? notifier = null, IStatisticsStore? statistics = null)
