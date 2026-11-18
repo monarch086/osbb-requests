@@ -5,6 +5,7 @@ import type {
   Registration,
   RegistrationApproval,
   ResidentDataChange,
+  ResidentListRow,
   ResidentTypeHistory,
 } from '../api.models';
 import { errorMessage } from '../error-message';
@@ -38,8 +39,8 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   private readonly excel = inject(ExcelExportService);
   protected override readonly lists = new ResidentsList();
   protected approval: RegistrationApproval | null = null;
-  protected approvalLoading = false;
-  protected approvalError = false;
+  protected residentDetailsOpen = false;
+  protected residentDetailsLoading = false;
   private approvalSequence = 0;
   protected selectedPending: Registration | null = null;
   protected selectedRegistered: RegisteredResident | null = null;
@@ -71,7 +72,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   }
   protected override async loadItems(
     index: number,
-    _cursor: string | null,
+    cursor: string | null,
     isCurrent: () => boolean,
   ): Promise<void> {
     let count = 0;
@@ -102,12 +103,17 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       const page = await this.api.getResidentDirectory(
         index + 1,
         this.lists.residentDirectory.filters,
+        cursor,
       );
       if (isCurrent()) {
         this.lists.registeredResidents = page.items;
         this.lists.total = page.total;
         this.lists.counts = page.counts;
-        this.lists.pagination.index = page.pageNumber - 1;
+        this.lists.pagination.accept(
+          page.pageNumber - 1,
+          page.startCursor ?? null,
+          page.nextCursor ?? null,
+        );
       }
       return;
     }
@@ -137,7 +143,11 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     ) {
       return;
     }
-    await this.loadPage(number - 1, null);
+    const index = number - 1;
+    await this.loadPage(
+      index,
+      this.lists.residentView === 'registered' ? this.lists.pagination.nearestStart(index) : null,
+    );
   }
   protected openPending(resident: Registration): void {
     this.detailsTrigger =
@@ -146,30 +156,31 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     this.selectedRegistered = null;
     this.error = '';
   }
-  protected async openRegistered(resident: RegisteredResident): Promise<void> {
+  protected async openRegistered(resident: ResidentListRow): Promise<void> {
     this.detailsTrigger =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    this.selectedRegistered = resident;
+    this.selectedRegistered = null;
     this.selectedPending = null;
     this.error = '';
     this.approval = null;
-    this.approvalError = false;
-    this.approvalLoading = true;
+    this.residentDetailsOpen = true;
+    this.residentDetailsLoading = true;
     const sequence = ++this.approvalSequence;
     const epoch = this.epoch;
     const current = (): boolean => sequence === this.approvalSequence && epoch === this.epoch;
     try {
-      const approval = await this.api.getRegistrationApproval(resident.id);
+      const details = await this.api.getRegisteredResident(resident.id);
       if (current()) {
-        this.approval = approval;
+        this.selectedRegistered = details.resident;
+        this.approval = details.approval;
       }
-    } catch {
+    } catch (error) {
       if (current()) {
-        this.approvalError = true;
+        this.error = errorMessage(error);
       }
     } finally {
       if (current()) {
-        this.approvalLoading = false;
+        this.residentDetailsLoading = false;
       }
     }
   }
@@ -178,7 +189,8 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       return;
     }
     this.approvalSequence++;
-    this.approvalLoading = false;
+    this.residentDetailsOpen = false;
+    this.residentDetailsLoading = false;
     this.approval = null;
     this.selectedPending = null;
     this.selectedRegistered = null;
@@ -223,6 +235,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       return;
     }
     this.lists.residentDirectory.applyFilters(filters);
+    this.lists.pagination.reset();
     await this.loadPage(0, null);
   }
   protected async applyPendingBuilding(building: string): Promise<void> {
@@ -284,6 +297,16 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       resident.residentType = change.residentType;
       resident.typeChangeCount = (resident.typeChangeCount ?? 0) + 1;
       resident.version++;
+      this.lists.registeredResidents = this.lists.registeredResidents.map((row) =>
+        row.id === resident.id
+          ? {
+              ...row,
+              firstName: change.firstName,
+              lastName: change.lastName,
+              residentType: change.residentType,
+            }
+          : row,
+      );
       this.changingType = null;
       this.notice = 'Дані мешканця збережено.';
     });

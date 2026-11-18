@@ -414,6 +414,8 @@ public sealed class ResidentDirectoryTests
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
         {
             Get = request;
+            if (request.Key["pk"].S.Contains("#DIRECTORY_ROW#", StringComparison.Ordinal))
+                return Task.FromResult(new GetItemResponse());
             var item = request.TableName == "residents" && Snapshot is not null
                 ? new Dictionary<string, AttributeValue> { ["recordData"] = new() { M = Snapshot } } : Snapshot;
             return Task.FromResult(new GetItemResponse { Item = item });

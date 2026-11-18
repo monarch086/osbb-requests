@@ -44,6 +44,8 @@ export interface ResidentDirectoryPage<T> {
   pageSize: number;
   total: number;
   counts: ResidentCounts;
+  startCursor?: string | null;
+  nextCursor?: string | null;
 }
 export interface Registration {
   telegramChatId: string;
@@ -75,6 +77,20 @@ export interface RegisteredResident {
   registeredAt: string;
   version: number;
   consentAt?: string | null;
+}
+export type ResidentListRow = Pick<
+  RegisteredResident,
+  | 'id'
+  | 'firstName'
+  | 'lastName'
+  | 'residentType'
+  | 'buildingNumber'
+  | 'apartmentNumber'
+  | 'personalDataDeleted'
+>;
+export interface RegisteredResidentDetails {
+  resident: RegisteredResident;
+  approval: RegistrationApproval | null;
 }
 export interface RegistrationApproval {
   actor: string;

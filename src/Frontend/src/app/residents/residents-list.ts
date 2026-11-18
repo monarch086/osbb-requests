@@ -1,8 +1,8 @@
 import type {
-  RegisteredResident,
   Registration,
   ResidentCounts,
   ResidentKeyEntry,
+  ResidentListRow,
 } from '../api.models';
 import { WorkspaceLists } from '../workspace/workspace-lists';
 import { PendingDirectory } from './pending-directory';
@@ -12,7 +12,7 @@ import { ResidentDirectory } from './resident-directory';
 export class ResidentsList extends WorkspaceLists {
   residents: Registration[] = [];
   keyResidents: ResidentKeyEntry[] = [];
-  registeredResidents: RegisteredResident[] = [];
+  registeredResidents: ResidentListRow[] = [];
   residentView: ResidentView = 'registered';
   residentDirectory = new ResidentDirectory();
   pendingDirectory = new PendingDirectory();

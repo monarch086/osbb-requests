@@ -10,12 +10,16 @@ stages:
       residentApprovalMode: Automatic
       requestSortMode: Priority
       phoneLookupMode: Directory
+      residentDirectoryDescendingIndex: "false"
+      compactResidentDirectory: "false"
       serviceNotificationChatId: '38627946'
       serviceBotTokenParameter: /shared/telegram/service-bot-token
   dev:
     params:
       botUsername: zeleniy_ostriv2_bot
       phoneLookupMode: PhoneIndex
+      residentDirectoryDescendingIndex: "true"
+      compactResidentDirectory: "true"
 custom:
   parameterPrefix: /${self:service}/${sls:stage}
   botUsername: ${env:TELEGRAM_BOT_USERNAME, param:botUsername}
@@ -189,11 +193,17 @@ functions:
         Ref: CommandDataTable
       BUILDING_ID: ${self:custom.buildingId}
       REQUEST_SORT_MODE: ${param:requestSortMode}
+      COMPACT_RESIDENT_DIRECTORY: "${param:compactResidentDirectory}"
       RESIDENTS_TABLE:
         Ref: ResidentsTable
       STATISTICS_TABLE:
         Ref: StatisticsTable
 resources:
+  Conditions:
+    CreateResidentDirectoryDescendingIndex:
+      Fn::Equals:
+      - '${param:residentDirectoryDescendingIndex}'
+      - 'true'
   Resources:
     StatisticsTable:
       Type: AWS::DynamoDB::Table
@@ -281,6 +291,15 @@ resources:
           AttributeType: S
         - AttributeName: recordOrder
           AttributeType: S
+        - AttributeName: listGroup
+          AttributeType: S
+        - AttributeName: listOrder
+          AttributeType: S
+        - Fn::If:
+          - CreateResidentDirectoryDescendingIndex
+          - AttributeName: listOrderDescending
+            AttributeType: S
+          - Ref: AWS::NoValue
         KeySchema:
         - AttributeName: pk
           KeyType: HASH
@@ -319,6 +338,39 @@ resources:
             KeyType: RANGE
           Projection:
             ProjectionType: ALL
+        - IndexName: ResidentDirectoryByDate
+          KeySchema:
+          - AttributeName: listGroup
+            KeyType: HASH
+          - AttributeName: listOrder
+            KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+            - registrationId
+            - firstName
+            - lastName
+            - residentType
+            - buildingNumber
+            - apartmentNumber
+        - Fn::If:
+          - CreateResidentDirectoryDescendingIndex
+          - IndexName: ResidentDirectoryByDateDescending
+            KeySchema:
+            - AttributeName: listGroup
+              KeyType: HASH
+            - AttributeName: listOrderDescending
+              KeyType: RANGE
+            Projection:
+              ProjectionType: INCLUDE
+              NonKeyAttributes:
+              - registrationId
+              - firstName
+              - lastName
+              - residentType
+              - buildingNumber
+              - apartmentNumber
+          - Ref: AWS::NoValue
     NotificationFailureQueue:
       Type: AWS::SQS::Queue
       Properties:
@@ -574,6 +626,16 @@ resources:
                 - ResidentsTable
                 - Arn
             - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#DIRECTORY_COUNT#*
+            - Effect: Allow
               Action: dynamodb:DeleteItem
               Resource:
                 Fn::GetAtt:
@@ -583,6 +645,7 @@ resources:
                 ForAllValues:StringLike:
                   dynamodb:LeadingKeys:
                   - COMPLEX#${self:custom.buildingId}#PHONE_ENTRY#*
+                  - COMPLEX#${self:custom.buildingId}#DIRECTORY_ROW#*
             - Effect: Allow
               Action: dynamodb:Query
               Resource:
@@ -802,6 +865,16 @@ resources:
                 - ResidentsTable
                 - Arn
             - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#DIRECTORY_COUNT#*
+            - Effect: Allow
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${CommandDataTable.Arn}/index/BuildingPriorityRequestsIndex
@@ -813,6 +886,15 @@ resources:
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByDate
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentDirectoryByDateDescending
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#APPROVED#*
             - Effect: Allow
               Action: dynamodb:Query
               Resource:

@@ -136,6 +136,41 @@ def phone_association_put(table, registration):
                     'ExpressionAttributeValues': {':complex': {'S': building}, ':resident': {'N': str(user)}}}}
 
 
+def directory_approval_writes(table, registration):
+    if registration.get('PersonalDataDeleted', False):
+        return []
+    prefix = f'COMPLEX#{registration["BuildingId"]}'
+    building = registration.get('BuildingNumber') or 'Unspecified'
+    resident_type = registration.get('ResidentType') or 'FamilyMember'
+    if isinstance(resident_type, int):
+        resident_type = ('FamilyMember', 'Owner', 'Tenant', 'Employee')[resident_type]
+    timestamp = registration.get('ApprovedAt') or registration['UpdatedAt']
+    instant = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).astimezone(timezone.utc)
+    elapsed = instant - datetime.min.replace(tzinfo=timezone.utc)
+    fraction = re.search(r'\.(\d{1,7})', timestamp)
+    last_tick = int(fraction.group(1).ljust(7, '0')[6]) if fraction else 0
+    ticks = (elapsed.days * 86400 + elapsed.seconds) * 10_000_000 + elapsed.microseconds * 10 + last_tick
+    reference = registration['Id']
+    writes = []
+    for kind, group in (('ALL', 'ALL'), ('BUILDING', 'BUILDING#' + building)):
+        row = {
+            'pk': {'S': f'{prefix}#DIRECTORY_ROW#{kind}#{registration["UserId"]}'},
+            'listGroup': {'S': f'{prefix}#APPROVED#{group}'},
+            'listOrder': {'S': f'{ticks:019d}#{reference}'},
+            'listOrderDescending': {'S': f'{3155378975999999999 - ticks:019d}#{reference}'},
+            'registrationId': {'S': reference}, 'residentType': {'S': resident_type},
+            'buildingNumber': {'S': building}, 'sourceVersion': {'N': str(registration['Version'])},
+        }
+        for source, target in (('FirstName', 'firstName'), ('LastName', 'lastName'), ('ApartmentNumber', 'apartmentNumber')):
+            if registration.get(source) is not None:
+                row[target] = {'S': registration[source]}
+        writes.append({'Put': {'TableName': table, 'Item': row, 'ConditionExpression': 'attribute_not_exists(pk)'}})
+        writes.append({'Update': {'TableName': table, 'Key': {'pk': {'S': f'{prefix}#DIRECTORY_COUNT#{group}'}},
+                                  'UpdateExpression': 'ADD #type :one', 'ExpressionAttributeNames': {'#type': resident_type},
+                                  'ExpressionAttributeValues': {':one': {'N': '1'}}}})
+    return writes
+
+
 def decision_transaction(table, registration, original_payload, decision, reason, actor, now, residents_table=None, user_snapshot=None, meta_snapshot=None, residents_only=False):
     if decision not in ('Approved', 'Rejected'):
         raise ValueError('Unsupported decision.')
@@ -202,6 +237,7 @@ def decision_transaction(table, registration, original_payload, decision, reason
         writes.append(related_resident_put(residents_table, membership, registration['BuildingId']))
         writes.append(related_resident_put(residents_table, audit, registration['BuildingId'], immutable=True))
         if decision == 'Approved':
+            writes.extend(directory_approval_writes(residents_table, updated))
             writes.append(related_resident_put(residents_table, resident, registration['BuildingId']))
             phone_put = phone_association_put(residents_table, updated)
             if phone_put:

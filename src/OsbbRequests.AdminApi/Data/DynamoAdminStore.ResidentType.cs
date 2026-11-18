@@ -17,6 +17,16 @@ public sealed partial class DynamoAdminStore
         return registration.Id == reference && registration.BuildingId == building ? registration : null;
     }
 
+    public async Task<ResidentRegistration?> GetCurrentRegisteredResidentAsync(string reference, CancellationToken ct)
+    {
+        var snapshot = await GetRegistrationAsync(reference, ct);
+        if (snapshot is not { Stage: RegistrationStage.Approved, PersonalDataDeleted: false }) return null;
+        var item = await GetResidentRecordAsync("USER#" + snapshot.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION", ct);
+        var current = item is null ? null : Payload<ResidentRegistration>(item);
+        return current is { Stage: RegistrationStage.Approved, PersonalDataDeleted: false } && current.Id == reference &&
+            current.UserId == snapshot.UserId && current.BuildingId == building ? current : null;
+    }
+
     public async Task<RegistrationApproval?> GetRegistrationApprovalAsync(string reference, CancellationToken ct)
     {
         var item = await GetResidentRecordAsync("REGISTRATION#" + reference, "EVENT#DECIDED", ct);
@@ -95,6 +105,11 @@ public sealed partial class DynamoAdminStore
             registrationMeta["payload"] = S(JsonSerializer.Serialize(next));
             registrationMeta["version"] = N(next.Version);
             writes.Add(ResidentMirrorWrite(next, current.Version));
+            if (next.Stage == RegistrationStage.Approved)
+            {
+                var row = await Get(residentsTable, new() { ["pk"] = S(ResidentDirectoryWrites.BuildingRowKey(next)) }, ct);
+                ResidentDirectoryWrites.Add(writes, residentsTable, next, row);
+            }
             writes.Add(RelatedResidentPut(registrationMeta, building, current.Version));
             var userKey = Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION");
             var directoryKey = Key("BUILDING#" + building, listKey);

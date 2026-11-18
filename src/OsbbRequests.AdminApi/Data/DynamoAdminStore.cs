@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Residents;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -9,7 +10,7 @@ using OsbbRequests.Shared.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
-public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null) : IAdminStore
+public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null, bool compactResidentDirectory = false) : IAdminStore
 {
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(int value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
@@ -352,6 +353,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }
         if (decision.Approved)
         {
+            if (residentsTable is not null) ResidentDirectoryWrites.Add(writes, residentsTable, next);
             if (residentsTable is not null && OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(next.Phone, out _)) writes.Add(PhoneAssociationPut(next));
             var resident = Key("BUILDING#" + building, "RESIDENT#" + registration.UserId.ToString("D20", CultureInfo.InvariantCulture));
             resident["payload"] = S(JsonSerializer.Serialize(next));

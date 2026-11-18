@@ -150,6 +150,31 @@ public sealed class AdminApiTests
     }
 
     [Fact]
+    public async Task CompactDirectoryIsOptInAndDetailsRequireRegisteredResidentAccess()
+    {
+        const string id = "12345678901234567890123456789012";
+        var store = new FakeStore
+        {
+            HistoryStage = RegistrationStage.Approved,
+            CompactPage = new(
+            [new(id, "Олена", "Тестова", ResidentType.Owner, "4Б", "25")], 1, 25, 1, new(1, 1, 0, 0, 0), null, null)
+        };
+        var handler = Handler(store);
+        var compact = await handler.HandleAsync(Request("/admin/residents/directory", query: new() { ["compact"] = "true" }), default);
+        using var body = JsonDocument.Parse(compact.Body);
+        Assert.Equal(id, body.RootElement.GetProperty("items")[0].GetProperty("id").GetString());
+        Assert.False(body.RootElement.GetProperty("items")[0].TryGetProperty("phone", out _));
+        Assert.Equal(0, store.PrivateReads);
+        await handler.HandleAsync(Request("/admin/residents/directory"), default);
+        await handler.HandleAsync(Request("/admin/residents/directory", query: new() { ["compact"] = "true", ["sort"] = "lastName" }), default);
+        Assert.Equal(2, store.PrivateReads);
+        var path = "/admin/residents/" + id;
+        Assert.Equal(200, (await handler.HandleAsync(Request(path), default)).StatusCode);
+        store.Users["regular"] = Regular with { Permissions = new(false, false, false, true, false) };
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request(path), default))).Status);
+    }
+
+    [Fact]
     public async Task PagePermissionsProtectApisAndRequestDetailsIndependently()
     {
         var store = new FakeStore();
@@ -1004,6 +1029,7 @@ public sealed class AdminApiTests
         public RegistrationStage HistoryStage = RegistrationStage.Pending;
         public int TypeChanges;
         public Task<RegistrationApproval?> GetRegistrationApprovalAsync(string reference, CancellationToken ct) => Task.FromResult<RegistrationApproval?>(new("admin@example.org", DateTimeOffset.UnixEpoch, false));
+        public Task<ResidentRegistration?> GetCurrentRegisteredResidentAsync(string reference, CancellationToken ct) => HistoryStage == RegistrationStage.Approved ? GetRegistrationAsync(reference, ct) : Task.FromResult<ResidentRegistration?>(null);
         public Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct) => Task.FromResult<ResidentRegistration?>(new(reference, 99, "building", HistoryStage, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
         public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
@@ -1037,6 +1063,8 @@ public sealed class AdminApiTests
         public Task SetAccessAsync(AdminUser actor, AdminUser target, AccessChange change, CancellationToken ct)
         { AccessWrites++; Users[target.UserId] = target with { IsActive = change.IsActive }; return Task.CompletedTask; }
         public Task<int> CountRegistrationsAsync(CancellationToken ct) => Task.FromResult(0);
+        public CompactResidentPage? CompactPage;
+        public Task<CompactResidentPage?> ListCompactResidentsAsync(int page, string? buildingNumber, string? residentType, string? direction, string? cursor, CancellationToken ct) => Task.FromResult(CompactPage);
         public Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)
         { PrivateReads++; return Task.FromResult(new ResidentDirectoryPage([], page, 25, 0, new(0, 0, 0, 0, 0))); }
         public Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber, string? residentType, string? sort, string? direction, CancellationToken ct)

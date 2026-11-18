@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Residents;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
@@ -14,7 +15,11 @@ public sealed partial class DynamoCommandRepository
             !ComplexLayout.BuildingNumbers.Contains(profile.BuildingNumber, StringComparer.Ordinal) ||
             !int.TryParse(profile.ApartmentNumber, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var apartment) || apartment <= 0)
             throw new InvalidOperationException("Automatic approval requires a completed resident registration.");
-        if (residentsTable is not null) writes.Add(PhoneAssociationPut(profile, profile.Phone!));
+        if (residentsTable is not null)
+        {
+            writes.Add(PhoneAssociationPut(profile, profile.Phone!));
+            ResidentDirectoryWrites.Add(writes, residentsTable, profile);
+        }
         var registrationMeta = RegistrationItem("REGISTRATION#" + profile.Id, "META", profile);
         if (residentsTable is null || complexId is null) writes.Add(Put(registrationMeta));
         if (residentsTable is not null) writes.Add(RelatedResidentPut(registrationMeta, profile.BuildingId, immutable: true));

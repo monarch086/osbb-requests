@@ -20,6 +20,9 @@
           (click)="closed.emit()"
         ></button>
       </div>
+      @if (loading) {
+        <p class="modal-body mb-0" role="status">Завантажуємо дані мешканця…</p>
+      }
       @if (pending || resident; as person) {
         <div class="modal-body">
           @if (error) {
@@ -62,11 +65,7 @@
               <dd>{{ date(resident.registeredAt) }}</dd>
               <dt>Підтверджено</dt>
               <dd>
-                @if (approvalLoading) {
-                  Завантажуємо…
-                } @else if (approvalError) {
-                  Не вдалося завантажити дані
-                } @else if (approval?.automatic) {
+                @if (approval?.automatic) {
                   Автоматично
                 } @else if (approval?.actor) {
                   {{ approval?.actor }}
@@ -120,6 +119,10 @@
               </button>
             </div>
           }
+        </div>
+      } @else if (error) {
+        <div class="modal-body">
+          <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
         </div>
       }
     </section>
