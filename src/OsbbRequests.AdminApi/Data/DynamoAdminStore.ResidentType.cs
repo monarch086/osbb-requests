@@ -95,6 +95,11 @@ public sealed partial class DynamoAdminStore
             registrationMeta["payload"] = S(JsonSerializer.Serialize(next));
             registrationMeta["version"] = N(next.Version);
             writes.Add(ResidentMirrorWrite(next, current.Version));
+            if (next.Stage == RegistrationStage.Approved)
+            {
+                var row = await Get(residentsTable, new() { ["pk"] = S(ResidentDirectoryWrites.BuildingRowKey(next)) }, ct);
+                ResidentDirectoryWrites.Add(writes, residentsTable, next, row);
+            }
             writes.Add(RelatedResidentPut(registrationMeta, building, current.Version));
             var userKey = Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION");
             var directoryKey = Key("BUILDING#" + building, listKey);

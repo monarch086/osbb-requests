@@ -2,6 +2,15 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "AWSSDK.DynamoDBv2": {
+        "type": "Direct",
+        "requested": "[4.0.108, )",
+        "resolved": "4.0.108",
+        "contentHash": "l5PBp75Qh5Kzc3zX072foJNOXHVoHMYdk4OWGcQntxmzZd1ykGpAJNp3ticokiAGSxzP5VuuYmoMsyG1mo/QcQ==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.102.12, 5.0.0)"
+        }
+      },
       "AWSSDK.SimpleSystemsManagement": {
         "type": "Direct",
         "requested": "[4.0.104.5, )",

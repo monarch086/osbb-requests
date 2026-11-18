@@ -132,6 +132,17 @@ public sealed partial class DynamoCommandRepository
             ExpressionAttributeValues = new() { [":complex"] = new(complex), [":active"] = new() { BOOL = true } }
         };
     }
+    private async Task<Dictionary<string, AttributeValue>?> GetResidentDirectoryRowAsync(ResidentRegistration profile, CancellationToken ct)
+    {
+        var response = await client.GetItemAsync(new GetItemRequest
+        {
+            TableName = residentsTable,
+            Key = new() { ["pk"] = new(ResidentDirectoryWrites.BuildingRowKey(profile)) },
+            ConsistentRead = true
+        }, ct);
+        return response.Item is { Count: > 0 } ? response.Item : null;
+    }
+
     private TransactWriteItem ResidentMirrorWrite(ResidentRegistration resident, int? expectedVersion)
     {
         var value = ResidentProjection.Create(resident);

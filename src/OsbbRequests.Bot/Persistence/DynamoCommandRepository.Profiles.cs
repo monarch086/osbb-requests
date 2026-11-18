@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Residents;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Bot.Models;
@@ -34,6 +35,8 @@ public sealed partial class DynamoCommandRepository
             var previous = await GetRegistrationAsync(command.UserId, ct) ?? throw new InvalidOperationException("Resident profile is unavailable.");
             if (previous.BuildingId != profile.BuildingId || previous.Id != profile.Id || previous.Version != update.ExpectedVersion)
                 throw new InvalidOperationException("Resident profile changed.");
+            var directoryRow = await GetResidentDirectoryRowAsync(profile, ct);
+            ResidentDirectoryWrites.Add(writes, residentsTable, profile, directoryRow);
             OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(previous.Phone, out var oldPhone);
             string? newPhone = null;
             if (profile.Stage == OsbbRequests.Shared.Models.RegistrationStage.Approved && !profile.PersonalDataDeleted)

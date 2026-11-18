@@ -1,3 +1,4 @@
+using OsbbRequests.Shared.Residents;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -352,6 +353,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         }
         if (decision.Approved)
         {
+            if (residentsTable is not null) ResidentDirectoryWrites.Add(writes, residentsTable, next);
             if (residentsTable is not null && OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(next.Phone, out _)) writes.Add(PhoneAssociationPut(next));
             var resident = Key("BUILDING#" + building, "RESIDENT#" + registration.UserId.ToString("D20", CultureInfo.InvariantCulture));
             resident["payload"] = S(JsonSerializer.Serialize(next));

@@ -104,6 +104,20 @@ class ResidentAdministrationTests(unittest.TestCase):
                 self.assertEqual(source['sk'], entry['sourceSk'])
 
 
+    def test_approval_writes_compact_directory_rows_and_counts(self):
+        writes = admin.decision_transaction('data', self.registration, json.dumps(self.registration), 'Approved',
+                                            None, 'operator', '1970-01-01T00:00:00Z', 'residents',
+                                            residents_only=True)['TransactItems']
+        rows = [w['Put']['Item'] for w in writes if 'listGroup' in w.get('Put', {}).get('Item', {})]
+        counters = [w['Update'] for w in writes if '#DIRECTORY_COUNT#' in w.get('Update', {}).get('Key', {}).get('pk', {}).get('S', '')]
+        self.assertEqual(2, len(rows))
+        self.assertEqual(2, len(counters))
+        self.assertEqual({'ALL', 'BUILDING#Unspecified'}, {row['listGroup']['S'].split('#APPROVED#')[1] for row in rows})
+        for row in rows:
+            self.assertEqual('0621355968000000000#' + self.registration['Id'], row['listOrder']['S'])
+            self.assertEqual('2534023007999999999#' + self.registration['Id'], row['listOrderDescending']['S'])
+            self.assertNotIn('payload', row)
+
     def test_rejection_requires_reason(self):
         with self.assertRaises(ValueError):
             self.transaction('Rejected')
