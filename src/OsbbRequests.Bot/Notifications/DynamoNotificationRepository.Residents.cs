@@ -14,6 +14,7 @@ public sealed partial class DynamoNotificationRepository
         if (!notification.IsBroadcast || notification.ComplexId != complexId || notification.AdministratorEvent is not null)
             throw new InvalidOperationException("Invalid resident broadcast.");
         var partition = "BUILDING#" + complexId;
+        var groupField = compactResidentRecords ? ResidentRecordKey.IndexGroupAttribute : "recordGroup";
         var legacy = residentsTable is null || item.AudienceCursor?.ContainsKey("sk") == true;
         QueryResponse page;
         if (legacy)
@@ -41,13 +42,17 @@ public sealed partial class DynamoNotificationRepository
             page = await db.QueryAsync(new QueryRequest
             {
                 TableName = residentsTable,
-                IndexName = "ResidentRecordsByGroup",
+                IndexName = compactResidentRecords ? ResidentRecordKey.CompactIndex : ResidentRecordKey.FullIndex,
                 Limit = 25,
-                KeyConditionExpression = "recordGroup = :group AND begins_with(recordOrder, :prefix)",
+                KeyConditionExpression = groupField + " = :group AND begins_with(recordOrder, :prefix)",
                 ExpressionAttributeValues = new() { [":group"] = S(group), [":prefix"] = S("RESIDENT#") },
-                ProjectionExpression = "pk, recordGroup, recordOrder",
-                ExclusiveStartKey = item.AudienceCursor?.ToDictionary(pair => pair.Key, pair => S(pair.Value))
+                ProjectionExpression = "pk, " + groupField + ", recordOrder",
+                ExclusiveStartKey = item.AudienceCursor?.ToDictionary(
+                    pair => pair.Key == "recordGroup" ? groupField : pair.Key, pair => S(pair.Value))
             }, ct);
+            // Keep persisted cursors compatible with the full index during rollback.
+            if (compactResidentRecords && page.LastEvaluatedKey is { Count: > 0 } next)
+                page.LastEvaluatedKey = next.ToDictionary(pair => pair.Key == groupField ? "recordGroup" : pair.Key, pair => pair.Value);
         }
         var writes = new List<TransactWriteItem>();
         foreach (var candidate in page.Items ?? [])
@@ -57,7 +62,7 @@ public sealed partial class DynamoNotificationRepository
             if (!legacy)
             {
                 var order = candidate.GetValueOrDefault("recordOrder")?.S;
-                if (!ValidResidentOrder(order, out var id) || candidate.GetValueOrDefault("recordGroup")?.S != ResidentRecordKey.Create(complexId, partition, "").Group ||
+                if (!ValidResidentOrder(order, out var id) || candidate.GetValueOrDefault(groupField)?.S != ResidentRecordKey.Create(complexId, partition, "").Group ||
                     candidate.GetValueOrDefault("pk")?.S != ResidentRecordKey.Create(complexId, partition, order!).Key)
                     throw new InvalidOperationException("Invalid resident directory entry.");
                 candidateId = id;

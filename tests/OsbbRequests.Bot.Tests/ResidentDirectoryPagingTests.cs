@@ -107,6 +107,70 @@ public sealed class ResidentDirectoryPagingTests
         Assert.Equal("COMPLEX#complex#REGISTRATION#reference", db.QueryRequest.ExpressionAttributeValues[":group"].S);
     }
 
+    [Fact]
+    public async Task CompactHistoryResumesOldCursorAndPreservesOrderAcrossBatchRetries()
+    {
+        using var db = new CompactHistoryDynamo();
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents", compactResidentRecords: true);
+        var original = new Dictionary<string, string>
+        {
+            ["pk"] = CompactHistoryDynamo.Prefix + "3",
+            ["recordGroup"] = CompactHistoryDynamo.Group,
+            ["recordOrder"] = "EVENT#TYPE#3"
+        };
+        var cursor = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(original));
+        var page = await store.RegistrationHistoryAsync("reference", cursor, default);
+
+        Assert.Equal("ResidentRecordKeysByGroup", db.Query!.IndexName);
+        Assert.Equal(original["recordGroup"], db.Query.ExclusiveStartKey["recordIndexGroup"].S);
+        Assert.False(db.Query.ExclusiveStartKey.ContainsKey("recordGroup"));
+        Assert.Equal(["second", "first"], page.Items.Select(item => item.Actor));
+        Assert.Equal(2, db.BatchRequests.Count);
+        Assert.All(db.BatchRequests, request => Assert.True(request.RequestItems["residents"].ConsistentRead));
+        Assert.Single(db.BatchRequests[1].RequestItems["residents"].Keys);
+        var outgoing = JsonSerializer.Deserialize<Dictionary<string, string>>(Convert.FromBase64String(page.Cursor!))!;
+        Assert.Equal(original["recordGroup"], outgoing["recordGroup"]);
+        Assert.False(outgoing.ContainsKey("recordIndexGroup"));
+    }
+
+    private sealed class CompactHistoryDynamo() : AmazonDynamoDBClient(new BasicAWSCredentials("test", "test"), RegionEndpoint.EUCentral1)
+    {
+        public const string Group = "COMPLEX#complex#REGISTRATION#reference";
+        public const string Prefix = "COMPLEX#complex#RECORD#REGISTRATION#reference#EVENT#TYPE#";
+        public QueryRequest? Query { get; private set; }
+        public List<BatchGetItemRequest> BatchRequests { get; } = [];
+
+        private static Dictionary<string, AttributeValue> IndexRow(string suffix) => new()
+        {
+            ["pk"] = new(Prefix + suffix),
+            ["recordOrder"] = new("EVENT#TYPE#" + suffix),
+            ["recordIndexGroup"] = new(Group)
+        };
+
+        public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
+        {
+            Query = request;
+            return Task.FromResult(new QueryResponse { Items = [IndexRow("2"), IndexRow("1")], LastEvaluatedKey = IndexRow("1") });
+        }
+
+        public override Task<BatchGetItemResponse> BatchGetItemAsync(BatchGetItemRequest request, CancellationToken cancellationToken = default)
+        {
+            BatchRequests.Add(request);
+            var firstResponse = BatchRequests.Count == 1;
+            var history = new ResidentTypeChange("FamilyMember", "Owner", firstResponse ? "first" : "second", DateTimeOffset.UnixEpoch, false, false);
+            var row = new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new(Prefix + (firstResponse ? "1" : "2")),
+                ["recordData"] = new() { M = new() { ["payload"] = new(JsonSerializer.Serialize(history)) } }
+            };
+            return Task.FromResult(new BatchGetItemResponse
+            {
+                Responses = new() { ["residents"] = [row] },
+                UnprocessedKeys = firstResponse ? new() { ["residents"] = new() { Keys = [request.RequestItems["residents"].Keys[0]] } } : []
+            });
+        }
+    }
+
     private sealed class RelatedDynamo() : AmazonDynamoDBClient(new BasicAWSCredentials("test", "test"), RegionEndpoint.EUCentral1)
     {
         public GetItemRequest? GetRequest { get; private set; }

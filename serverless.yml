@@ -15,12 +15,16 @@ stages:
       residentDirectoryNameIndex: "false"
       residentDirectoryNameDescendingIndex: "false"
       compactResidentNameDirectory: "false"
+      residentRecordKeysIndex: "false"
+      compactResidentRecords: "false"
       serviceNotificationChatId: '38627946'
       serviceBotTokenParameter: /shared/telegram/service-bot-token
   dev:
     params:
       botUsername: zeleniy_ostriv2_bot
       phoneLookupMode: PhoneIndex
+      residentRecordKeysIndex: "true"
+      compactResidentRecords: "true"
       residentDirectoryDescendingIndex: "true"
       compactResidentDirectory: "true"
       residentDirectoryNameIndex: "true"
@@ -146,6 +150,11 @@ functions:
       RESIDENTS_TABLE:
         Ref: ResidentsTable
       BUILDING_ID: ${self:custom.buildingId}
+      COMPACT_RESIDENT_RECORDS:
+        Fn::If:
+        - CreateResidentRecordKeysIndex
+        - "${param:compactResidentRecords}"
+        - "false"
     package:
       artifact: artifacts/OsbbRequests.Bot/bot.zip
   adminApi:
@@ -203,12 +212,21 @@ functions:
       REQUEST_SORT_MODE: ${param:requestSortMode}
       COMPACT_RESIDENT_NAME_DIRECTORY: "${param:compactResidentNameDirectory}"
       COMPACT_RESIDENT_DIRECTORY: "${param:compactResidentDirectory}"
+      COMPACT_RESIDENT_RECORDS:
+        Fn::If:
+        - CreateResidentRecordKeysIndex
+        - "${param:compactResidentRecords}"
+        - "false"
       RESIDENTS_TABLE:
         Ref: ResidentsTable
       STATISTICS_TABLE:
         Ref: StatisticsTable
 resources:
   Conditions:
+    CreateResidentRecordKeysIndex:
+      Fn::Equals:
+      - '${param:residentRecordKeysIndex}'
+      - 'true'
     CreateResidentDirectoryDescendingIndex:
       Fn::Equals:
       - '${param:residentDirectoryDescendingIndex}'
@@ -306,6 +324,11 @@ resources:
           AttributeType: S
         - AttributeName: recordOrder
           AttributeType: S
+        - Fn::If:
+          - CreateResidentRecordKeysIndex
+          - AttributeName: recordIndexGroup
+            AttributeType: S
+          - Ref: AWS::NoValue
         - AttributeName: listGroup
           AttributeType: S
         - AttributeName: listOrder
@@ -370,6 +393,17 @@ resources:
             - residentType
             - buildingNumber
             - apartmentNumber
+        - Fn::If:
+          - CreateResidentRecordKeysIndex
+          - IndexName: ResidentRecordKeysByGroup
+            KeySchema:
+            - AttributeName: recordIndexGroup
+              KeyType: HASH
+            - AttributeName: recordOrder
+              KeyType: RANGE
+            Projection:
+              ProjectionType: KEYS_ONLY
+          - Ref: AWS::NoValue
         - Fn::If:
           - CreateResidentDirectoryDescendingIndex
           - IndexName: ResidentDirectoryByDateDescending
@@ -547,7 +581,8 @@ resources:
             - Effect: Allow
               Action: dynamodb:Query
               Resource:
-                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
+              - Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordKeysByGroup
               Condition:
                 ForAllValues:StringEquals:
                   dynamodb:LeadingKeys:
@@ -939,6 +974,24 @@ resources:
               Action: dynamodb:Query
               Resource:
                 Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordsByGroup
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource:
+                Fn::Sub: ${ResidentsTable.Arn}/index/ResidentRecordKeysByGroup
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#REGISTRATION#*
+            - Effect: Allow
+              Action: dynamodb:BatchGetItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#RECORD#REGISTRATION#*#EVENT#TYPE#*
             - Effect: Allow
               Action: dynamodb:Query
               Resource:

@@ -185,6 +185,8 @@ public sealed partial class DynamoCommandRepository
             ["complexId"] = new(complexId),
             ["recordData"] = new() { M = new Dictionary<string, AttributeValue>(source) }
         };
+        if (ResidentRecordKey.IsDirectoryOrHistory(complexId, sourcePk, sourceSk))
+            item[ResidentRecordKey.IndexGroupAttribute] = new(key.Group);
         if (source.TryGetValue("version", out var itemVersion)) item["version"] = itemVersion;
         var put = new Put { TableName = residentsTable!, Item = item };
         if (immutable) put.ConditionExpression = "attribute_not_exists(pk)";

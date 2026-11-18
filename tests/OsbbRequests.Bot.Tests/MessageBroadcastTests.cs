@@ -190,8 +190,10 @@ public sealed class MessageBroadcastTests
         Assert.Equal(cursor, JsonSerializer.Deserialize<Dictionary<string, string>>(Assert.Single(db.Transaction!.TransactItems, w => w.Put is not null).Put.Item["audienceCursor"].S));
     }
 
-    [Fact]
-    public async Task NewAudienceIndexUsesStrongReadsAndContinuesWithScopedCursor()
+    [Theory]
+    [InlineData(false, "ResidentRecordsByGroup", "recordGroup")]
+    [InlineData(true, "ResidentRecordKeysByGroup", "recordIndexGroup")]
+    public async Task ResidentAudienceIndexUsesStrongReadsAndContinuesWithScopedCursor(bool compact, string index, string groupField)
     {
         using var db = new AudienceDynamo();
         var active = new ResidentRegistration("r1", 1, "complex", RegistrationStage.Approved, 1, Now.AddDays(-2), Now.AddDays(-1));
@@ -199,9 +201,9 @@ public sealed class MessageBroadcastTests
         var later = active with { Id = "r3", UserId = 3, ApprovedAt = Now.AddSeconds(1) };
         db.Add(active); db.Add(deleted); db.Add(later);
         db.Next = true;
-        var repository = new DynamoNotificationRepository(db, "data", "complex", "admins", "residents");
+        var repository = new DynamoNotificationRepository(db, "data", "complex", "admins", "residents", compact);
         await repository.ExpandAsync(Broadcast(), "lease", Now, default);
-        Assert.Equal("ResidentRecordsByGroup", db.Query!.IndexName);
+        Assert.Equal(index, db.Query!.IndexName);
         Assert.Equal("residents", db.Query.TableName);
         Assert.NotEqual(true, db.Query.ConsistentRead);
         Assert.All(db.Reads, request => { Assert.Equal("residents", request.TableName); Assert.True(request.ConsistentRead); });
@@ -213,6 +215,8 @@ public sealed class MessageBroadcastTests
         db.Rows.Clear(); db.Next = false;
         await repository.ExpandAsync(Broadcast() with { AudienceCursor = cursor }, "lease2", Now, default);
         Assert.Equal(cursor["pk"], db.Query!.ExclusiveStartKey["pk"].S);
+        Assert.Equal(cursor["recordGroup"], db.Query.ExclusiveStartKey[groupField].S);
+        Assert.Equal(3, db.Query.ExclusiveStartKey.Count);
         Assert.Contains(db.Transaction!.TransactItems, w => w.Delete is not null);
     }
 
@@ -265,6 +269,7 @@ public sealed class MessageBroadcastTests
             {
                 ["pk"] = new(key.Key),
                 ["recordGroup"] = new(key.Group),
+                ["recordIndexGroup"] = new(key.Group),
                 ["recordOrder"] = new(key.Order),
                 ["recordData"] = new() { M = Row(resident) }
             });
@@ -272,7 +277,8 @@ public sealed class MessageBroadcastTests
         public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken ct = default)
         {
             Query = request;
-            var rows = Rows.Values.Select(item => item.Where(pair => pair.Key is "pk" or "recordGroup" or "recordOrder").ToDictionary()).ToList();
+            var groupField = request.IndexName == ResidentRecordKey.CompactIndex ? ResidentRecordKey.IndexGroupAttribute : "recordGroup";
+            var rows = Rows.Values.Select(item => item.Where(pair => pair.Key is "pk" or "recordOrder" || pair.Key == groupField).ToDictionary()).ToList();
             return Task.FromResult(new QueryResponse { Items = rows, LastEvaluatedKey = Next ? rows[^1] : [] });
         }
         public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken ct = default)

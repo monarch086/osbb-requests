@@ -137,17 +137,31 @@ public sealed partial class DynamoAdminStore
                 startKey.GetValueOrDefault("recordOrder")?.S?.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) != true ||
                 startKey.GetValueOrDefault("pk")?.S != ResidentRecordKey.Create(building, pk, startKey["recordOrder"].S).Key))
                 throw new ApiError(400, "Некоректна сторінка.");
+            var groupField = compactResidentRecords ? ResidentRecordKey.IndexGroupAttribute : "recordGroup";
+            if (compactResidentRecords && startKey is not null)
+            {
+                startKey[groupField] = startKey["recordGroup"];
+                startKey.Remove("recordGroup");
+            }
             var response = await db.QueryAsync(new QueryRequest
             {
                 TableName = residentsTable,
-                IndexName = "ResidentRecordsByGroup",
-                KeyConditionExpression = "recordGroup = :group AND begins_with(recordOrder, :prefix)",
+                IndexName = compactResidentRecords ? ResidentRecordKey.CompactIndex : ResidentRecordKey.FullIndex,
+                KeyConditionExpression = groupField + " = :group AND begins_with(recordOrder, :prefix)",
                 ExpressionAttributeValues = new() { [":group"] = S(group), [":prefix"] = S("EVENT#TYPE#") },
                 ExclusiveStartKey = startKey,
                 ScanIndexForward = false,
                 Limit = 25
             }, ct);
-            return new Page<ResidentTypeChange>((response.Items ?? []).Select(item => Payload<ResidentTypeChange>(item["recordData"].M)).ToList(), Encode(response.LastEvaluatedKey));
+            var items = response.Items ?? [];
+            if (compactResidentRecords)
+            {
+                items = await LoadHistoryRecordsAsync(residentsTable, pk, items, ct);
+                // Use the same public cursor format for both indexes.
+                if (response.LastEvaluatedKey is { Count: > 0 } next)
+                    response.LastEvaluatedKey = next.ToDictionary(pair => pair.Key == groupField ? "recordGroup" : pair.Key, pair => pair.Value);
+            }
+            return new Page<ResidentTypeChange>(items.Select(item => Payload<ResidentTypeChange>(item["recordData"].M)).ToList(), Encode(response.LastEvaluatedKey));
         }
         var start = Decode(cursor, "pk", pk);
         if (start is not null && (start.Count != 2 || start.GetValueOrDefault("sk")?.S?.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) != true))
@@ -163,5 +177,36 @@ public sealed partial class DynamoAdminStore
             Limit = 25
         }, ct);
         return new Page<ResidentTypeChange>((result.Items ?? []).Select(Payload<ResidentTypeChange>).ToList(), Encode(result.LastEvaluatedKey));
+    }
+
+    private async Task<List<Dictionary<string, AttributeValue>>> LoadHistoryRecordsAsync(string table, string partition,
+        List<Dictionary<string, AttributeValue>> indexRows, CancellationToken ct)
+    {
+        if (indexRows.Count == 0) return [];
+        var keys = new List<Dictionary<string, AttributeValue>>(indexRows.Count);
+        foreach (var row in indexRows)
+        {
+            var order = row["recordOrder"].S;
+            var expected = ResidentRecordKey.Create(building, partition, order);
+            if (!order.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) || row["pk"].S != expected.Key ||
+                row[ResidentRecordKey.IndexGroupAttribute].S != expected.Group)
+                throw new InvalidOperationException("Invalid resident history key.");
+            keys.Add(new() { ["pk"] = row["pk"] });
+        }
+        var rows = new Dictionary<string, Dictionary<string, AttributeValue>>(StringComparer.Ordinal);
+        var pending = new Dictionary<string, KeysAndAttributes> { [table] = new() { Keys = keys, ConsistentRead = true } };
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            if (attempt > 0) await Task.Delay(TimeSpan.FromMilliseconds(25 << (attempt - 1)), ct);
+            var result = await db.BatchGetItemAsync(new BatchGetItemRequest { RequestItems = pending }, ct);
+            foreach (var row in result.Responses?.GetValueOrDefault(table) ?? []) rows.Add(row["pk"].S, row);
+            if (result.UnprocessedKeys?.GetValueOrDefault(table) is not { Keys.Count: > 0 } retry)
+            {
+                if (rows.Count != keys.Count) throw new InvalidOperationException("Missing resident history event.");
+                return keys.Select(key => rows[key["pk"].S]).ToList();
+            }
+            pending = new() { [table] = new() { Keys = retry.Keys, ConsistentRead = true } };
+        }
+        throw new InvalidOperationException("Unable to read all resident history events.");
     }
 }

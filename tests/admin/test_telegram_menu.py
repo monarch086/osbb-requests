@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import urllib.error
@@ -59,7 +60,7 @@ class TelegramMenuTests(unittest.TestCase):
         def candidate(user):
             order = 'RESIDENT#' + str(user).zfill(20)
             return {'pk': {'S': 'COMPLEX#' + building + '#RECORD#BUILDING#' + building + '#' + order},
-                    'recordGroup': {'S': group}, 'recordOrder': {'S': order}}
+                    'recordIndexGroup': {'S': group}, 'recordOrder': {'S': order}}
         def current(user, stage='Approved', complex_id=building):
             payload = json.dumps({'UserId': user, 'BuildingId': complex_id, 'Stage': stage})
             return {'Item': {'recordData': {'M': {'payload': {'S': payload}}}}}
@@ -72,11 +73,22 @@ class TelegramMenuTests(unittest.TestCase):
             self.assertEqual([99, 100], menu.load_registered_chats('dev', 'eu-central-1'))
         query = run.call_args_list[0].args[0]
         self.assertIn('osbb-requests-dev-residents', query)
-        self.assertIn('ResidentRecordsByGroup', query)
+        self.assertIn('ResidentRecordKeysByGroup', query)
         self.assertNotIn('--consistent-read', query)
         self.assertIn('--consistent-read', run.call_args_list[1].args[0])
         self.assertIn('--exclusive-start-key', run.call_args_list[3].args[0])
         self.assertNotIn('scan', query)
+
+    def test_full_index_override_keeps_deleted_profile_in_menu_reset(self):
+        building = 'osbb-requests-dev'
+        order = 'RESIDENT#' + str(99).zfill(20)
+        candidate = {'pk': {'S': f'COMPLEX#{building}#RECORD#BUILDING#{building}#{order}'},
+                     'recordGroup': {'S': f'COMPLEX#{building}#BUILDING#{building}'}, 'recordOrder': {'S': order}}
+        payload = json.dumps({'UserId': 99, 'BuildingId': building, 'Stage': 'Deleted'})
+        responses = [{'Items': [candidate]}, {'Item': {'recordData': {'M': {'payload': {'S': payload}}}}}]
+        with patch.object(menu.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0, stdout=json.dumps(page)) for page in responses]) as run:
+            self.assertEqual(([], [99]), menu.load_resident_chats('dev', 'eu-central-1', resident_index='full'))
+        self.assertIn('ResidentRecordsByGroup', run.call_args_list[0].args[0])
 
     def test_deleted_residents_get_guest_chat_menu(self):
         calls = []

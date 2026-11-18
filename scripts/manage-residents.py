@@ -71,6 +71,11 @@ def resident_mirror_put(table, registration, expected_version):
                     'ExpressionAttributeValues': {':version': {'N': str(expected_version)}, ':complex': {'S': building}}}}
 
 
+def is_resident_directory_or_history(building, source_pk, source_sk):
+    return ((source_pk == f'BUILDING#{building}' and source_sk.startswith('RESIDENT#')) or
+            (source_pk.startswith('REGISTRATION#') and source_sk.startswith('EVENT#TYPE#')))
+
+
 def related_resident_put(table, source, building, expected_version=None, immutable=False):
     source_pk, source_sk = source['pk']['S'], source['sk']['S']
     result = {
@@ -79,6 +84,8 @@ def related_resident_put(table, source, building, expected_version=None, immutab
         'sourcePk': {'S': source_pk}, 'sourceSk': {'S': source_sk}, 'complexId': {'S': building},
         'recordData': {'M': copy.deepcopy(source)},
     }
+    if is_resident_directory_or_history(building, source_pk, source_sk):
+        result['recordIndexGroup'] = result['recordGroup'].copy()
     if 'version' in source:
         result['version'] = copy.deepcopy(source['version'])
     put = {'TableName': table, 'Item': result}

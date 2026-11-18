@@ -99,6 +99,8 @@ public sealed class MeteredDynamoDb : AmazonDynamoDBClient
     { request.ReturnConsumedCapacity = ReturnConsumedCapacity.INDEXES; var result = await base.QueryAsync(request, cancellationToken); Measurement.Value?.Add(result.ConsumedCapacity); return result; }
     public override async Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken cancellationToken = default)
     { request.ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL; var result = await base.GetItemAsync(request, cancellationToken); Measurement.Value?.Add(result.ConsumedCapacity); return result; }
+    public override async Task<BatchGetItemResponse> BatchGetItemAsync(BatchGetItemRequest request, CancellationToken cancellationToken = default)
+    { request.ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL; var result = await base.BatchGetItemAsync(request, cancellationToken); foreach (var item in result.ConsumedCapacity ?? []) Measurement.Value?.Add(item); return result; }
     public override async Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken cancellationToken = default)
     { request.ReturnConsumedCapacity = ReturnConsumedCapacity.INDEXES; var result = await base.TransactWriteItemsAsync(request, cancellationToken); foreach (var item in result.ConsumedCapacity ?? []) Measurement.Value?.Add(item, true); return result; }
 }
