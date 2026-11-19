@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
@@ -19,7 +20,7 @@ public sealed partial class DynamoAdminStore
             var cursor = JsonSerializer.Deserialize<RequestCursor>(Encoding.UTF8.GetString(Convert.FromBase64String(value)));
             if (cursor is null || cursor.ComplexId != building || cursor.Priority is < 0 or > 3) throw new FormatException();
             if (cursor.Key is { } key && (key.Count != 4 || key.GetValueOrDefault("requestBuildingId") != building ||
-                key.GetValueOrDefault("requestPriorityCreatedAt")?.StartsWith(cursor.Priority.ToString(System.Globalization.CultureInfo.InvariantCulture) + "#", StringComparison.Ordinal) != true ||
+                key.GetValueOrDefault("requestPriorityCreatedAt")?.StartsWith(cursor.Priority.ToString(CultureInfo.InvariantCulture) + "#", StringComparison.Ordinal) != true ||
                 key.GetValueOrDefault("pk")?.StartsWith("USER#", StringComparison.Ordinal) != true ||
                 key.GetValueOrDefault("sk")?.StartsWith("REQUEST#", StringComparison.Ordinal) != true)) throw new FormatException();
             return cursor;
@@ -40,32 +41,20 @@ public sealed partial class DynamoAdminStore
         var start = position.Key?.ToDictionary(pair => pair.Key, pair => S(pair.Value));
         var items = new List<ManagedRequest>();
         var evaluated = 0;
+        var hasDateFilter = HasRequestDateFilter(filters);
         while (rank >= 0 && evaluated < limit)
         {
-            var prefix = rank.ToString(System.Globalization.CultureInfo.InvariantCulture) + "#";
-            var values = new Dictionary<string, AttributeValue>
-            {
-                [":building"] = S(building),
-                [":lower"] = S(prefix + (filters.From ?? "0000")),
-                [":upper"] = S(prefix + (filters.To ?? "9999") + "~")
-            };
-            var filter = RequestFilterExpression(filters, values);
-            var page = await db.QueryAsync(new QueryRequest
-            {
-                TableName = dataTable,
-                IndexName = "BuildingPriorityRequestsIndex",
-                KeyConditionExpression = "requestBuildingId = :building AND requestPriorityCreatedAt BETWEEN :lower AND :upper",
-                ExpressionAttributeValues = values,
-                FilterExpression = filter,
-                ExclusiveStartKey = start,
-                ScanIndexForward = false,
-                Limit = limit - evaluated
-            }, ct);
+            var query = CreateRequestQuery(filters, rank, start);
+            query.Limit = limit - evaluated;
+            var page = await db.QueryAsync(query, ct);
             items.AddRange((page.Items ?? []).Select(Managed));
             evaluated += page.ScannedCount ?? page.Items?.Count ?? 0;
-            if (page.LastEvaluatedKey is { Count: > 0 })
-                return new(items, RequestPageCursor(new(building, rank, page.LastEvaluatedKey.ToDictionary(pair => pair.Key, pair => pair.Value.S))));
-            rank--;
+            if (page.LastEvaluatedKey is { Count: > 0 } key)
+            {
+                var lastRank = key["requestPriorityCreatedAt"].S[0] - '0';
+                return new(items, RequestPageCursor(new(building, lastRank, key.ToDictionary(pair => pair.Key, pair => pair.Value.S))));
+            }
+            rank = hasDateFilter ? rank - 1 : -1;
             start = null;
         }
         return new(items, rank < 0 ? null : RequestPageCursor(new(building, rank, null)));
@@ -84,7 +73,15 @@ public sealed partial class DynamoAdminStore
             next = page.Cursor;
         } while (items.Count < 25 && next is not null);
 
-        var counts = includeCounts ? await CountRequestsAsync(filters, ct) : null;
+        RequestCounts? counts = null;
+        if (includeCounts)
+        {
+            // An exhausted first page contains every match, including when the filter returns no rows.
+            counts = string.IsNullOrEmpty(cursor) && next is null
+                ? new(items.Count, items.Count(item => item.Request.Status == RequestStatus.New),
+                    items.Count(item => item.Request.Status == RequestStatus.InProgress))
+                : await CountRequestsAsync(filters, ct);
+        }
         return new(items, next, pageNumber, 25, counts);
     }
 
@@ -93,42 +90,15 @@ public sealed partial class DynamoAdminStore
         var total = 0;
         var newCount = 0;
         var progressCount = 0;
-        var firstRank = prioritizeRequests ? 3 : 0;
-        for (var rank = firstRank; rank >= 0; rank--)
+        var lastRank = prioritizeRequests && HasRequestDateFilter(filters) ? 0 : 3;
+        for (var rank = 3; rank >= lastRank; rank--)
         {
-            var values = new Dictionary<string, AttributeValue> { [":building"] = S(building) };
-            string condition;
-            if (prioritizeRequests)
-            {
-                var prefix = rank.ToString(System.Globalization.CultureInfo.InvariantCulture) + "#";
-                values[":lower"] = S(prefix + (filters.From ?? "0000"));
-                values[":upper"] = S(prefix + (filters.To ?? "9999") + "~");
-                condition = "requestBuildingId = :building AND requestPriorityCreatedAt BETWEEN :lower AND :upper";
-            }
-            else
-            {
-                condition = "requestBuildingId = :building";
-                if (filters.From is not null || filters.To is not null)
-                {
-                    values[":from"] = S(filters.From ?? "0000");
-                    values[":to"] = S((filters.To ?? "9999") + "~");
-                    condition += " AND requestCreatedAt BETWEEN :from AND :to";
-                }
-            }
-            var filter = RequestFilterExpression(filters, values);
             Dictionary<string, AttributeValue>? start = null;
             do
             {
-                var result = await db.QueryAsync(new QueryRequest
-                {
-                    TableName = dataTable,
-                    IndexName = prioritizeRequests ? "BuildingPriorityRequestsIndex" : "BuildingRequestsIndex",
-                    KeyConditionExpression = condition,
-                    ExpressionAttributeValues = values,
-                    FilterExpression = filter,
-                    ProjectionExpression = "payload",
-                    ExclusiveStartKey = start
-                }, ct);
+                var query = CreateRequestQuery(filters, rank, start);
+                query.ProjectionExpression = "payload";
+                var result = await db.QueryAsync(query, ct);
                 foreach (var row in result.Items ?? [])
                 {
                     var status = Payload<MaintenanceRequest>(row).Status;
@@ -140,5 +110,37 @@ public sealed partial class DynamoAdminStore
             } while (start is { Count: > 0 });
         }
         return new(total, newCount, progressCount);
+    }
+
+    private static bool HasRequestDateFilter(RequestFilters filters) => filters.From is not null || filters.To is not null;
+
+    private QueryRequest CreateRequestQuery(RequestFilters filters, int rank, Dictionary<string, AttributeValue>? start)
+    {
+        var values = new Dictionary<string, AttributeValue> { [":building"] = S(building) };
+        var condition = "requestBuildingId = :building";
+        if (HasRequestDateFilter(filters))
+        {
+            var prefix = prioritizeRequests ? rank.ToString(CultureInfo.InvariantCulture) + "#" : "";
+            var sortKey = prioritizeRequests ? "requestPriorityCreatedAt" : "requestCreatedAt";
+            values[":lower"] = S(prefix + (filters.From ?? "0000"));
+            values[":upper"] = S(prefix + (filters.To ?? "9999") + "~");
+            condition += " AND " + sortKey + " BETWEEN :lower AND :upper";
+        }
+        else if (prioritizeRequests && rank < 3 && start is null)
+        {
+            // Older cursors can point to the next priority bucket without an evaluated key.
+            values[":upper"] = S((rank + 1).ToString(CultureInfo.InvariantCulture) + "#");
+            condition += " AND requestPriorityCreatedAt < :upper";
+        }
+        return new QueryRequest
+        {
+            TableName = dataTable,
+            IndexName = prioritizeRequests ? "BuildingPriorityRequestsIndex" : "BuildingRequestsIndex",
+            KeyConditionExpression = condition,
+            ExpressionAttributeValues = values,
+            FilterExpression = RequestFilterExpression(filters, values),
+            ExclusiveStartKey = start,
+            ScanIndexForward = false
+        };
     }
 }

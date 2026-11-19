@@ -367,25 +367,9 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
 
     private async Task<Page<ManagedRequest>> ListRequestsByDateAsync(RequestFilters filters, string? cursor, int limit, CancellationToken ct)
     {
-        var values = new Dictionary<string, AttributeValue> { [":building"] = S(building) };
-        var condition = "requestBuildingId = :building";
-        if (filters.From is not null || filters.To is not null)
-        {
-            values[":from"] = S(filters.From ?? "0000"); values[":to"] = S((filters.To ?? "9999") + "~");
-            condition += " AND requestCreatedAt BETWEEN :from AND :to";
-        }
-        var filterExpression = RequestFilterExpression(filters, values);
-        var result = await db.QueryAsync(new QueryRequest
-        {
-            TableName = dataTable,
-            IndexName = "BuildingRequestsIndex",
-            KeyConditionExpression = condition,
-            ExpressionAttributeValues = values,
-            FilterExpression = filterExpression,
-            ExclusiveStartKey = Decode(cursor, "requestBuildingId", building),
-            ScanIndexForward = false,
-            Limit = limit
-        }, ct);
+        var query = CreateRequestQuery(filters, 3, Decode(cursor, "requestBuildingId", building));
+        query.Limit = limit;
+        var result = await db.QueryAsync(query, ct);
         return new Page<ManagedRequest>((result.Items ?? []).Select(Managed).ToList(), Encode(result.LastEvaluatedKey));
     }
     private static string? RequestFilterExpression(RequestFilters filters, Dictionary<string, AttributeValue> values)

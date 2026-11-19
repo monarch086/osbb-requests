@@ -40,12 +40,10 @@ public sealed class RequestPriorityTests
             db.Queries.Clear();
             var page = await store.ListRequestsAsync(new(null, null, null, null, null), cursor, default);
             Assert.InRange(page.Items.Count, 1, 25);
-            Assert.InRange(db.Queries.Count, 1, 4);
-            Assert.All(db.Queries, query =>
-            {
-                Assert.Equal("BuildingPriorityRequestsIndex", query.IndexName);
-                Assert.False(query.ScanIndexForward);
-            });
+            var query = Assert.Single(db.Queries);
+            Assert.Equal("BuildingPriorityRequestsIndex", query.IndexName);
+            Assert.Equal("requestBuildingId = :building", query.KeyConditionExpression);
+            Assert.False(query.ScanIndexForward);
             seen.AddRange(page.Items.Select(item => item.Request));
             cursor = page.Cursor;
         } while (cursor is not null);
@@ -110,6 +108,40 @@ public sealed class RequestPriorityTests
         Assert.DoesNotContain(db.Queries, query => query.ProjectionExpression == "payload");
     }
 
+    [Fact]
+    public async Task ExhaustedFirstPageReusesFilteredRowsForCounts()
+    {
+        var data = Enumerable.Range(1, 30).Select(id => Ticket(id, "Urgent", RequestStatus.Completed))
+            .Concat([Ticket(31), Ticket(32, "Low", RequestStatus.InProgress)]).ToList();
+        using var db = new PriorityDynamo(data);
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+
+        var page = await store.ListRequestsWithStatisticsAsync(new(["New", "InProgress"], null, null, null, null), null, 1, default);
+        Assert.Null(page.Cursor);
+        Assert.Equal(new RequestCounts(2, 1, 1), page.Counts);
+        Assert.Equal(2, db.Queries.Count);
+
+        db.Queries.Clear();
+        var empty = await store.ListRequestsWithStatisticsAsync(new(["Rejected"], null, null, null, null), null, 1, default);
+        Assert.Null(empty.Cursor);
+        Assert.Equal(new RequestCounts(0, 0, 0), empty.Counts);
+        Assert.Equal(2, db.Queries.Count);
+        Assert.All(db.Queries, query => Assert.Null(query.ProjectionExpression));
+    }
+
+    [Fact]
+    public async Task UndatedListResumesLegacyCursorAtNextPriorityBucket()
+    {
+        using var db = new PriorityDynamo([Ticket(1, "Urgent"), Ticket(2, "High"), Ticket(3)]);
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var cursor = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new { ComplexId = "complex", Priority = 2, Key = (object?)null }));
+        var page = await store.ListRequestsWithStatisticsAsync(new(null, null, null, null, null), cursor, 2, default);
+        Assert.Equal(new long[] { 2, 3 }, page.Items.Select(item => item.Request.Id));
+        Assert.Equal(new RequestCounts(3, 3, 0), page.Counts);
+        Assert.Equal("3#", db.Queries[0].ExpressionAttributeValues[":upper"].S);
+        Assert.Equal("requestBuildingId = :building", db.Queries[1].KeyConditionExpression);
+    }
+
     [Theory]
     [InlineData("complex")]
     [InlineData("keys")]
@@ -133,7 +165,7 @@ public sealed class RequestPriorityTests
     [Fact]
     public async Task DirectoryUsesSameFiltersForRowsAndStatistics()
     {
-        using var db = new PriorityDynamo([Ticket(1)]);
+        using var db = new PriorityDynamo(Enumerable.Range(1, 27).Select(id => Ticket(id)).ToList());
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         var filters = new RequestFilters(["New", "InProgress"], "інше", "Тест", "2026-10-25", "2026-10-26", "Building4Б", 5, "complex");
         await store.ListRequestsWithStatisticsAsync(filters, null, 1, default);
@@ -162,13 +194,10 @@ public sealed class RequestPriorityTests
         var page = await store.ListRequestsWithStatisticsAsync(new(null, null, null, "2026-10-25", "2026-10-26"), null, 1, default);
         Assert.Equal(3, page.Items.Count);
         Assert.Equal(new RequestCounts(3, 1, 1), page.Counts);
-        Assert.Equal(2, db.Queries.Count);
-        Assert.All(db.Queries, query =>
-        {
-            Assert.Equal("BuildingRequestsIndex", query.IndexName);
-            Assert.Contains("requestCreatedAt BETWEEN", query.KeyConditionExpression);
-            Assert.Equal("2026-10-25", query.ExpressionAttributeValues[":from"].S);
-        });
+        var query = Assert.Single(db.Queries);
+        Assert.Equal("BuildingRequestsIndex", query.IndexName);
+        Assert.Contains("requestCreatedAt BETWEEN", query.KeyConditionExpression);
+        Assert.Equal("2026-10-25", query.ExpressionAttributeValues[":lower"].S);
     }
 
     private sealed class DateDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
@@ -237,8 +266,9 @@ public sealed class RequestPriorityTests
             Queries.Add(query);
             var values = query.ExpressionAttributeValues;
             var candidates = data.Where(item => item.BuildingId == values[":building"].S)
-                .Select(Row).Where(item => string.CompareOrdinal(item["requestPriorityCreatedAt"].S, values[":lower"].S) >= 0 &&
-                    string.CompareOrdinal(item["requestPriorityCreatedAt"].S, values[":upper"].S) <= 0)
+                .Select(Row).Where(item => (!values.TryGetValue(":lower", out var lower) || string.CompareOrdinal(item["requestPriorityCreatedAt"].S, lower.S) >= 0) &&
+                    (!values.TryGetValue(":upper", out var upper) ||
+                     string.CompareOrdinal(item["requestPriorityCreatedAt"].S, upper.S) <= (values.ContainsKey(":lower") ? 0 : -1)))
                 .OrderByDescending(item => item["requestPriorityCreatedAt"].S, StringComparer.Ordinal).ToList();
             var start = query.ExclusiveStartKey is { Count: > 0 }
                 ? candidates.FindIndex(item => item["sk"].S == query.ExclusiveStartKey["sk"].S) + 1 : 0;
