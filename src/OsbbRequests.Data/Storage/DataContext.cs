@@ -7,6 +7,7 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
 {
     public DbSet<SourceRecord> SourceRecords => Set<SourceRecord>();
     public DbSet<ImportRun> ImportRuns => Set<ImportRun>();
+    public DbSet<ResidentApartment> ResidentApartments => Set<ResidentApartment>();
     public DbSet<Resident> Residents => Set<Resident>();
     public DbSet<Request> Requests => Set<Request>();
     public DbSet<Administrator> Administrators => Set<Administrator>();
@@ -26,6 +27,17 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
     {
         model.Entity<SourceRecord>(e => { e.ToTable("source_records"); e.HasKey(x => new { x.Source, x.Table, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<ImportRun>(e => { e.ToTable("import_runs"); e.HasKey(x => x.Id); });
+        model.Entity<ResidentApartment>(e =>
+        {
+            e.ToTable("resident_apartments", table =>
+            {
+                table.HasCheckConstraint("CK_resident_apartments_number", "\"ApartmentNumber\" BETWEEN 1 AND 999");
+                table.HasCheckConstraint("CK_resident_apartments_status", "\"Status\" IN ('Pending', 'Approved', 'Rejected')");
+            });
+            e.HasKey(x => new { x.Source, x.ComplexId, x.TelegramUserId, x.ApartmentId });
+            e.Property(x => x.Status).HasConversion<string>();
+            e.HasIndex(x => new { x.Source, x.ComplexId, x.BuildingNumber, x.ApartmentNumber });
+        });
         model.Entity<Resident>(e => { e.ToTable("residents"); e.HasKey(x => new { x.Source, x.ComplexId, x.TelegramUserId }); e.Property(x => x.Payload).HasColumnType("jsonb"); });
         model.Entity<Request>(e => { e.ToTable("requests"); e.HasKey(x => new { x.Source, x.OwnerId, x.RequestId }); e.Property(x => x.Payload).HasColumnType("jsonb"); e.HasIndex(x => new { x.Source, x.ComplexId, x.Status, x.CreatedAt }); });
         model.Entity<Administrator>(e => { e.ToTable("administrators"); e.HasKey(x => new { x.Source, x.UserId }); e.Property(x => x.Data).HasColumnType("jsonb"); });

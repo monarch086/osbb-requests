@@ -6,6 +6,7 @@ using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.Data.Storage;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Data;
 
@@ -33,6 +34,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
             if (sources.Select(s => s.Account).Distinct(StringComparer.Ordinal).Count() != 1) throw new InvalidOperationException("Source account mismatch.");
             var source = $"{sources[0].Account}:{region}:{stage}";
             run.Source = source;
+            var apartments = new OwnerApartmentProjector(db);
             foreach (var table in sources)
             {
                 Dictionary<string, AttributeValue>? start = null;
@@ -46,10 +48,18 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                         ct.ThrowIfCancellationRequested();
                         var key = table.Kind == "administrators" ? item["UserId"].S : item["pk"].S + "\u001f" + (item.GetValueOrDefault("sk")?.S ?? "");
                         seen.Add(key);
+                        run.ReadCount++;
+                        if (table.Kind == "residents" && OwnerApartmentProjector.TryParseKey(item["pk"].S, out var complexId, out var ownerId))
+                        {
+                            var changed = await apartments.ProjectAsync(source, complexId, ownerId, item, ct);
+                            var legacyCopy = await db.SourceRecords.FindAsync([source, table.Kind, key], ct);
+                            if (legacyCopy is not null) db.SourceRecords.Remove(legacyCopy);
+                            if (changed || legacyCopy is not null) run.ChangedCount++;
+                            continue;
+                        }
                         var json = Document.FromAttributeMap(item).ToJson();
                         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(json))));
                         var existing = await db.SourceRecords.FindAsync([source, table.Kind, key], ct);
-                        run.ReadCount++;
                         if (existing?.Hash == hash && existing.ProjectionVersion == RelatedProjector.Version) continue;
                         if (existing is null) db.SourceRecords.Add(new SourceRecord { Source = source, Table = table.Kind, Key = key, Hash = hash, Data = json, LastSeenAt = run.StartedAt, ProjectionVersion = RelatedProjector.Version });
                         else { existing.Hash = hash; existing.Data = json; existing.LastSeenAt = run.StartedAt; existing.ProjectionVersion = RelatedProjector.Version; }
@@ -64,7 +74,14 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                     start = page.LastEvaluatedKey;
                 } while (start is { Count: > 0 });
                 var savedKeys = await db.SourceRecords.AsNoTracking().Where(row => row.Source == source && row.Table == table.Kind)
-                    .Select(row => row.Key).ToListAsync(ct);
+                    .Select(row => row.Key).ToHashSetAsync(ct);
+                if (table.Kind == "residents")
+                {
+                    var owners = await db.ResidentApartments.Where(row => row.Source == source)
+                        .Select(row => new { row.ComplexId, row.TelegramUserId }).Distinct().ToListAsync(ct);
+                    savedKeys.UnionWith(owners.Select(owner =>
+                        OwnerApartments.Key(owner.ComplexId, owner.TelegramUserId) + "\u001f"));
+                }
                 foreach (var key in savedKeys.Where(key => !seen.Contains(key)))
                 {
                     var parts = key.Split('\u001f', 2);
@@ -74,11 +91,22 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                     var current = await dynamo.GetItemAsync(new GetItemRequest { TableName = table.Name, Key = dynamoKey, ConsistentRead = true }, ct);
                     if (current.Item is { Count: > 0 }) continue;
                     var stale = await db.SourceRecords.FindAsync([source, table.Kind, key], ct);
-                    if (stale is null) continue;
+                    var complexId = "";
+                    long ownerId = 0;
+                    var isApartment = table.Kind == "residents" && OwnerApartmentProjector.TryParseKey(parts[0], out complexId, out ownerId);
+                    if (stale is null && !isApartment) continue;
                     await using var deletion = await db.Database.BeginTransactionAsync(ct);
-                    await RemoveProjectionAsync(source, table.Kind, key, stale.Data, ct);
-                    await new RelatedProjector(db).RemoveAsync(source, table.Kind, key, stale.Data, ct);
-                    db.SourceRecords.Remove(stale);
+                    if (isApartment)
+                        await apartments.RemoveAsync(source, complexId, ownerId, ct);
+                    if (stale is not null)
+                    {
+                        if (!isApartment)
+                        {
+                            await RemoveProjectionAsync(source, table.Kind, key, stale.Data, ct);
+                            await new RelatedProjector(db).RemoveAsync(source, table.Kind, key, stale.Data, ct);
+                        }
+                        db.SourceRecords.Remove(stale);
+                    }
                     await db.SaveChangesAsync(ct);
                     await deletion.CommitAsync(ct);
                     db.ChangeTracker.Clear();
