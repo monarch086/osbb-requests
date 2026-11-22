@@ -108,23 +108,27 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             {
                 using var error = await JsonDocument.ParseAsync(
                     await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-                var seconds = error.RootElement.TryGetProperty("parameters", out var parameters) &&
-                    parameters.TryGetProperty("retry_after", out var retryAfter) && retryAfter.TryGetInt32(out var value)
-                    ? value : 180;
-                throw new TelegramRateLimitException(seconds, operation);
+                var details = TelegramErrorResponse.Read(error.RootElement) with { Reason = TelegramRejectionReason.RateLimited };
+                throw new TelegramRateLimitException(details.RetryAfterSeconds ?? 180, operation, details);
             }
-            if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
-                throw new TelegramRecipientUnavailableException((int)response.StatusCode, operation);
             if (!response.IsSuccessStatusCode)
-                throw new TelegramApiException(TelegramFailureCategory.HttpError, (int)response.StatusCode, operation);
+            {
+                var details = await ReadErrorResponseAsync(response.Content, cancellationToken);
+                if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
+                    throw new TelegramRecipientUnavailableException((int)response.StatusCode, operation, details);
+                throw new TelegramApiException(TelegramFailureCategory.HttpError, (int)response.StatusCode, operation, response: details);
+            }
             using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
                 cancellationToken: cancellationToken);
             if (body.RootElement.ValueKind != JsonValueKind.Object)
-                throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, (int)response.StatusCode, operation);
+                throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, (int)response.StatusCode, operation,
+                    response: TelegramErrorResponse.Read(body.RootElement));
             if (!body.RootElement.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
-                throw new TelegramApiException(TelegramFailureCategory.ApiRejected, (int)response.StatusCode, operation);
+                throw new TelegramApiException(TelegramFailureCategory.ApiRejected, (int)response.StatusCode, operation,
+                    response: TelegramErrorResponse.Read(body.RootElement));
             if (requireTrueResult && (!body.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.True))
-                throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode, operation);
+                throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode, operation,
+                    response: TelegramErrorResponse.Read(body.RootElement));
             return body.RootElement.TryGetProperty("result", out var sent) && sent.ValueKind == JsonValueKind.Object &&
                 sent.TryGetProperty("message_id", out var id) && id.TryGetInt64(out var messageId) && messageId > 0 ? messageId : null;
         }
@@ -144,6 +148,19 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new TelegramApiException(TelegramFailureCategory.Timeout, responseStatus, operation);
+        }
+    }
+
+    private static async Task<TelegramErrorResponse> ReadErrorResponseAsync(HttpContent content, CancellationToken ct)
+    {
+        try
+        {
+            using var body = await JsonDocument.ParseAsync(await content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            return TelegramErrorResponse.Read(body.RootElement);
+        }
+        catch (JsonException)
+        {
+            return new(null, null, TelegramRejectionReason.Unrecognized, null);
         }
     }
 }

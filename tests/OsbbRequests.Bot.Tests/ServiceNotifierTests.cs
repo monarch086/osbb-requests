@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using OsbbRequests.Bot.Telegram;
 using OsbbRequests.Shared.Telegram;
 using Xunit;
 
@@ -7,6 +8,43 @@ namespace OsbbRequests.Bot.Tests;
 
 public sealed class ServiceNotifierTests
 {
+    [Theory]
+    [InlineData("Forbidden: bot was blocked by the user", "BotBlocked", true)]
+    [InlineData("Forbidden: user is deactivated", "UserDeactivated", true)]
+    [InlineData("Forbidden: bot was blocked by the user SECRET +380500000000", "Unrecognized", false)]
+    public async Task TelegramRejectionIncludesSafeResponseInLogsAndServiceAlert(string description, string reason, bool known)
+    {
+        using var telegramHttp = new HttpClient(new HttpStub((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new { ok = false, error_code = 403, description }))
+        })));
+        var telegram = new TelegramClient(telegramHttp, new FakeSecret("BOT_SECRET"));
+        var error = await Assert.ThrowsAsync<TelegramRecipientUnavailableException>(() =>
+            telegram.SendMessageAsync(42, "Текст", default));
+        var log = TelegramFailureDiagnostics.For(error);
+        Assert.Contains($"telegramReason={reason}", log);
+        Assert.Contains("telegramErrorCode=403", log);
+        Assert.Contains("telegramOk=false", log);
+        if (known) Assert.Contains(description, log);
+        else Assert.DoesNotContain("telegramDescription=", log);
+        Assert.DoesNotContain("SECRET", log);
+        Assert.DoesNotContain("380500000000", log);
+
+        string? payload = null;
+        using var serviceHttp = new HttpClient(new HttpStub(async (request, ct) =>
+        {
+            payload = await request.Content!.ReadAsStringAsync(ct);
+            return Ok();
+        }));
+        await new TelegramServiceNotifier(serviceHttp, new FakeSecret("SERVICE_SECRET"), "notificationSender", "dev")
+            .NotifyFailureAsync("notification_undeliverable", error, "notification-id");
+        using var json = JsonDocument.Parse(payload!);
+        var text = json.RootElement.GetProperty("text").GetString()!;
+        Assert.Contains("Telegram: " + log.Trim(), text);
+        Assert.DoesNotContain("SECRET", text);
+        Assert.DoesNotContain("380500000000", text);
+    }
+
     [Fact]
     public async Task SendsSafeDiagnosticMetadataToTheSameServiceChat()
     {

@@ -28,9 +28,12 @@ public sealed class TelegramServiceNotifier(HttpClient http, ISecretProvider sec
         try
         {
             // Exception messages/ToString, payloads and URLs can contain secrets or residents' data.
+            var diagnostics = error is ITelegramFailureDetails telegram
+                ? "Telegram: " + Field(telegram.SafeDiagnostics.Trim(), 400) + "\n"
+                : "";
             var text = "Помилка ОСББ\n" + $"Lambda: {Field(lambdaName)}\nСередовище: {Field(stage)}\n" +
                 $"Етап: {Field(operation)}\nТип: {Field(error.GetType().Name)}\nID: {Field(requestId ?? "-")}\n" +
-                string.Join("\n", new StackTrace(error, false).GetFrames().Take(5).Select(frame =>
+                diagnostics + string.Join("\n", new StackTrace(error, false).GetFrames().Take(5).Select(frame =>
                     Field(frame.GetMethod()?.DeclaringType?.FullName + "." + frame.GetMethod()?.Name))) +
                 "\nПодробиці: CloudWatch.";
             var token = await secrets.GetAsync(timeout.Token);
@@ -51,7 +54,7 @@ public sealed class TelegramServiceNotifier(HttpClient http, ISecretProvider sec
         }
     }
 
-    private static string Field(string value) => value[..Math.Min(value.Length, 150)].Replace('\r', ' ').Replace('\n', ' ');
+    private static string Field(string value, int limit = 150) => value[..Math.Min(value.Length, limit)].Replace('\r', ' ').Replace('\n', ' ');
 }
 
 public static class ServiceNotifications

@@ -531,8 +531,8 @@ public sealed class InfrastructureTests
     }
 
     [Theory]
-    [InlineData(500, "{\"description\":\"SECRET private text\"}", "HttpError", 500)]
-    [InlineData(200, "{\"ok\":false,\"description\":\"SECRET private text\"}", "ApiRejected", 200)]
+    [InlineData(500, "{\"ok\":false,\"error_code\":500,\"description\":\"SECRET private text\"}", "HttpError", 500)]
+    [InlineData(200, "{\"ok\":false,\"error_code\":400,\"description\":\"SECRET private text\"}", "ApiRejected", 200)]
     [InlineData(200, "SECRET private text", "InvalidResponse", 200)]
     [InlineData(200, "[]", "InvalidResponse", 200)]
     [InlineData(403, "SECRET private text", "RecipientUnavailable", 403)]
@@ -552,6 +552,12 @@ public sealed class InfrastructureTests
         Assert.Contains("telegramFailure=" + category, log);
         Assert.Contains("telegramHttpStatus=" + expectedStatus, log);
         Assert.Contains("telegramOperation=SendMessage", log);
+        if (category is "HttpError" or "ApiRejected")
+        {
+            Assert.Contains("telegramReason=Unrecognized", log);
+            Assert.Contains("telegramOk=false", log);
+            Assert.Contains("telegramErrorCode=" + (status == 500 ? "500" : "400"), log);
+        }
         Assert.DoesNotContain("SECRET", log);
         Assert.DoesNotContain("private text", log);
     }
