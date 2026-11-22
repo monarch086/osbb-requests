@@ -32,6 +32,26 @@
       }
     </button>
   }
+  @if (permissions.pendingResidents) {
+    <button
+      type="button"
+      class="btn"
+      [class.btn-primary]="view === 'apartments'"
+      [class.btn-outline-secondary]="view !== 'apartments'"
+      [attr.aria-pressed]="view === 'apartments'"
+      [disabled]="loading || saving"
+      (click)="viewChange.emit('apartments')"
+    >
+      Додаткові квартири
+      @if (apartmentCount > 0) {
+        <span
+          class="badge rounded-pill pending-count ms-1"
+          [attr.aria-label]="'Квартири очікують перевірки: ' + apartmentCount"
+          >{{ apartmentCount }}</span
+        >
+      }
+    </button>
+  }
   @if (permissions.keyOrders) {
     <button
       type="button"
@@ -46,7 +66,7 @@
     </button>
   }
 </div>
-@if (view !== 'keys') {
+@if (view === 'registered' || view === 'pending') {
   <section class="row g-3 mb-4" aria-label="Статистика мешканців">
     <div class="col-6 col-md">
       <div
@@ -166,7 +186,7 @@
       </div>
     }
   </section>
-} @else {
+} @else if (view === 'registered') {
   <div class="card card-body mb-4">
     <div class="row g-3 align-items-end">
       <div class="col-12 col-sm-6 col-lg-3">

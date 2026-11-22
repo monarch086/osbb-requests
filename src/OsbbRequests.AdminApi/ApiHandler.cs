@@ -222,6 +222,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
         if (segments is ["admin", "apartment-reviews", ..])
         {
             if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки квартир.");
+            if (method == "GET" && segments is ["admin", "apartment-reviews", "count"])
+                return Reply(200, new { count = await store.CountApartmentReviewsAsync(ct) });
             if (method == "GET" && segments.Length == 2)
                 return Reply(200, await store.ListApartmentReviewsAsync(cursor, ct));
             if (method == "POST" && segments is ["admin", "apartment-reviews", var ownerId, var apartmentId])

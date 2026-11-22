@@ -40,6 +40,19 @@ public sealed partial class DynamoAdminStore
         return approved;
     }
 
+    public async Task<int> CountApartmentReviewsAsync(CancellationToken ct)
+    {
+        var count = 0;
+        string? cursor = null;
+        do
+        {
+            var page = await ListApartmentReviewsAsync(cursor, ct);
+            count += page.Items.Sum(entry => entry.Apartments.Count);
+            cursor = page.Cursor;
+        } while (cursor is not null);
+        return count;
+    }
+
     public async Task<Page<ApartmentReviewEntry>> ListApartmentReviewsAsync(string? cursor, CancellationToken ct)
     {
         var table = residentsTable ?? throw new InvalidOperationException("Missing residents table.");

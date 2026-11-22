@@ -44,6 +44,50 @@ public sealed class OwnerApartmentStoreTests
     }
 
     [Fact]
+    public async Task PendingCountSumsApartmentsAcrossPagesAndSkipsStaleIndexEntries()
+    {
+        using var db = new CountDynamo();
+        var store = new DynamoAdminStore(db, "admins", "commands", "complex", residentsTable: "residents");
+        Assert.Equal(2, await store.CountApartmentReviewsAsync(default));
+        Assert.Equal(2, db.Queries);
+    }
+
+    private sealed class CountDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
+    {
+        public int Queries { get; private set; }
+
+        public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken ct = default)
+        {
+            Queries++;
+            var first = request.ExclusiveStartKey is null;
+            var owner = first ? 42 : 43;
+            var key = new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new(OwnerApartments.Key("complex", owner)),
+                ["recordIndexGroup"] = new(OwnerApartments.ReviewGroup("complex")),
+                ["recordOrder"] = new(owner.ToString("D20", System.Globalization.CultureInfo.InvariantCulture))
+            };
+            return Task.FromResult(new QueryResponse { Items = [key], LastEvaluatedKey = first ? key : [] });
+        }
+
+        public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken ct = default)
+        {
+            var key = request.Key["pk"].S;
+            if (key == OwnerApartments.Key("complex", 43)) return Task.FromResult(new GetItemResponse { Item = [] });
+            var record = new OwnerApartments("complex", 42, Owner.Id, 1, [
+                Apartment, Apartment with { Id = "second" }, Apartment with { Id = "reviewed", Status = ApartmentReviewStatus.Approved }
+            ]);
+            var item = key == OwnerApartments.Key("complex", 42)
+                ? record.Save("residents", null).Put.Item
+                : new Dictionary<string, AttributeValue>
+                {
+                    ["recordData"] = new() { M = new() { ["payload"] = new(JsonSerializer.Serialize(Owner)) } }
+                };
+            return Task.FromResult(new GetItemResponse { Item = item });
+        }
+    }
+
+    [Fact]
     public async Task AlreadyReviewedApartmentCannotSendAnotherNotification()
     {
         using var db = new ApartmentDynamo(Apartment with { Status = ApartmentReviewStatus.Approved });

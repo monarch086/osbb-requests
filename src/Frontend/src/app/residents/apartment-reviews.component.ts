@@ -1,5 +1,5 @@
-import type { OnDestroy } from '@angular/core';
-import { Component, inject } from '@angular/core';
+import type { OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, inject, Input, Output } from '@angular/core';
 
 import type { ApartmentReviewEntry } from '../api.models';
 import { ApiService } from '../api.service';
@@ -10,11 +10,15 @@ import { formatDate } from '../shared/ticket-presentation';
   selector: 'app-apartment-reviews',
   templateUrl: './apartment-reviews.component.html',
 })
-export class ApartmentReviewsComponent implements OnDestroy {
+export class ApartmentReviewsComponent implements OnChanges, OnDestroy {
   private readonly api = inject(ApiService);
   private active = true;
   protected readonly date = formatDate;
-  protected open = false;
+  @Input() refreshVersion = 0;
+  @Input() countLoading = false;
+  @Output() readonly decided = new EventEmitter<void>();
+  @Output() readonly savingChange = new EventEmitter<boolean>();
+  private loadSequence = 0;
   protected loading = false;
   protected error = '';
   protected notice = '';
@@ -26,32 +30,32 @@ export class ApartmentReviewsComponent implements OnDestroy {
     this.active = false;
   }
 
-  protected async toggle(): Promise<void> {
-    this.open = !this.open;
-    if (this.open) {
-      await this.load(null);
+  ngOnChanges(changes: Partial<SimpleChanges>): void {
+    if (changes['refreshVersion']) {
+      void this.load(null);
     }
   }
 
   protected async load(cursor: string | null): Promise<void> {
-    if (this.loading) {
-      return;
-    }
+    const sequence = ++this.loadSequence;
+    const current = (): boolean => this.active && sequence === this.loadSequence;
     this.loading = true;
     this.error = '';
     try {
       const page = await this.api.getApartmentReviews(cursor);
-      if (this.active) {
+      if (current()) {
         this.entries = page.items;
         this.cursor = page.cursor;
         this.position = cursor;
       }
     } catch (error) {
-      if (this.active) {
+      if (current()) {
         this.error = errorMessage(error);
       }
     } finally {
-      this.loading = false;
+      if (current()) {
+        this.loading = false;
+      }
     }
   }
 
@@ -60,10 +64,11 @@ export class ApartmentReviewsComponent implements OnDestroy {
     id: string,
     approved: boolean,
   ): Promise<void> {
-    if (this.loading) {
+    if (this.loading || this.countLoading) {
       return;
     }
     this.loading = true;
+    this.savingChange.emit(true);
     this.error = '';
     this.notice = '';
     try {
@@ -73,6 +78,7 @@ export class ApartmentReviewsComponent implements OnDestroy {
         this.entries = this.entries
           .map((item) => (item === entry ? { ...entry, apartments: remaining } : item))
           .filter((item) => item.apartments.length);
+        this.decided.emit();
         this.notice = approved ? 'Квартиру підтверджено.' : 'Запит відхилено.';
       }
     } catch (error) {
@@ -81,6 +87,9 @@ export class ApartmentReviewsComponent implements OnDestroy {
       }
     } finally {
       this.loading = false;
+      if (this.active) {
+        this.savingChange.emit(false);
+      }
     }
   }
 }

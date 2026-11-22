@@ -51,7 +51,7 @@ public static class AdministratorNotifications
         "new-apartment-" + apartment.Id, complex, 0, null, null,
         "Нова заявка на реєстрацію додаткової квартири в ЖК «Зелений острів 2».\n" +
         "Подано: " + Date(apartment.SubmittedAt) +
-        "\nПеревірте заявку в розділі «Мешканці» → «Очікують перевірки» → «Перевірка додаткових квартир».",
+        "\nПеревірте заявку в розділі «Мешканці» → «Додаткові квартири».",
         apartment.SubmittedAt, AdministratorEvent.NewApartmentRegistration);
 
     public static ResidentNotification NewRequest(MaintenanceRequest request) => new(

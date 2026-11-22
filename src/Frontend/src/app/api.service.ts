@@ -113,6 +113,9 @@ export class ApiService {
       ...change,
     });
   }
+  getApartmentReviewCount(): Promise<{ count: number }> {
+    return this.request('/apartment-reviews/count');
+  }
   getApartmentReviews(cursor: string | null): Promise<Page<ApartmentReviewEntry>> {
     return this.request('/apartment-reviews' + this.cursorQuery(cursor));
   }

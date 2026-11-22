@@ -5,7 +5,7 @@
   <div class="alert alert-success" role="status">{{ notice }}</div>
 }
 <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
-  @if (lists.residentView !== 'keys') {
+  @if (lists.residentView === 'registered' || lists.residentView === 'pending') {
     <button
       class="btn btn-outline-secondary"
       (click)="exportExcel()"
@@ -21,6 +21,7 @@
 <app-residents
   [view]="lists.residentView"
   [pendingCount]="pendingCount"
+  [apartmentCount]="apartmentCount"
   [counts]="loading ? null : lists.counts"
   [permissions]="me.effectivePermissions"
   [registeredResidents]="lists.registeredResidents"
@@ -36,8 +37,13 @@
   (selectPending)="openPending($event)"
   (selectRegistered)="openRegistered($event)"
 />
-@if (lists.residentView === 'pending' && me.effectivePermissions.pendingResidents) {
-  <app-apartment-reviews />
+@if (lists.residentView === 'apartments') {
+  <app-apartment-reviews
+    [refreshVersion]="apartmentRefreshVersion"
+    [countLoading]="loading"
+    (decided)="apartmentDecided()"
+    (savingChange)="apartmentSaving($event)"
+  />
 }
 @if (loading) {
   <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>
@@ -77,22 +83,24 @@
     (closed)="closeHistory()"
   />
 }
-<app-pagination
-  [showAllPages]="true"
-  [pageNumber]="lists.pagination.index + 1"
-  [availablePages]="lists.availablePages()"
-  [itemCount]="lists.itemCount()"
-  [hasPrevious]="lists.pagination.index > 0"
-  [hasNext]="lists.hasNext()"
-  [disabled]="loading || saving"
-  (pageSelected)="goToPage($event)"
-  (previousPage)="previousPage()"
-  (nextPage)="nextPage()"
-/>
-@if (!loading) {
-  <p class="text-body-secondary small" role="status">
-    Сторінка {{ lists.pagination.index + 1 }} із {{ lists.availablePages() }}
-  </p>
+@if (lists.residentView !== 'apartments') {
+  <app-pagination
+    [showAllPages]="true"
+    [pageNumber]="lists.pagination.index + 1"
+    [availablePages]="lists.availablePages()"
+    [itemCount]="lists.itemCount()"
+    [hasPrevious]="lists.pagination.index > 0"
+    [hasNext]="lists.hasNext()"
+    [disabled]="loading || saving"
+    (pageSelected)="goToPage($event)"
+    (previousPage)="previousPage()"
+    (nextPage)="nextPage()"
+  />
+  @if (!loading) {
+    <p class="text-body-secondary small" role="status">
+      Сторінка {{ lists.pagination.index + 1 }} із {{ lists.availablePages() }}
+    </p>
+  }
 }
 @if (rejecting; as registration) {
   <app-registration-rejection-dialog

@@ -57,7 +57,10 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   protected historyError = '';
   private historySequence = 0;
   private readonly pendingCountCache = new PendingCountCache();
+  private readonly apartmentCountCache = new PendingCountCache();
   protected pendingCount = 0;
+  protected apartmentCount = 0;
+  protected apartmentRefreshVersion = 0;
   override ngOnInit(): void {
     if (
       !this.me.effectivePermissions.registeredResidents &&
@@ -82,18 +85,41 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     let count = 0;
     if (this.me.effectivePermissions.pendingResidents) {
       const cached = this.pendingCountCache.get();
-      count = cached ?? (await this.api.getRegistrationCount()).count;
+      const cachedApartments = this.apartmentCountCache.get();
+      const [registrationCount, apartmentCount] = await Promise.all([
+        cached ?? this.api.getRegistrationCount().then((result) => result.count),
+        cachedApartments ??
+          this.api
+            .getApartmentReviewCount()
+            .then((result) => result.count)
+            .catch((error: unknown) => {
+              if (isCurrent()) {
+                this.error = errorMessage(error);
+              }
+              return null;
+            }),
+      ]);
+      count = registrationCount;
       if (!isCurrent()) {
         return;
       }
       if (cached === null) {
         this.pendingCountCache.set(count);
       }
+      if (apartmentCount !== null) {
+        if (cachedApartments === null) {
+          this.apartmentCountCache.set(apartmentCount);
+        }
+        this.apartmentCount = apartmentCount;
+      }
     }
     if (!isCurrent()) {
       return;
     }
     this.pendingCount = count;
+    if (this.lists.residentView === 'apartments') {
+      return;
+    }
     if (this.lists.residentView === 'keys') {
       const page = await this.api.getResidentsWithKeys(index + 1);
       if (isCurrent()) {
@@ -134,6 +160,8 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   }
   protected async refresh(): Promise<void> {
     this.pendingCountCache.clear();
+    this.apartmentCountCache.clear();
+    this.apartmentRefreshVersion++;
     await this.load();
   }
   protected override async goToPage(number: number): Promise<void> {
@@ -212,7 +240,8 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       this.loading ||
       view === this.lists.residentView ||
       (view === 'registered' && !this.me.effectivePermissions.registeredResidents) ||
-      (view === 'pending' && !this.me.effectivePermissions.pendingResidents) ||
+      ((view === 'pending' || view === 'apartments') &&
+        !this.me.effectivePermissions.pendingResidents) ||
       (view === 'keys' && !this.me.effectivePermissions.keyOrders)
     ) {
       return;
@@ -223,13 +252,22 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     this.notice = '';
     await this.load();
   }
+  protected apartmentDecided(): void {
+    this.apartmentCount = Math.max(0, this.apartmentCount - 1);
+    this.apartmentCountCache.set(this.apartmentCount);
+  }
+  protected apartmentSaving(saving: boolean): void {
+    this.saving = saving;
+    this.savingChange.emit(saving);
+  }
   protected async exportExcel(): Promise<void> {
-    if (this.lists.residentView === 'keys') {
+    const view = this.lists.residentView;
+    if (view !== 'registered' && view !== 'pending') {
       return;
     }
     await this.runExport((current) =>
       this.excel.exportResidents(
-        this.lists.residentView,
+        view,
         this.lists.residentDirectory.filters,
         this.lists.pendingDirectory.building,
         current,

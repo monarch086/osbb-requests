@@ -22,6 +22,7 @@ import { residentTypeLabel } from './resident-type';
 export class ResidentsComponent {
   @Input() view: ResidentView = 'registered';
   @Input() pendingCount = 0;
+  @Input() apartmentCount = 0;
   @Input() counts: ResidentCounts | null = null;
   @Input({ required: true }) permissions!: PagePermissions;
   @Input() pendingBuilding = '';

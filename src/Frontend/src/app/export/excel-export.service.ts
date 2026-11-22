@@ -17,7 +17,7 @@ export class ExcelExportService {
   }
 
   async exportResidents(
-    view: ResidentView,
+    view: Extract<ResidentView, 'registered' | 'pending'>,
     filters: ResidentFilters,
     pendingBuilding: string,
     isCurrent: () => boolean,

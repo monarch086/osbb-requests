@@ -1,84 +1,72 @@
 <section class="card my-3">
   <div class="card-body">
-    <button
-      type="button"
-      class="btn btn-outline-secondary"
-      [attr.aria-expanded]="open"
-      [disabled]="loading"
-      (click)="toggle()"
-    >
-      Перевірка додаткових квартир
-    </button>
-    @if (open) {
-      @if (error) {
-        <p class="alert alert-danger mt-3" role="alert">{{ error }}</p>
-      }
-      @if (notice) {
-        <p class="alert alert-success mt-3" role="status">{{ notice }}</p>
-      }
-      @if (loading) {
-        <p class="mt-3" role="status">Завантажуємо…</p>
-      }
-      <ul class="list-group list-group-flush mt-3">
-        @for (entry of entries; track entry.registrationId) {
-          @for (apartment of entry.apartments; track apartment.id) {
-            <li
-              class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2"
-            >
-              <div>
-                <div class="fw-semibold">{{ entry.firstName }} {{ entry.lastName }}</div>
-                <div>
-                  Будинок {{ apartment.buildingNumber }}, кв. {{ apartment.apartmentNumber }}
-                </div>
-                <small class="text-body-secondary">{{ date(apartment.submittedAt) }}</small>
-              </div>
-              <div class="d-flex gap-2">
-                <button
-                  type="button"
-                  class="btn btn-outline-success"
-                  [disabled]="loading"
-                  (click)="decide(entry, apartment.id, true)"
-                >
-                  Підтвердити
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-outline-danger"
-                  [disabled]="loading"
-                  (click)="decide(entry, apartment.id, false)"
-                >
-                  Відхилити
-                </button>
-              </div>
-            </li>
-          }
-        }
-      </ul>
-      @if (!loading && !entries.length && !error) {
-        <p class="text-body-secondary d-block mt-2">На цій сторінці немає квартир на перевірці.</p>
-      }
-      <div class="d-flex gap-2 mt-3">
-        @if (position) {
-          <button
-            type="button"
-            class="btn btn-outline-secondary"
-            [disabled]="loading"
-            (click)="load(null)"
-          >
-            На першу сторінку
-          </button>
-        }
-        @if (cursor) {
-          <button
-            type="button"
-            class="btn btn-outline-secondary"
-            [disabled]="loading"
-            (click)="load(cursor)"
-          >
-            Наступна сторінка
-          </button>
-        }
-      </div>
+    <h2 class="h5 mb-3">Заявки на додаткові квартири</h2>
+    @if (error) {
+      <p class="alert alert-danger mt-3" role="alert">{{ error }}</p>
     }
+    @if (notice) {
+      <p class="alert alert-success mt-3" role="status">{{ notice }}</p>
+    }
+    @if (loading) {
+      <p class="mt-3" role="status">Завантажуємо…</p>
+    }
+    <ul class="list-group list-group-flush mt-3">
+      @for (entry of entries; track entry.registrationId) {
+        @for (apartment of entry.apartments; track apartment.id) {
+          <li
+            class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2"
+          >
+            <div>
+              <div class="fw-semibold">{{ entry.firstName }} {{ entry.lastName }}</div>
+              <div>Будинок {{ apartment.buildingNumber }}, кв. {{ apartment.apartmentNumber }}</div>
+              <small class="text-body-secondary">{{ date(apartment.submittedAt) }}</small>
+            </div>
+            <div class="d-flex gap-2">
+              <button
+                type="button"
+                class="btn btn-outline-success"
+                [disabled]="loading || countLoading"
+                (click)="decide(entry, apartment.id, true)"
+              >
+                Підтвердити
+              </button>
+              <button
+                type="button"
+                class="btn btn-outline-danger"
+                [disabled]="loading || countLoading"
+                (click)="decide(entry, apartment.id, false)"
+              >
+                Відхилити
+              </button>
+            </div>
+          </li>
+        }
+      }
+    </ul>
+    @if (!loading && !entries.length && !error) {
+      <p class="text-body-secondary d-block mt-2">На цій сторінці немає квартир на перевірці.</p>
+    }
+    <div class="d-flex gap-2 mt-3">
+      @if (position) {
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          [disabled]="loading"
+          (click)="load(null)"
+        >
+          На першу сторінку
+        </button>
+      }
+      @if (cursor) {
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          [disabled]="loading"
+          (click)="load(cursor)"
+        >
+          Наступна сторінка
+        </button>
+      }
+    </div>
   </div>
 </section>

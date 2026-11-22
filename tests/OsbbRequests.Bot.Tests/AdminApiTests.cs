@@ -457,12 +457,17 @@ public sealed class AdminApiTests
         var handler = Handler(store);
         var forbidden = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/apartment-reviews"), default));
         Assert.Equal(403, forbidden.Status);
+        forbidden = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/apartment-reviews/count"), default));
+        Assert.Equal(403, forbidden.Status);
         forbidden = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request(route, "POST", body: new { approved = true }), default));
         Assert.Equal(403, forbidden.Status);
         Assert.Equal(0, store.ApartmentDecisions);
 
         store.Users["regular"] = Regular with { Permissions = new(false, false, false, true, false) };
         Assert.Equal(200, (await handler.HandleAsync(Request("/admin/apartment-reviews"), default)).StatusCode);
+        var countResponse = await handler.HandleAsync(Request("/admin/apartment-reviews/count"), default);
+        using var countBody = JsonDocument.Parse(countResponse.Body);
+        Assert.Equal(3, countBody.RootElement.GetProperty("count").GetInt32());
         var invalid = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request(route, "POST", body: new { }), default));
         Assert.Equal(400, invalid.Status);
         Assert.Equal(0, store.ApartmentDecisions);
@@ -1064,6 +1069,7 @@ public sealed class AdminApiTests
         public Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct) => Task.FromResult<ResidentRegistration?>(new(reference, 99, "building", HistoryStage, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
         public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
+        public Task<int> CountApartmentReviewsAsync(CancellationToken ct) => Task.FromResult(3);
         public Task<Page<ApartmentReviewEntry>> ListApartmentReviewsAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<ApartmentReviewEntry>([], null));
         public int ApartmentDecisions;
         public Task DecideApartmentAsync(AdminUser actor, string registrationId, string apartmentId, bool approved, CancellationToken ct) { ApartmentDecisions++; return Task.CompletedTask; }
