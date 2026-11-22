@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 
 import type {
   Admin,
+  ApartmentReviewEntry,
   Assignee,
   BroadcastMessage,
   DailyStatistic,
@@ -111,6 +112,23 @@ export class ApiService {
       version: resident.version,
       ...change,
     });
+  }
+  getApartmentReviews(cursor: string | null): Promise<Page<ApartmentReviewEntry>> {
+    return this.request('/apartment-reviews' + this.cursorQuery(cursor));
+  }
+  decideApartment(
+    registrationId: string,
+    apartmentId: string,
+    approved: boolean,
+  ): Promise<{ ok: boolean }> {
+    return this.request(
+      '/apartment-reviews/' +
+        encodeURIComponent(registrationId) +
+        '/' +
+        encodeURIComponent(apartmentId),
+      'POST',
+      { approved },
+    );
   }
   getRegisteredResident(id: string): Promise<RegisteredResidentDetails> {
     return this.request('/residents/' + encodeURIComponent(id));

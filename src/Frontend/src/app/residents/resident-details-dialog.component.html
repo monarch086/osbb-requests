@@ -75,6 +75,32 @@
               </dd>
             }
           </dl>
+          @if (resident && apartments.length) {
+            <h3 class="h6 mt-3">Додаткові квартири</h3>
+            <ul class="mb-0">
+              @for (apartment of apartments; track apartment.id) {
+                <li>
+                  Будинок {{ apartment.buildingNumber }}, кв. {{ apartment.apartmentNumber }}
+                  @switch (apartment.status) {
+                    @case ('Approved') {
+                      — Підтверджено
+                    }
+                    @case ('Rejected') {
+                      — Відхилено
+                    }
+                    @default {
+                      — Очікує підтвердження
+                    }
+                  }
+                  @if (apartment.reviewedBy && apartment.reviewedAt) {
+                    <small class="text-body-secondary"
+                      >({{ apartment.reviewedBy }} · {{ date(apartment.reviewedAt) }})</small
+                    >
+                  }
+                </li>
+              }
+            </ul>
+          }
         </div>
         <div class="modal-footer justify-content-between">
           <div class="d-flex flex-wrap gap-2">

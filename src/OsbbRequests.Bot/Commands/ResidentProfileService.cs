@@ -3,10 +3,11 @@ using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Domain;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Bot.Commands;
 
-public sealed class ResidentProfileService(ICommandRepository repository, string complexId, TimeProvider clock)
+public sealed partial class ResidentProfileService(ICommandRepository repository, string complexId, TimeProvider clock)
 {
     public const string DeletedLabel = "Мешканець видалив свої дані";
     public const string Confirmation = "Видалити мої дані";
@@ -16,6 +17,29 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         if (current is not null && current.BuildingId != complexId) throw new InvalidOperationException("Profile complex mismatch.");
         var previous = await repository.GetProfileDialogAsync(userId, ct);
         Validate(previous, userId);
+        if (action == ProfileAction.Apartments)
+        {
+            if (!OwnerApartments.CanManage(current)) return new("Додавати квартири можуть лише підтверджені власники.");
+            var items = await ApartmentsAsync(current!, ct);
+            var menu = new ResidentProfileDialog(userId, complexId, action, (previous?.Version ?? 0) + 1, current!.Version, null);
+            return ApartmentMenu(current, items) with { ProfileDialog = new(menu, previous?.Version) };
+        }
+        if (action == ProfileAction.Account && OwnerApartments.CanManage(current))
+        {
+            var accounts = await AccountsAsync(current!, ct);
+            if (accounts.Count == 0)
+                return await StartAsync(userId, ProfileAction.Apartments, ct);
+            if (accounts.Count == 1)
+            {
+                var text = "Ваш особовий рахунок: № " + accounts[0].Number;
+                return previous is { Active: true } ? Close(previous, text) : new(text, Keyboard: ReplyKeyboard.Remove);
+            }
+            var picker = new ResidentProfileDialog(userId, complexId, ProfileAction.SelectAccount, (previous?.Version ?? 0) + 1, current!.Version, null,
+                AccountChoices: accounts.Select(account => account.Number).ToArray());
+            var choices = accounts.Select((account, index) => $"{index + 1}. {account.Address}");
+            return new("Введіть номер квартири зі списку:\n" + string.Join('\n', choices), Keyboard: ReplyKeyboard.Cancel,
+                ProfileDialog: new(picker, previous?.Version));
+        }
         if (previous is { Active: true, Draft: { } draft } && previous.Action == action)
             return action == ProfileAction.Account ? AccountPrompt(draft.Stage) : EditPrompt(draft.Stage, draft.ResidentType);
         if (action == ProfileAction.Account)
@@ -35,8 +59,8 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
         var now = clock.GetUtcNow();
         var value = new ResidentRegistration(current?.Id ?? Guid.NewGuid().ToString("N"), userId, complexId,
             RegistrationStage.AwaitingPhone, 1, current?.CreatedAt ?? now, now,
-            BuildingNumber: current?.ResidentType == ResidentType.Employee ? current.BuildingNumber : null,
-            ApartmentNumber: current?.ResidentType == ResidentType.Employee ? current.ApartmentNumber : null,
+            BuildingNumber: current?.ResidentType is ResidentType.Employee or ResidentType.Owner ? current.BuildingNumber : null,
+            ApartmentNumber: current?.ResidentType is ResidentType.Employee or ResidentType.Owner ? current.ApartmentNumber : null,
             PersonalDataDeletedAt: current?.PersonalDataDeletedAt, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now, ConsentAt: current?.ConsentAt, ConsentVersion: current?.ConsentVersion, ResidentType: current?.ResidentType ?? ResidentType.FamilyMember);
         var dialog = new ResidentProfileDialog(userId, complexId, action, (previous?.Version ?? 0) + 1, current?.Version,
             action == ProfileAction.Edit ? value : null);
@@ -70,14 +94,28 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
             var deleted = new ResidentRegistration(current?.Id ?? Guid.NewGuid().ToString("N"), command.UserId, complexId,
                 RegistrationStage.Deleted, (current?.Version ?? 0) + 1, current?.CreatedAt ?? now, now,
                 PersonalDataDeleted: true, PersonalDataDeletedAt: now, ApprovedAt: current?.ApprovedAt ?? current?.UpdatedAt ?? now);
-            return Close(dialog, "Ваші ім’я, прізвище, телефон, email, будинок і номер квартири видалено з профілю. Заявки збережено. Доступ скасовано. Для подальшої роботи пройдіть реєстрацію заново: /start.") with
+            return Close(dialog, "Ваші ім’я, прізвище, телефон, email, адреси квартир видалено з профілю. Заявки збережено. Доступ скасовано. Для подальшої роботи пройдіть реєстрацію заново: /start.") with
             { Profile = new(deleted, dialog.ExpectedProfileVersion) };
         }
+        if (dialog.Action == ProfileAction.Apartments)
+            return await ContinueApartmentsAsync(dialog, current, command, now, ct);
+        if (dialog.Action == ProfileAction.SelectAccount)
+        {
+            if (!OwnerApartments.CanManage(current)) return Close(dialog, "Дані профілю недоступні.");
+            if (command.Contact is not null || !TryApartment(command.Text, out var index) || dialog.AccountChoices is not { } choices || index > choices.Count)
+                return new("Введіть номер зі списку або натисніть «Скасувати».", Keyboard: ReplyKeyboard.Cancel);
+            var accounts = await AccountsAsync(current!, ct);
+            return accounts.Any(account => account.Number == choices[index - 1])
+                ? Close(dialog, "Ваш особовий рахунок: № " + choices[index - 1])
+                : Close(dialog, "Список квартир змінився. Відкрийте особовий рахунок ще раз.");
+        }
         if (dialog.Action == ProfileAction.Account)
-            return ContinueAccount(dialog, current, command, now);
+            return OwnerApartments.CanManage(current)
+                ? Close(dialog, "Відкрийте «Мої квартири», щоб подати адресу на перевірку.")
+                : ContinueAccount(dialog, current, command, now);
         var outcome = RegistrationService.Advance(dialog.Draft ?? throw new InvalidOperationException("Missing profile draft."), command, now);
         if (outcome.Registration is not { } change) return outcome;
-        if (current?.ResidentType == ResidentType.Employee && dialog.Draft?.Stage == RegistrationStage.AwaitingLastName && change.Value.Stage == RegistrationStage.AwaitingBuilding)
+        if (current?.ResidentType is ResidentType.Employee or ResidentType.Owner && dialog.Draft?.Stage == RegistrationStage.AwaitingLastName && change.Value.Stage == RegistrationStage.AwaitingBuilding)
         {
             change = change with { Value = change.Value with { Stage = RegistrationStage.AwaitingEmail } };
             outcome = RegistrationService.Prompt(RegistrationStage.AwaitingEmail);
@@ -87,6 +125,8 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
             var profile = change.Value with
             {
                 Stage = RegistrationStage.Approved,
+                BuildingNumber = OwnerApartments.CanManage(current) ? current?.BuildingNumber : change.Value.BuildingNumber,
+                ApartmentNumber = OwnerApartments.CanManage(current) ? current?.ApartmentNumber : change.Value.ApartmentNumber,
                 ConsentAt = current?.ConsentAt,
                 ConsentVersion = current?.ConsentVersion,
                 ResidentType = current?.ResidentType ?? ResidentType.FamilyMember,
@@ -148,7 +188,7 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
     private static CommandOutcome EditPrompt(RegistrationStage stage, ResidentType type) => stage == RegistrationStage.AwaitingPhone
         ? new("Оновлення профілю. Попередні дані збережуться до завершення всіх кроків. " +
             "Доступ залишиться чинним, повторне схвалення не потрібне.\n\n" +
-            (type == ResidentType.Employee
+            (type is ResidentType.Employee or ResidentType.Owner
                 ? "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище та за бажанням email. Скасувати: /cancel."
                 : "Натисніть «Поділитися номером телефону», потім введіть ім’я, прізвище, будинок, номер квартири та за бажанням email. Скасувати: /cancel."),
             Keyboard: ReplyKeyboard.RequestContact)
@@ -159,8 +199,8 @@ public sealed class ResidentProfileService(ICommandRepository repository, string
             throw new InvalidOperationException("Profile dialog identity mismatch.");
     }
     private static CommandOutcome Close(ResidentProfileDialog dialog, string text) => new(text, Keyboard: ReplyKeyboard.Remove,
-        ProfileDialog: new(dialog with { Draft = null, Active = false, Version = dialog.Version + 1 }, dialog.Version));
-    private static CommandOutcome DeletePrompt() => new("Видалити ім’я, прізвище, телефон, email, будинок і квартиру з профілю? Заявки залишаться, " +
+        ProfileDialog: new(dialog with { Draft = null, AccountChoices = null, Active = false, Version = dialog.Version + 1 }, dialog.Version));
+    private static CommandOutcome DeletePrompt() => new("Видалити ім’я, прізвище, телефон, email, адреси квартир з профілю? Заявки залишаться, " +
         "Доступ буде скасовано - для подальшої роботи потрібно зареєструватися заново. Автор заявок буде позначений як «Мешканець видалив свої дані».\n\nДля підтвердження натисніть «Видалити мої дані». Скасувати: /cancel.",
         Keyboard: ReplyKeyboard.ProfileDeleteConfirmation);
 }

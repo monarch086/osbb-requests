@@ -86,7 +86,7 @@ public sealed class RequestMeasurement
         if (method is not ("GET" or "POST" or "PATCH") || !path.StartsWith("/admin/", StringComparison.Ordinal)) return null;
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var resource = parts.Length > 1 ? parts[1] : "other";
-        if (resource is not ("requests" or "residents" or "registrations" or "administrators" or "assignees" or "messages" or "me" or "statistics")) resource = "other";
+        if (resource is not ("requests" or "residents" or "registrations" or "administrators" or "assignees" or "messages" or "me" or "statistics" or "apartment-reviews")) resource = "other";
         var suffix = parts.Length == 3 && parts[2] is "directory" or "export" or "keys" or "count" ? "/" + parts[2] : parts.Length > 2 ? "/{id}" : "";
         return method + " /admin/" + resource + suffix;
     }

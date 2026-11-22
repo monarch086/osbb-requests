@@ -88,9 +88,25 @@ export type ResidentListRow = Pick<
   | 'apartmentNumber'
   | 'personalDataDeleted'
 >;
+export interface OwnerApartment {
+  id: string;
+  buildingNumber: string;
+  apartmentNumber: number;
+  submittedAt: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+}
+export interface ApartmentReviewEntry {
+  registrationId: string;
+  firstName: string | null;
+  lastName: string | null;
+  apartments: OwnerApartment[];
+}
 export interface RegisteredResidentDetails {
   resident: RegisteredResident;
   approval: RegistrationApproval | null;
+  apartments?: OwnerApartment[];
 }
 export interface RegistrationApproval {
   actor: string;

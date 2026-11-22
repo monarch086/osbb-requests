@@ -36,7 +36,13 @@
   {
     "command": "help",
     "description": "Опис команд",
-    "command_menu": true
+    "command_menu": true,
+    "keyboard_hidden": true
+  },
+  {
+    "command": "apartments",
+    "description": "Мої квартири",
+    "registered_only": true
   },
   {
     "command": "edit_profile",

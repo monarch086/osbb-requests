@@ -57,6 +57,9 @@ internal sealed class MemoryRepository : ICommandRepository
     public Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Lookups.GetValueOrDefault(userId));
     public Dictionary<long, RequestDraft> Drafts { get; } = [];
     public Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Drafts.GetValueOrDefault(userId));
+    public Dictionary<long, OsbbRequests.Shared.Residents.OwnerApartments> ApartmentRecords { get; } = [];
+    public Task<OsbbRequests.Shared.Residents.OwnerApartments?> GetOwnerApartmentsAsync(long userId, CancellationToken ct) =>
+        Task.FromResult(ApartmentRecords.GetValueOrDefault(userId));
     public Dictionary<long, ResidentProfileDialog> ProfileDialogs { get; } = [];
     public Task<ResidentProfileDialog?> GetProfileDialogAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(ProfileDialogs.GetValueOrDefault(userId));
     public Dictionary<long, ResidentRegistration> Registrations { get; } = [];
@@ -91,6 +94,13 @@ internal sealed class MemoryRepository : ICommandRepository
             throw new InvalidOperationException("Storage unavailable.");
         if (Replies.TryGetValue(command.UpdateId, out var existing))
             return Task.FromResult(existing);
+        if (outcome.Apartment is { } apartment)
+        {
+            if (ApartmentRecords.GetValueOrDefault(command.UserId)?.Version != apartment.ExpectedVersion ||
+                Registrations.GetValueOrDefault(command.UserId)?.Version != apartment.ProfileVersion)
+                throw new InvalidOperationException("Apartment update conflict.");
+            ApartmentRecords[command.UserId] = apartment.Value;
+        }
         if (outcome.PageNavigation is { } nav && PageNavigations.GetValueOrDefault(command.UserId)?.Version != nav.ExpectedVersion)
             throw new InvalidOperationException("Page navigation conflict.");
         if (outcome.Pagination is { } cursor && (cursor.UserId != command.UserId ||
@@ -113,7 +123,11 @@ internal sealed class MemoryRepository : ICommandRepository
         if (outcome.Profile is { } changed)
         {
             Registrations[command.UserId] = changed.Value;
-            if (changed.Value.PersonalDataDeleted) Residents.Remove(command.UserId);
+            if (changed.Value.PersonalDataDeleted)
+            {
+                Residents.Remove(command.UserId);
+                ApartmentRecords.Remove(command.UserId);
+            }
         }
         if (outcome.Registration is { } change)
         {

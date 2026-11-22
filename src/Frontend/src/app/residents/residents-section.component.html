@@ -36,6 +36,9 @@
   (selectPending)="openPending($event)"
   (selectRegistered)="openRegistered($event)"
 />
+@if (lists.residentView === 'pending' && me.effectivePermissions.pendingResidents) {
+  <app-apartment-reviews />
+}
 @if (loading) {
   <p class="text-body-secondary py-3" role="status">Завантажуємо…</p>
 }
@@ -45,6 +48,7 @@
     [resident]="selectedRegistered"
     [permissions]="me.effectivePermissions"
     [approval]="approval"
+    [apartments]="apartments"
     [loading]="residentDetailsLoading"
     [saving]="saving"
     [error]="error"

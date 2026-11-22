@@ -47,7 +47,9 @@ public sealed partial class DynamoNotificationRepository
             if (row?.GetValueOrDefault("payload")?.S is not { } payload) return false;
             var resident = JsonSerializer.Deserialize<ResidentRegistration>(payload);
             return resident is not null && resident.UserId == notification.OwnerId && resident.BuildingId == complexId &&
-                resident.Stage == RegistrationStage.Approved && !resident.PersonalDataDeleted;
+                resident.Stage == RegistrationStage.Approved && !resident.PersonalDataDeleted &&
+                (notification.RegistrationId is null || resident.Id == notification.RegistrationId && resident.ResidentType == ResidentType.Owner &&
+                    (resident.ApprovedAt ?? resident.CreatedAt) <= notification.CreatedAt);
         }
         var (active, settings) = await AdministratorAsync(notification.AdministratorId, ct);
         return active && notification.AdministratorEvent is { } kind && settings.Includes(kind) && settings.ChatId == notification.OwnerId;

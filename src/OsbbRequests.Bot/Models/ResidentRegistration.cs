@@ -22,7 +22,8 @@ public enum ReplyKeyboard
     PageNavigation,
     Cancel,
     KeyNext,
-    KeyFinish
+    KeyFinish,
+    OwnerApartments
 }
 
 public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion, bool AutomaticallyApproved = false);

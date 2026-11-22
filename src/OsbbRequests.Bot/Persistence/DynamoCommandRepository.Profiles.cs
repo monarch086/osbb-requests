@@ -15,6 +15,18 @@ public sealed partial class DynamoCommandRepository
         var dialog = item.TryGetValue("payload", out var payload) ? JsonSerializer.Deserialize<ResidentProfileDialog>(payload.S) : null;
         return dialog is not null && (complexId is null || dialog.ComplexId == complexId && dialog.UserId == userId) ? dialog : null;
     }
+    public async Task<OwnerApartments?> GetOwnerApartmentsAsync(long userId, CancellationToken ct)
+    {
+        if (residentsTable is null || complexId is null) return null;
+        var response = await client.GetItemAsync(new GetItemRequest
+        {
+            TableName = residentsTable,
+            ConsistentRead = true,
+            Key = new() { ["pk"] = new(OwnerApartments.Key(complexId, userId)) }
+        }, ct);
+        return OwnerApartments.Read(response.Item ?? [], complexId, userId);
+    }
+
     private async Task AddProfileWritesAsync(List<TransactWriteItem> writes, CommandEnvelope command, CommandOutcome outcome, CancellationToken ct)
     {
         if (outcome.ProfileDialog is { } dialog)
@@ -25,6 +37,14 @@ public sealed partial class DynamoCommandRepository
             item["version"] = new() { N = Number(dialog.Value.Version) };
             if (residentsTable is null || complexId is null) writes.Add(VersionedProfilePut(item, dialog.ExpectedVersion));
             if (residentsTable is not null) writes.Add(RelatedResidentPut(item, dialog.Value.ComplexId, dialog.ExpectedVersion));
+        }
+        if (outcome.Apartment is { } submission)
+        {
+            if (residentsTable is null || complexId is null || submission.Value.OwnerId != command.UserId || submission.Value.ComplexId != complexId)
+                throw new InvalidOperationException("Invalid apartment submission.");
+            writes.Add(new() { ConditionCheck = OwnerApartments.CheckProfile(residentsTable, complexId, command.UserId, submission.ProfileVersion) });
+            writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, complexId) });
+            writes.Add(submission.Value.Save(residentsTable, submission.ExpectedVersion));
         }
         if (outcome.Profile is not { } update) return;
         var profile = update.Value;
@@ -49,6 +69,8 @@ public sealed partial class DynamoCommandRepository
         var names = new Dictionary<string, string> { ["#active"] = "active" };
         if (profile.PersonalDataDeleted)
         {
+            if (residentsTable is not null)
+                writes.Add(new() { Delete = new() { TableName = residentsTable, Key = new() { ["pk"] = new(OwnerApartments.Key(profile.BuildingId, profile.UserId)) } } });
             if (profile.Stage != OsbbRequests.Shared.Models.RegistrationStage.Deleted)
                 throw new InvalidOperationException("Deleted profile must revoke resident access.");
             if (residentsTable is not null)

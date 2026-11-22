@@ -1,5 +1,6 @@
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Bot.Models;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Bot.Persistence;
 
@@ -8,6 +9,7 @@ public interface ICommandRepository
     Task<long?> GetNotificationRequestAsync(long userId, long messageId, CancellationToken cancellationToken) => Task.FromResult<long?>(null);
     Task<PageNavigation?> GetPageNavigationAsync(long userId, CancellationToken cancellationToken);
     Task<string?> GetComplexCursorAsync(long userId, string complexId, string token, CancellationToken cancellationToken);
+    Task<OwnerApartments?> GetOwnerApartmentsAsync(long userId, CancellationToken ct);
     Task<ResidentProfileDialog?> GetProfileDialogAsync(long userId, CancellationToken cancellationToken);
     Task<PublicRequestPage> ListPublicRequestsAsync(string complexId, string? before, CancellationToken cancellationToken);
     Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken cancellationToken);

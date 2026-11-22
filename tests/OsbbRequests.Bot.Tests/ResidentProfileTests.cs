@@ -43,8 +43,8 @@ public sealed class ResidentProfileTests
         var profile = repo.Registrations[42];
         Assert.Equal("Іван", profile.FirstName);
         Assert.Equal("Новий", profile.LastName);
-        Assert.Equal("4Д", profile.BuildingNumber);
-        Assert.Equal("125", profile.ApartmentNumber);
+        Assert.Equal(Original.BuildingNumber, profile.BuildingNumber);
+        Assert.Equal(Original.ApartmentNumber, profile.ApartmentNumber);
         Assert.Equal("new@example.com", profile.Email);
         Assert.Equal(Original.Id, profile.Id);
         Assert.Equal(Original.ResidentType, profile.ResidentType);

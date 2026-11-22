@@ -7,6 +7,7 @@ using OsbbRequests.AdminApi.Auth;
 using OsbbRequests.AdminApi.Data;
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 using OsbbRequests.Shared.Domain;
 using OsbbRequests.AdminApi.Statistics;
 using Xunit;
@@ -448,6 +449,28 @@ public sealed class AdminApiTests
     }
 
     [Fact]
+    public async Task ApartmentReviewRequiresPendingResidentsPermissionAndExplicitDecision()
+    {
+        var store = new FakeStore();
+        var route = "/admin/apartment-reviews/" + new string('a', 32) + "/" + new string('b', 32);
+        store.Users["regular"] = Regular with { Permissions = new(false, false, true, false, false) };
+        var handler = Handler(store);
+        var forbidden = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/apartment-reviews"), default));
+        Assert.Equal(403, forbidden.Status);
+        forbidden = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request(route, "POST", body: new { approved = true }), default));
+        Assert.Equal(403, forbidden.Status);
+        Assert.Equal(0, store.ApartmentDecisions);
+
+        store.Users["regular"] = Regular with { Permissions = new(false, false, false, true, false) };
+        Assert.Equal(200, (await handler.HandleAsync(Request("/admin/apartment-reviews"), default)).StatusCode);
+        var invalid = await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request(route, "POST", body: new { }), default));
+        Assert.Equal(400, invalid.Status);
+        Assert.Equal(0, store.ApartmentDecisions);
+        Assert.Equal(200, (await handler.HandleAsync(Request(route, "POST", body: new { approved = false }), default)).StatusCode);
+        Assert.Equal(1, store.ApartmentDecisions);
+    }
+
+    [Fact]
     public async Task PendingResidentsExposeChatIdOnlyToAuthorizedAdministrators()
     {
         var response = await Handler(new FakeStore()).HandleAsync(Request("/admin/registrations"), default);
@@ -719,6 +742,14 @@ public sealed class AdminApiTests
         Assert.DoesNotContain("900000000", text);
         Assert.DoesNotContain("Telegram", text);
         Assert.Empty(document.Descendants(ns + "f"));
+        Assert.Equal(pending ? "Дата подання" : "Підтверджені додаткові квартири", rows[0].Elements(ns + "c").ElementAt(7).Value);
+        Assert.Equal(pending ? 0 : 1, store.ApartmentExportReads);
+        if (!pending)
+        {
+            Assert.Equal("4Г / 12, 4Д / 203", rows[1].Elements(ns + "c").ElementAt(7).Value);
+            Assert.Empty(rows[2].Elements(ns + "c").ElementAt(7).Value);
+            Assert.Equal("Дата реєстрації", rows[0].Elements(ns + "c").ElementAt(8).Value);
+        }
     }
 
     [Theory]
@@ -1033,6 +1064,21 @@ public sealed class AdminApiTests
         public Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct) => Task.FromResult<ResidentRegistration?>(new(reference, 99, "building", HistoryStage, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
         public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
         public Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct) { TypeChanges++; return Task.CompletedTask; }
+        public Task<Page<ApartmentReviewEntry>> ListApartmentReviewsAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<ApartmentReviewEntry>([], null));
+        public int ApartmentDecisions;
+        public Task DecideApartmentAsync(AdminUser actor, string registrationId, string apartmentId, bool approved, CancellationToken ct) { ApartmentDecisions++; return Task.CompletedTask; }
+        public Task<IReadOnlyList<OsbbRequests.Shared.Residents.OwnerApartment>> ListOwnerApartmentsAsync(ResidentRegistration profile, CancellationToken ct) => Task.FromResult<IReadOnlyList<OsbbRequests.Shared.Residents.OwnerApartment>>([]);
+        public int ApartmentExportReads;
+        public Task<IReadOnlyDictionary<string, IReadOnlyList<OwnerApartment>>> ListApprovedApartmentsForExportAsync(IReadOnlyList<ResidentRegistration> residents, CancellationToken ct)
+        {
+            ApartmentExportReads++;
+            IReadOnlyDictionary<string, IReadOnlyList<OwnerApartment>> result = new Dictionary<string, IReadOnlyList<OwnerApartment>>
+            {
+                [residents[0].Id] = [new("first", "4Г", 12, DateTimeOffset.UnixEpoch, ApartmentReviewStatus.Approved),
+                    new("second", "4Д", 203, DateTimeOffset.UnixEpoch, ApartmentReviewStatus.Approved)]
+            };
+            return Task.FromResult(result);
+        }
         public Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct) => Task.FromResult(new Page<ResidentTypeChange>([], null));
         public bool ExportPages;
         public bool RepeatExportCursor;

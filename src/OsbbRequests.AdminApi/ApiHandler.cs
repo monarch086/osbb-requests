@@ -219,6 +219,20 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
             await store.ChangeResidentTypeAsync(actor, registrationId, Body<ResidentTypeChangeRequest>(request), ct);
             return Reply(200, new { ok = true });
         }
+        if (segments is ["admin", "apartment-reviews", ..])
+        {
+            if (!actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки квартир.");
+            if (method == "GET" && segments.Length == 2)
+                return Reply(200, await store.ListApartmentReviewsAsync(cursor, ct));
+            if (method == "POST" && segments is ["admin", "apartment-reviews", var ownerId, var apartmentId])
+            {
+                if (ownerId.Length != 32 || !ownerId.All(Uri.IsHexDigit) || apartmentId.Length != 32 || !apartmentId.All(Uri.IsHexDigit) ||
+                    Body<ApartmentReviewDecision>(request).Approved is not { } approved)
+                    throw new ApiError(400, "Некоректний запит.");
+                await store.DecideApartmentAsync(actor, ownerId, apartmentId, approved, ct);
+                return Reply(200, new { ok = true });
+            }
+        }
         if (segments is ["admin", "residents", var detailId] && method == "GET")
         {
             if (!actor.EffectivePermissions.RegisteredResidents) throw new ApiError(403, "Недостатньо прав для перегляду мешканців.");
@@ -230,7 +244,8 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 resident = new RegisteredResident(resident.Id, resident.FirstName, resident.LastName, resident.Phone,
                     resident.ApprovedAt ?? resident.UpdatedAt, resident.UserId.ToString(CultureInfo.InvariantCulture), resident.BuildingNumber,
                     resident.ApartmentNumber, resident.PersonalDataDeleted, resident.Email, resident.ConsentAt, resident.ResidentType, resident.TypeChangeCount, resident.Version),
-                approval
+                approval,
+                apartments = await store.ListOwnerApartmentsAsync(resident, ct)
             });
         }
         if (segments is ["admin", "registrations", var approvalId, "approval"] && method == "GET")

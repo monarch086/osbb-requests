@@ -22,7 +22,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         "Ліфтер:\n0683558674\n0634835206\n0443602845";
     public const string Help = "Бот ЖК «Зелений острів 2».\n" +
         "/start - початок роботи та реєстрація\n/help - довідка\n/contacts - контакти диспетчерів\n" +
-        "/account - мій особовий рахунок\n/edit_profile - змінити профіль\n/delete_profile - видалити профіль\n" +
+        "/account - мій особовий рахунок\n/apartments - мої квартири (для власників)\n/edit_profile - змінити профіль\n/delete_profile - видалити профіль\n" +
         "/cancel - скасувати поточний діалог\n" +
         "/new - створити заявку для всіх мешканців комплексу: будинок або прибудинкова територія → поверх → категорія → опис\n" +
         "/my - власні заявки\n/complex - відкриті заявки для мешканців комплексу\n" +
@@ -76,7 +76,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             }
         }
         var outcome = await HandleCoreAsync(envelope, cancellationToken);
-        if (command is not null && command.Name is not ("edit_profile" or "delete_profile" or "account" or "cancel") && outcome.ProfileDialog is null)
+        if (command is not null && command.Name is not ("edit_profile" or "delete_profile" or "account" or "apartments" or "cancel") && outcome.ProfileDialog is null)
             outcome = await profiles.ClearAsync(envelope.UserId, outcome, cancellationToken);
         if (command is not null && outcome.Lookup is null)
             outcome = await lookup.ClearAsync(envelope.UserId, outcome, cancellationToken);
@@ -122,7 +122,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
                 return new CommandOutcome(DispatcherContacts);
             case "categories":
                 return new CommandOutcome("Категорії заявок: " + Categories + ".");
-            case not ("new" or "my" or "request" or "complex" or "delete" or "edit_profile" or "delete_profile" or "account" or "comment"):
+            case not ("new" or "my" or "request" or "complex" or "delete" or "edit_profile" or "delete_profile" or "account" or "apartments" or "comment"):
                 return new CommandOutcome("Невідома команда. Перелік команд: /help.");
         }
 
@@ -132,6 +132,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         return command.Name switch
         {
             "comment" => await CommentCommandAsync(envelope.UserId, command.Arguments, cancellationToken),
+            "apartments" => await profiles.StartAsync(envelope.UserId, ProfileAction.Apartments, cancellationToken),
             "account" => await profiles.StartAsync(envelope.UserId, ProfileAction.Account, cancellationToken),
             "edit_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Edit, cancellationToken),
             "delete_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Delete, cancellationToken),

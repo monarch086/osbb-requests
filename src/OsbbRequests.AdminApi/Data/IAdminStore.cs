@@ -1,5 +1,6 @@
 using OsbbRequests.AdminApi.Models;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.AdminApi.Data;
 
@@ -25,6 +26,10 @@ public interface IAdminStore
     Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct);
     Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct);
     Task ChangeResidentTypeAsync(AdminUser actor, string reference, ResidentTypeChangeRequest change, CancellationToken ct);
+    Task<Page<ApartmentReviewEntry>> ListApartmentReviewsAsync(string? cursor, CancellationToken ct);
+    Task DecideApartmentAsync(AdminUser actor, string registrationId, string apartmentId, bool approved, CancellationToken ct);
+    Task<IReadOnlyList<OwnerApartment>> ListOwnerApartmentsAsync(ResidentRegistration profile, CancellationToken ct);
+    Task<IReadOnlyDictionary<string, IReadOnlyList<OwnerApartment>>> ListApprovedApartmentsForExportAsync(IReadOnlyList<ResidentRegistration> residents, CancellationToken ct);
     Task<Page<ResidentTypeChange>> RegistrationHistoryAsync(string reference, string? cursor, CancellationToken ct);
     Task<Page<ManagedRequest>> ListRequestsAsync(RequestFilters filters, string? cursor, CancellationToken ct);
     Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct, bool includeCounts = true);

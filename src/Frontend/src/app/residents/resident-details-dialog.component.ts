@@ -2,6 +2,7 @@ import type { AfterViewInit, ElementRef } from '@angular/core';
 import { Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 
 import type {
+  OwnerApartment,
   PagePermissions,
   RegisteredResident,
   Registration,
@@ -19,6 +20,7 @@ export class ResidentDetailsDialogComponent implements AfterViewInit {
   @Input() resident: RegisteredResident | null = null;
   @Input({ required: true }) permissions!: PagePermissions;
   @Input() saving = false;
+  @Input() apartments: OwnerApartment[] = [];
   @Input() error = '';
   @Input() approval: RegistrationApproval | null = null;
   @Input() loading = false;

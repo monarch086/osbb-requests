@@ -699,6 +699,7 @@ resources:
                   dynamodb:LeadingKeys:
                   - COMPLEX#${self:custom.buildingId}#PHONE_ENTRY#*
                   - COMPLEX#${self:custom.buildingId}#DIRECTORY_ROW#*
+                  - COMPLEX#${self:custom.buildingId}#OWNER_APARTMENTS#*
             - Effect: Allow
               Action: dynamodb:Query
               Resource:
@@ -943,6 +944,17 @@ resources:
                 ForAllValues:StringLike:
                   dynamodb:LeadingKeys:
                   - COMPLEX#${self:custom.buildingId}#REGISTRATION#*
+                  - APARTMENT_REVIEWS#${self:custom.buildingId}
+            - Effect: Allow
+              Action: dynamodb:ConditionCheckItem
+              Resource:
+                Fn::GetAtt:
+                - ResidentsTable
+                - Arn
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys:
+                  - COMPLEX#${self:custom.buildingId}#RECORD#USER#*#REGISTRATION
             - Effect: Allow
               Action: dynamodb:BatchGetItem
               Resource:
@@ -953,6 +965,7 @@ resources:
                 ForAllValues:StringLike:
                   dynamodb:LeadingKeys:
                   - COMPLEX#${self:custom.buildingId}#RECORD#REGISTRATION#*#EVENT#TYPE#*
+                  - COMPLEX#${self:custom.buildingId}#OWNER_APARTMENTS#*
             - Effect: Allow
               Action: dynamodb:Query
               Resource:

@@ -4,7 +4,7 @@ using OsbbRequests.Shared.Domain;
 namespace OsbbRequests.Shared.Models;
 
 public sealed record ResidentNotification(string Id, string ComplexId, long OwnerId, long? RequestId,
-    int? RequestVersion, string Text, DateTimeOffset CreatedAt, AdministratorEvent? AdministratorEvent = null, string? AdministratorId = null, string? ResidentBroadcastId = null)
+    int? RequestVersion, string Text, DateTimeOffset CreatedAt, AdministratorEvent? AdministratorEvent = null, string? AdministratorId = null, string? ResidentBroadcastId = null, string? RegistrationId = null)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsBroadcast => OwnerId == 0 && AdministratorId is null && (AdministratorEvent is not null || ResidentBroadcastId is not null);

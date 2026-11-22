@@ -188,6 +188,14 @@ public sealed partial class DynamoAdminStore
                 throw new InvalidOperationException("Invalid resident history key.");
             keys.Add(new() { ["pk"] = row["pk"] });
         }
+        var rows = await BatchReadResidentRecordsAsync(table, keys, ct);
+        if (rows.Count != keys.Count) throw new InvalidOperationException("Missing resident history event.");
+        return keys.Select(key => rows[key["pk"].S]).ToList();
+    }
+
+    private async Task<Dictionary<string, Dictionary<string, AttributeValue>>> BatchReadResidentRecordsAsync(string table,
+        List<Dictionary<string, AttributeValue>> keys, CancellationToken ct)
+    {
         var rows = new Dictionary<string, Dictionary<string, AttributeValue>>(StringComparer.Ordinal);
         var pending = new Dictionary<string, KeysAndAttributes> { [table] = new() { Keys = keys, ConsistentRead = true } };
         for (var attempt = 0; attempt < 5; attempt++)
@@ -196,12 +204,9 @@ public sealed partial class DynamoAdminStore
             var result = await db.BatchGetItemAsync(new BatchGetItemRequest { RequestItems = pending }, ct);
             foreach (var row in result.Responses?.GetValueOrDefault(table) ?? []) rows.Add(row["pk"].S, row);
             if (result.UnprocessedKeys?.GetValueOrDefault(table) is not { Keys.Count: > 0 } retry)
-            {
-                if (rows.Count != keys.Count) throw new InvalidOperationException("Missing resident history event.");
-                return keys.Select(key => rows[key["pk"].S]).ToList();
-            }
+                return rows;
             pending = new() { [table] = new() { Keys = retry.Keys, ConsistentRead = true } };
         }
-        throw new InvalidOperationException("Unable to read all resident history events.");
+        throw new InvalidOperationException("Unable to finish batch reading resident records.");
     }
 }

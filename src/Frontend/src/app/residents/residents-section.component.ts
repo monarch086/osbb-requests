@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 
 import type {
+  OwnerApartment,
   RegisteredResident,
   Registration,
   RegistrationApproval,
@@ -14,6 +15,7 @@ import { ExcelExportService } from '../export/excel-export.service';
 import { PaginationComponent } from '../pagination/pagination.component';
 import { RegistrationRejectionDialogComponent } from '../registration-rejection-dialog/registration-rejection-dialog.component';
 import { WorkspaceSection } from '../workspace/workspace-section';
+import { ApartmentReviewsComponent } from './apartment-reviews.component';
 import { PendingCountCache } from './pending-count-cache';
 import { changeResidentCounts } from './resident-counts';
 import { ResidentDetailsDialogComponent } from './resident-details-dialog.component';
@@ -27,6 +29,7 @@ import { ResidentsList } from './residents-list';
   selector: 'app-residents-section',
   imports: [
     ResidentsComponent,
+    ApartmentReviewsComponent,
     RegistrationRejectionDialogComponent,
     PaginationComponent,
     ResidentTypeDialogComponent,
@@ -38,6 +41,7 @@ import { ResidentsList } from './residents-list';
 export class ResidentsSectionComponent extends WorkspaceSection {
   private readonly excel = inject(ExcelExportService);
   protected override readonly lists = new ResidentsList();
+  protected apartments: OwnerApartment[] = [];
   protected approval: RegistrationApproval | null = null;
   protected residentDetailsOpen = false;
   protected residentDetailsLoading = false;
@@ -163,6 +167,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     this.selectedPending = null;
     this.error = '';
     this.approval = null;
+    this.apartments = [];
     this.residentDetailsOpen = true;
     this.residentDetailsLoading = true;
     const sequence = ++this.approvalSequence;
@@ -173,6 +178,7 @@ export class ResidentsSectionComponent extends WorkspaceSection {
       if (current()) {
         this.selectedRegistered = details.resident;
         this.approval = details.approval;
+        this.apartments = details.apartments ?? [];
       }
     } catch (error) {
       if (current()) {

@@ -27,12 +27,17 @@ public sealed class MainKeyboardTests
             .Select(button => button.GetProperty("text").GetString()).ToArray();
         Assert.Equal(CommandMenu.ForResident(registered).Select(command => command.Description), labels);
         Assert.DoesNotContain("Скасувати", labels);
+        Assert.DoesNotContain("Опис команд", labels);
         Assert.Contains("Створити заявку", labels);
         Assert.Contains("Заявки по комплексу", labels);
         Assert.Contains("Контакти майстрів", labels);
         Assert.Equal(!registered, labels.Contains("Початок роботи"));
         Assert.Equal(registered, labels.Contains("Змінити профіль"));
         Assert.Equal(registered, labels.Contains("Видалити профіль"));
+        Assert.Equal(registered, labels.Contains("Мої квартири"));
+        if (registered)
+            Assert.Equal("Мої квартири", labels[Array.IndexOf(labels, "Контакти майстрів") + 1]);
+        Assert.Contains(CommandMenu.ForCommandMenu(), command => command is { Command: "help", Description: "Опис команд" });
     }
 
     [Theory]
