@@ -1,8 +1,13 @@
 import type { DailyStatistic } from '../api.models';
 
-export type StatisticsSortColumn = 'requests' | 'readUnits' | 'writeUnits' | 'averageDuration';
+export type StatisticsSortColumn =
+  'requests' | 'readUnits' | 'readUnitsPerRequest' | 'writeUnits' | 'averageDuration';
 export type SortDirection = 'ascending' | 'descending';
 export type EndpointStatistic = Omit<DailyStatistic, 'date'>;
+
+export function readUnitsPerRequest(item: EndpointStatistic): number {
+  return item.requests > 0 ? item.readUnits / item.requests : 0;
+}
 
 export function aggregateStatistics(
   items: DailyStatistic[],
@@ -34,12 +39,15 @@ export function sortStatistics(
   column: StatisticsSortColumn,
   direction: SortDirection,
 ): EndpointStatistic[] {
-  const value = (item: EndpointStatistic): number =>
-    column === 'averageDuration'
-      ? item.requests > 0
-        ? item.durationMs / item.requests
-        : 0
-      : item[column];
+  const value = (item: EndpointStatistic): number => {
+    if (column === 'readUnitsPerRequest') {
+      return readUnitsPerRequest(item);
+    }
+    if (column === 'averageDuration') {
+      return item.requests > 0 ? item.durationMs / item.requests : 0;
+    }
+    return item[column];
+  };
   const sign = direction === 'ascending' ? 1 : -1;
   return [...items].sort(
     (left, right) =>

@@ -5,7 +5,7 @@ import type { DailyStatistic } from '../api.models';
 import { ApiService } from '../api.service';
 import { errorMessage } from '../error-message';
 import type { EndpointStatistic, SortDirection, StatisticsSortColumn } from './statistics-sort';
-import { aggregateStatistics, sortStatistics } from './statistics-sort';
+import { aggregateStatistics, readUnitsPerRequest, sortStatistics } from './statistics-sort';
 
 interface ChartDay {
   date: string;
@@ -31,6 +31,7 @@ export class StatisticsComponent implements OnInit, OnDestroy {
   protected selectedDay: string | null = null;
   protected sortColumn: StatisticsSortColumn | null = null;
   protected sortDirection: SortDirection = 'descending';
+  protected readonly readUnitsPerRequest = readUnitsPerRequest;
 
   protected sort(column: StatisticsSortColumn): void {
     this.sortDirection =

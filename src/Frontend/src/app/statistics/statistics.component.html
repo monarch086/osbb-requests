@@ -138,6 +138,21 @@
                 }}</span>
               </button>
             </th>
+            <th
+              scope="col"
+              [attr.aria-sort]="sortColumn === 'readUnitsPerRequest' ? sortDirection : null"
+            >
+              <button type="button" class="btn btn-link p-0" (click)="sort('readUnitsPerRequest')">
+                RRU на один запит
+                <span aria-hidden="true">{{
+                  sortColumn === 'readUnitsPerRequest'
+                    ? sortDirection === 'ascending'
+                      ? '↑'
+                      : '↓'
+                    : '↕'
+                }}</span>
+              </button>
+            </th>
             <th scope="col" [attr.aria-sort]="sortColumn === 'writeUnits' ? sortDirection : null">
               <button type="button" class="btn btn-link p-0" (click)="sort('writeUnits')">
                 Запис, WRU
@@ -169,6 +184,7 @@
               <td>{{ item.endpoint }}</td>
               <td>{{ item.requests }}</td>
               <td>{{ format(item.readUnits) }}</td>
+              <td>{{ format(readUnitsPerRequest(item)) }}</td>
               <td>{{ format(item.writeUnits) }}</td>
               <td>{{ format(item.requests ? item.durationMs / item.requests : 0) }}</td>
             </tr>

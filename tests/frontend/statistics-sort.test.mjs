@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { aggregateStatistics, sortStatistics } from '../../src/Frontend/src/app/statistics/statistics-sort.ts';
+import { aggregateStatistics, readUnitsPerRequest, sortStatistics } from '../../src/Frontend/src/app/statistics/statistics-sort.ts';
 
 const entries = [
   { date: '2026-01-01', endpoint: 'a', requests: 2, readUnits: 5, writeUnits: 1, durationMs: 40 },
@@ -12,6 +12,7 @@ test('sorts numeric metrics and averages in both directions without mutating the
   for (const [column, expected] of [
     ['requests', ['c', 'a', 'b']],
     ['readUnits', ['b', 'c', 'a']],
+    ['readUnitsPerRequest', ['b', 'a', 'c']],
     ['writeUnits', ['a', 'c', 'b']],
     ['averageDuration', ['b', 'c', 'a']],
   ]) {
@@ -32,10 +33,14 @@ test('aggregates every endpoint across dates before sorting by weighted average'
     endpoint: 'a', requests: 10, readUnits: 6, writeUnits: 4, durationMs: 100,
   });
   assert.deepEqual(sortStatistics(totals, 'averageDuration', 'ascending').map((item) => item.endpoint), ['a', 'b']);
+  assert.deepEqual(totals.map(readUnitsPerRequest), [0.6, 1]);
+  assert.deepEqual(sortStatistics(totals, 'readUnitsPerRequest', 'ascending').map((item) => item.endpoint), ['a', 'b']);
+  assert.equal(readUnitsPerRequest({ ...totals[0], requests: 0 }), 0);
   assert.deepEqual(aggregateStatistics([]), []);
   assert.deepEqual(aggregateStatistics(rows, '2026-01-01'), [
     { endpoint: 'a', requests: 1, readUnits: 2, writeUnits: 1, durationMs: 100 },
   ]);
   assert.equal(aggregateStatistics(rows, '2026-01-02').length, 2);
+  assert.deepEqual(aggregateStatistics(rows, '2026-01-02').map(readUnitsPerRequest), [4 / 9, 1]);
   assert.deepEqual(aggregateStatistics(rows, '2026-01-03'), []);
 });
