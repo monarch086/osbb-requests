@@ -10,6 +10,7 @@ export interface BroadcastMessage extends MessageChange {
 export interface NotificationSettings {
   telegramChatId: string | null;
   notifyNewResidents: boolean;
+  notifyNewApartmentRegistrations: boolean;
   notifyNewRequests: boolean;
   notifyNewKeyOrders: boolean;
   notifyNewAdministrators: boolean;

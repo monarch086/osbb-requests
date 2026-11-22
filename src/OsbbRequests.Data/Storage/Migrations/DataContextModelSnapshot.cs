@@ -71,6 +71,9 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<bool>("NewAdministrators")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("NewApartmentRegistrations")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("NewKeyOrders")
                         .HasColumnType("boolean");
 

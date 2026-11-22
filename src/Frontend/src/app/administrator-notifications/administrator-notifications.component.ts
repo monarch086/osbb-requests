@@ -18,6 +18,7 @@ export class AdministratorNotificationsComponent implements OnChanges {
   protected settings: NotificationSettings = {
     telegramChatId: '',
     notifyNewResidents: false,
+    notifyNewApartmentRegistrations: false,
     notifyNewRequests: false,
     notifyNewKeyOrders: false,
     notifyNewAdministrators: false,
@@ -26,6 +27,7 @@ export class AdministratorNotificationsComponent implements OnChanges {
     return (
       !this.settings.telegramChatId?.trim() &&
       (this.settings.notifyNewResidents ||
+        this.settings.notifyNewApartmentRegistrations ||
         this.settings.notifyNewRequests ||
         this.settings.notifyNewKeyOrders ||
         this.settings.notifyNewAdministrators)
@@ -36,6 +38,7 @@ export class AdministratorNotificationsComponent implements OnChanges {
       this.settings = {
         telegramChatId: this.admin.telegramChatId ?? '',
         notifyNewResidents: this.admin.notifyNewResidents,
+        notifyNewApartmentRegistrations: this.admin.notifyNewApartmentRegistrations,
         notifyNewRequests: this.admin.notifyNewRequests,
         notifyNewKeyOrders: this.admin.notifyNewKeyOrders,
         notifyNewAdministrators: this.admin.notifyNewAdministrators,

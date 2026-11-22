@@ -225,6 +225,7 @@ public sealed class AdministratorNotificationTests
 
     [Theory]
     [InlineData(AdministratorEvent.NewResident)]
+    [InlineData(AdministratorEvent.NewApartmentRegistration)]
     [InlineData(AdministratorEvent.NewComplexRequest)]
     [InlineData(AdministratorEvent.NewKeyOrder)]
     [InlineData(AdministratorEvent.NewAdministrator)]
@@ -258,10 +259,12 @@ public sealed class AdministratorNotificationTests
     [InlineData(AdministratorEvent.NewComplexRequest)]
     [InlineData(AdministratorEvent.NewKeyOrder)]
     [InlineData(AdministratorEvent.NewAdministrator)]
+    [InlineData(AdministratorEvent.NewApartmentRegistration)]
     public void EachSubscriptionSelectsOnlyItsOwnEvent(AdministratorEvent kind)
     {
         var settings = new AdministratorNotificationSettings("123", kind == AdministratorEvent.NewResident,
-            kind == AdministratorEvent.NewComplexRequest, kind == AdministratorEvent.NewAdministrator, kind == AdministratorEvent.NewKeyOrder);
+            kind == AdministratorEvent.NewComplexRequest, kind == AdministratorEvent.NewAdministrator, kind == AdministratorEvent.NewKeyOrder,
+            kind == AdministratorEvent.NewApartmentRegistration);
         foreach (var candidate in Enum.GetValues<AdministratorEvent>().Where(candidate => candidate != AdministratorEvent.NewRequest))
             Assert.Equal(candidate == kind, settings.Includes(candidate));
     }
@@ -298,6 +301,42 @@ public sealed class AdministratorNotificationTests
         Assert.Equal(expected ? 1 : 0, db.Transaction!.TransactItems.Count(w => w.Put?.Item.ContainsKey("attempts") == true));
         var direct = notification with { Notification = notification.Notification with { OwnerId = 123, AdministratorId = "recipient" } };
         Assert.Equal(expected, await repository.CanDeliverAsync(direct, default));
+    }
+
+    [Theory]
+    [InlineData(true, null, true)]
+    [InlineData(false, null, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, true)]
+    public async Task ApartmentNotificationsInheritResidentSubscriptionUntilExplicitlyConfigured(bool residents, bool? apartments, bool expected)
+    {
+        using var db = new NotificationDynamo();
+        var admin = Administrator();
+        admin["NotifyNewResidents"] = new() { BOOL = residents };
+        if (apartments is { } enabled) admin["NotifyNewApartmentRegistrations"] = new() { BOOL = enabled };
+        db.Administrators["recipient"] = admin;
+        db.Page = new() { Items = [new() { ["UserId"] = new("recipient") }] };
+        var repository = new DynamoNotificationRepository(db, "data", "complex", "admins");
+        var notification = Broadcast(AdministratorEvent.NewApartmentRegistration);
+        await repository.ExpandAsync(notification, "lease", Now, default);
+        Assert.Equal(expected ? 1 : 0, db.Transaction!.TransactItems.Count(w => w.Put?.Item.ContainsKey("attempts") == true));
+        var direct = notification with { Notification = notification.Notification with { OwnerId = 123, AdministratorId = "recipient" } };
+        Assert.Equal(expected, await repository.CanDeliverAsync(direct, default));
+        var profile = await new DynamoAdminStore(db, "admins", "data", "complex").GetAdminAsync("recipient", default);
+        Assert.Equal(expected, profile!.NotifyNewApartmentRegistrations);
+    }
+
+    [Fact]
+    public async Task ApartmentNotificationSettingCanBeSavedIndependentlyAndRequiresChat()
+    {
+        using var db = new NotificationDynamo();
+        var store = new DynamoAdminStore(db, "admins", "data", "complex");
+        var change = new NotificationSettingsChange(null, false, false, false, 2, NotifyNewApartmentRegistrations: true);
+        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => store.SetNotificationSettingsAsync(Super, Regular, change, default))).Status);
+        await store.SetNotificationSettingsAsync(Super, Regular, change with { TelegramChatId = "123" }, default);
+        var update = Assert.Single(db.Transaction!.TransactItems, w => w.Update is not null).Update;
+        Assert.True(update.ExpressionAttributeValues[":apartments"].BOOL);
+        Assert.False(update.ExpressionAttributeValues[":residents"].BOOL);
     }
 
     [Fact]

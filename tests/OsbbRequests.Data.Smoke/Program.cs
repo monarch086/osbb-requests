@@ -33,9 +33,16 @@ var permissions = await db.AdministratorPermissions.SingleAsync(x => x.Source ==
 var settings = await db.AdministratorNotificationSettings.SingleAsync(x => x.Source == source);
 if (!permissions.ComplexRequests || !permissions.KeyOrders || permissions.Messages || !settings.NewRequests || !settings.NewKeyOrders)
     throw new Exception("Legacy administrator defaults failed");
+if (!settings.NewResidents || !settings.NewApartmentRegistrations)
+    throw new Exception("Apartment notification fallback failed");
 await Import();
 var run = await db.ImportRuns.Where(x => x.Source == source).OrderByDescending(x => x.StartedAt).FirstAsync();
 if (run.ChangedCount != 0 || run.Status != "succeeded") throw new Exception("Repeat failed");
+dynamo.ApartmentNotifications = false;
+await Import();
+settings = await db.AdministratorNotificationSettings.SingleAsync(x => x.Source == source);
+if (!settings.NewResidents || settings.NewApartmentRegistrations)
+    throw new Exception("Explicit apartment notification setting was not imported");
 db.SourceRecords.Add(new SourceRecord { Source = source, Table = "residents", Key = FakeDynamo.ApartmentKey + "\u001f",
     Data = "{\"payload\":\"legacy\"}", Hash = "legacy", LastSeenAt = DateTimeOffset.UtcNow });
 await db.SaveChangesAsync();
@@ -96,6 +103,7 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
     public bool ApartmentApproved;
     public bool SkipApartmentInScan;
     public bool ApartmentRemoved;
+    public bool? ApartmentNotifications;
     public const string ApartmentKey = "COMPLEX#test#OWNER_APARTMENTS#42";
     public string Serial = "old-serial";
     private static Dictionary<string, AttributeValue> Item(string pk, string sk) => new() { ["pk"] = new(pk), ["sk"] = new(sk) };
@@ -119,7 +127,17 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
         if (Fail) throw new InvalidOperationException("Synthetic failure");
         var items = new List<Dictionary<string, AttributeValue>>();
         if (Empty) return Task.FromResult(new ScanResponse { Items = items });
-        if (r.TableName.EndsWith("administrators")) items.Add(new() { ["UserId"] = new("admin"), ["NotifyNewRequests"] = new() { BOOL = true } });
+        if (r.TableName.EndsWith("administrators"))
+        {
+            var admin = new Dictionary<string, AttributeValue>
+            {
+                ["UserId"] = new("admin"),
+                ["NotifyNewRequests"] = new() { BOOL = true },
+                ["NotifyNewResidents"] = new() { BOOL = true }
+            };
+            if (ApartmentNotifications is { } value) admin["NotifyNewApartmentRegistrations"] = new() { BOOL = value };
+            items.Add(admin);
+        }
         if (r.TableName.EndsWith("residents"))
         {
             if (!SkipApartmentInScan && !ApartmentRemoved) items.Add(OwnerApartmentItem());

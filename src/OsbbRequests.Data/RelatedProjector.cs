@@ -29,6 +29,7 @@ public sealed class RelatedProjector(DataContext db)
             if (settings is null) { settings = new AdministratorNotificationSetting { Source = source, UserId = id }; db.AdministratorNotificationSettings.Add(settings); }
             settings.TelegramChatId = item.GetValueOrDefault("TelegramChatId")?.S;
             settings.NewResidents = item.GetValueOrDefault("NotifyNewResidents")?.BOOL ?? false;
+            settings.NewApartmentRegistrations = item.GetValueOrDefault("NotifyNewApartmentRegistrations")?.BOOL ?? settings.NewResidents;
             settings.NewRequests = item.GetValueOrDefault("NotifyNewRequests")?.BOOL ?? false;
             settings.NewKeyOrders = item.GetValueOrDefault("NotifyNewKeyOrders")?.BOOL ?? settings.NewRequests;
             settings.NewAdministrators = item.GetValueOrDefault("NotifyNewAdministrators")?.BOOL ?? false;

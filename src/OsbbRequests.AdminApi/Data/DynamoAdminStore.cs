@@ -26,7 +26,8 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         new PagePermissions(item.GetValueOrDefault("AccessComplexRequests")?.BOOL ?? true,
             item.GetValueOrDefault("AccessKeyOrders")?.BOOL ?? true, item.GetValueOrDefault("AccessRegisteredResidents")?.BOOL ?? true,
             item.GetValueOrDefault("AccessPendingResidents")?.BOOL ?? true, item.GetValueOrDefault("AccessMessages")?.BOOL ?? false),
-        item.GetValueOrDefault("NotifyNewKeyOrders")?.BOOL ?? item.GetValueOrDefault("NotifyNewRequests")?.BOOL ?? false);
+        item.GetValueOrDefault("NotifyNewKeyOrders")?.BOOL ?? item.GetValueOrDefault("NotifyNewRequests")?.BOOL ?? false,
+        item.GetValueOrDefault("NotifyNewApartmentRegistrations")?.BOOL ?? item.GetValueOrDefault("NotifyNewResidents")?.BOOL ?? false);
     private static T Payload<T>(Dictionary<string, AttributeValue> item) => JsonSerializer.Deserialize<T>(item["payload"].S)
         ?? throw new InvalidOperationException("Invalid stored payload.");
     private static ManagedRequest Managed(Dictionary<string, AttributeValue> item) => new(Payload<MaintenanceRequest>(item),
@@ -128,9 +129,10 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var chat = change.TelegramChatId?.Trim();
         if (string.IsNullOrEmpty(chat)) chat = null;
         var keyOrders = change.NotifyNewKeyOrders ?? target.NotifyNewKeyOrders;
-        var settings = new AdministratorNotificationSettings(chat, change.NotifyNewResidents, change.NotifyNewRequests, change.NotifyNewAdministrators, keyOrders);
+        var apartmentRegistrations = change.NotifyNewApartmentRegistrations ?? target.NotifyNewApartmentRegistrations;
+        var settings = new AdministratorNotificationSettings(chat, change.NotifyNewResidents, change.NotifyNewRequests, change.NotifyNewAdministrators, keyOrders, apartmentRegistrations);
         if (chat is not null && (chat.Length > 20 || settings.ChatId is null)) throw new ApiError(400, "Вкажіть коректний Telegram Chat Id.");
-        if (settings.ChatId is null && (change.NotifyNewResidents || change.NotifyNewRequests || keyOrders || change.NotifyNewAdministrators))
+        if (settings.ChatId is null && (change.NotifyNewResidents || change.NotifyNewRequests || keyOrders || apartmentRegistrations || change.NotifyNewAdministrators))
             throw new ApiError(400, "Для сповіщень вкажіть Telegram Chat Id.");
         chat = settings.ChatId?.ToString(CultureInfo.InvariantCulture);
         var now = DateTimeOffset.UtcNow.ToString("O");
@@ -138,13 +140,14 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         {
             TableName = adminsTable,
             Key = AdminKey(target.UserId),
-            UpdateExpression = "SET TelegramChatId = :chat, NotifyNewResidents = :residents, NotifyNewRequests = :requests, NotifyNewKeyOrders = :keys, NotifyNewAdministrators = :admins, UpdatedAt = :now, #v = :next",
+            UpdateExpression = "SET TelegramChatId = :chat, NotifyNewResidents = :residents, NotifyNewApartmentRegistrations = :apartments, NotifyNewRequests = :requests, NotifyNewKeyOrders = :keys, NotifyNewAdministrators = :admins, UpdatedAt = :now, #v = :next",
             ConditionExpression = "#v = :expected" + (actor.UserId == target.UserId ? " AND IsActive = :yes" : ""),
             ExpressionAttributeNames = new() { ["#v"] = "Version" },
             ExpressionAttributeValues = new()
             {
                 [":chat"] = chat is null ? new() { NULL = true } : S(chat),
                 [":residents"] = new() { BOOL = change.NotifyNewResidents },
+                [":apartments"] = new() { BOOL = apartmentRegistrations },
                 [":requests"] = new() { BOOL = change.NotifyNewRequests },
                 [":keys"] = new() { BOOL = keyOrders },
                 [":admins"] = new() { BOOL = change.NotifyNewAdministrators },

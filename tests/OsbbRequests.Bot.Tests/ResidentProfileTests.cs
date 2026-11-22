@@ -6,6 +6,7 @@ using OsbbRequests.Bot.Commands;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 using System.Text.Json;
 using Xunit;
 
@@ -24,6 +25,26 @@ public sealed class ResidentProfileTests
         return (repo, new(repo, new CommandHandler(repo, "OsbbBot", "building", new Clock()), new FakeTelegram()));
     }
     private sealed class Clock : TimeProvider { public override DateTimeOffset GetUtcNow() => Now; }
+
+    [Fact]
+    public async Task ApartmentSubmissionWritesNotificationInSameTransaction()
+    {
+        using var db = new CaptureDynamo();
+        var repository = new DynamoCommandRepository(db, "data", residentsTable: "residents", complexId: "building");
+        var apartment = new OwnerApartment("apartment-id", "4Д", 203, Now);
+        var record = new OwnerApartments("building", 42, Original.Id, 1, [apartment]);
+        var dialog = new ResidentProfileDialog(42, "building", ProfileAction.Apartments, 2, Original.Version, null, false);
+        await repository.CommitAsync(Message(99, "203"), new("Запит подано", ProfileDialog: new(dialog, 1),
+            Apartment: new(record, null, Original.Version, apartment.Id)), default);
+        var writes = db.Transaction!.TransactItems;
+        Assert.Contains(writes, write => write.Put?.Item["pk"].S == OwnerApartments.Key("building", 42));
+        Assert.Contains(writes, write => write.Put?.Item["pk"].S == "UPDATE#99");
+        var notification = Assert.Single(writes, write => write.Put?.Item["pk"].S == "NOTIFICATIONS#building").Put.Item["payload"].S;
+        var job = JsonSerializer.Deserialize<ResidentNotification>(notification)!;
+        Assert.Equal("new-apartment-apartment-id", job.Id);
+        Assert.Equal(AdministratorEvent.NewApartmentRegistration, job.AdministratorEvent);
+        Assert.True(job.IsBroadcast);
+    }
 
     [Fact]
     public async Task EditingRunsRegistrationStepsAndCommitsOnlyAfterEmailWithoutRevokingAccess()

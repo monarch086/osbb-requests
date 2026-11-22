@@ -50,6 +50,9 @@
                 @if (a.notifyNewResidents) {
                   <span class="d-block" role="listitem">• Нові мешканці</span>
                 }
+                @if (a.notifyNewApartmentRegistrations) {
+                  <span class="d-block" role="listitem">• Реєстрація додаткових квартир</span>
+                }
                 @if (a.notifyNewRequests) {
                   <span class="d-block" role="listitem">• Нові заявки по комплексу</span>
                 }
@@ -61,6 +64,7 @@
                 }
                 @if (
                   !a.notifyNewResidents &&
+                  !a.notifyNewApartmentRegistrations &&
                   !a.notifyNewRequests &&
                   !a.notifyNewKeyOrders &&
                   !a.notifyNewAdministrators

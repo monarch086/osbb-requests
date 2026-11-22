@@ -871,6 +871,7 @@ resources:
                   - Version
                   - TelegramChatId
                   - NotifyNewResidents
+                  - NotifyNewApartmentRegistrations
                   - NotifyNewRequests
                   - NotifyNewKeyOrders
                   - NotifyNewAdministrators

@@ -2,6 +2,7 @@ using OsbbRequests.Shared.Residents;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Bot.Models;
+using OsbbRequests.Shared.Models;
 
 namespace OsbbRequests.Bot.Persistence;
 
@@ -44,7 +45,9 @@ public sealed partial class DynamoCommandRepository
                 throw new InvalidOperationException("Invalid apartment submission.");
             writes.Add(new() { ConditionCheck = OwnerApartments.CheckProfile(residentsTable, complexId, command.UserId, submission.ProfileVersion) });
             writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, complexId) });
+            var apartment = submission.Value.Items.Single(item => item.Id == submission.ApartmentId && item.Status == ApartmentReviewStatus.Pending);
             writes.Add(submission.Value.Save(residentsTable, submission.ExpectedVersion));
+            writes.Add(NotificationWrite(AdministratorNotifications.NewApartmentRegistration(complexId, apartment)));
         }
         if (outcome.Profile is not { } update) return;
         var profile = update.Value;

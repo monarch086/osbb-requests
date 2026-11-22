@@ -49,6 +49,19 @@
           <input
             class="form-check-input"
             type="checkbox"
+            [id]="'notify-apartment-registrations-' + admin.userId"
+            name="notifyNewApartmentRegistrations"
+            [(ngModel)]="settings.notifyNewApartmentRegistrations"
+            [disabled]="saving"
+          />
+          <label class="form-check-label" [for]="'notify-apartment-registrations-' + admin.userId"
+            >Реєстрація додаткових квартир</label
+          >
+        </div>
+        <div class="form-check mb-2">
+          <input
+            class="form-check-input"
+            type="checkbox"
             [id]="'notify-requests-' + admin.userId"
             name="notifyNewRequests"
             [(ngModel)]="settings.notifyNewRequests"

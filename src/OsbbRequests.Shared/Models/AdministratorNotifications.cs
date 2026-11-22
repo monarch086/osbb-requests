@@ -1,18 +1,20 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 using OsbbRequests.Shared.Domain;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Shared.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<AdministratorEvent>))]
-public enum AdministratorEvent { NewResident, NewRequest, NewAdministrator, NewComplexRequest, NewKeyOrder }
+public enum AdministratorEvent { NewResident, NewRequest, NewAdministrator, NewComplexRequest, NewKeyOrder, NewApartmentRegistration }
 
 public sealed record AdministratorNotificationSettings(string? TelegramChatId = null, bool NotifyNewResidents = false,
-    bool NotifyNewRequests = false, bool NotifyNewAdministrators = false, bool? NotifyNewKeyOrders = null)
+    bool NotifyNewRequests = false, bool NotifyNewAdministrators = false, bool? NotifyNewKeyOrders = null, bool? NotifyNewApartmentRegistrations = null)
 {
     public bool Includes(AdministratorEvent kind) => kind switch
     {
         AdministratorEvent.NewResident => NotifyNewResidents,
+        AdministratorEvent.NewApartmentRegistration => NotifyNewApartmentRegistrations ?? NotifyNewResidents,
         AdministratorEvent.NewRequest => NotifyNewRequests,
         AdministratorEvent.NewComplexRequest => NotifyNewRequests,
         AdministratorEvent.NewKeyOrder => NotifyNewKeyOrders ?? NotifyNewRequests,
@@ -44,6 +46,13 @@ public static class AdministratorNotifications
         "\nПодано: " + Date(resident.UpdatedAt) + (resident.Stage == RegistrationStage.Approved
             ? "\nРеєстрацію схвалено автоматично. Мешканцю надано доступ."
             : "\nПотребує перевірки в розділі «Мешканці» вебпанелі."), resident.UpdatedAt, AdministratorEvent.NewResident);
+
+    public static ResidentNotification NewApartmentRegistration(string complex, OwnerApartment apartment) => new(
+        "new-apartment-" + apartment.Id, complex, 0, null, null,
+        "Нова заявка на реєстрацію додаткової квартири в ЖК «Зелений острів 2».\n" +
+        "Подано: " + Date(apartment.SubmittedAt) +
+        "\nПеревірте заявку в розділі «Мешканці» → «Очікують перевірки» → «Перевірка додаткових квартир».",
+        apartment.SubmittedAt, AdministratorEvent.NewApartmentRegistration);
 
     public static ResidentNotification NewRequest(MaintenanceRequest request) => new(
         "new-request-" + request.Id.ToString(CultureInfo.InvariantCulture), request.BuildingId, 0, request.Id, 1,

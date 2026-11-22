@@ -86,6 +86,6 @@ public sealed partial class ResidentProfileService
         var apartment = new OwnerApartment(Guid.NewGuid().ToString("N"), address, number, now);
         var next = new OwnerApartments(complexId, current.UserId, current.Id, (existing?.Version ?? 0) + 1, [.. items, apartment]);
         return Close(dialog, $"{apartment.Address}. Запит передано адміністратору. Результат надійде в Telegram.") with
-        { Apartment = new(next, existing?.Version, current.Version) };
+        { Apartment = new(next, existing?.Version, current.Version, apartment.Id) };
     }
 }
