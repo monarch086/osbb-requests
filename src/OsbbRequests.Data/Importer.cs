@@ -6,6 +6,7 @@ using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.Data.Storage;
+using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Data;
@@ -177,9 +178,37 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
             if (!root.TryGetProperty("UserId", out var user) || !root.TryGetProperty("BuildingId", out var complex)) return;
             var complexId = complex.GetString()!;
             var id = user.GetInt64();
+            var profile = root.Deserialize<ResidentRegistration>()!;
+            var next = new Resident
+            {
+                Source = source,
+                ComplexId = complexId,
+                TelegramUserId = id,
+                RegistrationId = profile.Id,
+                Stage = profile.Stage,
+                Version = profile.Version,
+                CreatedAt = root.TryGetProperty("CreatedAt", out _) ? profile.CreatedAt.ToUniversalTime() : null,
+                UpdatedAt = root.TryGetProperty("UpdatedAt", out _) ? profile.UpdatedAt.ToUniversalTime() : null,
+                Phone = profile.Phone,
+                FirstName = profile.FirstName,
+                LastName = profile.LastName,
+                DecisionReason = profile.DecisionReason,
+                BuildingNumber = profile.BuildingNumber,
+                ApartmentNumber = profile.ApartmentNumber,
+                PersonalDataDeleted = profile.PersonalDataDeleted,
+                PersonalDataDeletedAt = profile.PersonalDataDeletedAt?.ToUniversalTime(),
+                ApprovedAt = profile.ApprovedAt?.ToUniversalTime(),
+                Email = profile.Email,
+                ConsentAt = profile.ConsentAt?.ToUniversalTime(),
+                ConsentVersion = profile.ConsentVersion,
+                ResumeAfterConsent = profile.ResumeAfterConsent,
+                ResidentType = profile.ResidentType,
+                TypeBeforeAddress = profile.TypeBeforeAddress,
+                TypeChangeCount = profile.TypeChangeCount
+            };
             var resident = await db.Residents.FindAsync([source, complexId, id], ct);
-            if (resident is null) db.Residents.Add(new Resident { Source = source, ComplexId = complexId, TelegramUserId = id, Payload = payload.S });
-            else resident.Payload = payload.S;
+            if (resident is null) db.Residents.Add(next);
+            else db.Entry(resident).CurrentValues.SetValues(next);
         }
         if (table == "command-data" && pk.StartsWith("USER#", StringComparison.Ordinal) && sk.StartsWith("REQUEST#", StringComparison.Ordinal))
         {

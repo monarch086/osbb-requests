@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using OsbbRequests.Data;
 using OsbbRequests.Data.Storage;
+using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Residents;
 
 var builder = new NpgsqlConnectionStringBuilder { Host = "127.0.0.1", Port = 5433, Database = "osbb_import_test", Username = "osbb", Password = Environment.GetEnvironmentVariable("OSBB_POSTGRES_PASSWORD") };
@@ -24,6 +25,13 @@ if (await db.Residents.CountAsync(x => x.Source == source) != 1 || await db.Requ
     await db.Notifications.CountAsync(x => x.Source == source) != 1 || await db.AdministratorEvents.CountAsync(x => x.Source == source) != 1 ||
     await db.AdministratorPermissions.CountAsync(x => x.Source == source) != 1 || await db.AdministratorNotificationSettings.CountAsync(x => x.Source == source) != 1 ||
     await db.ApiDailyStatistics.CountAsync(x => x.Source == source) != 1) throw new Exception("Projection failed");
+var resident = await db.Residents.SingleAsync(x => x.Source == source);
+if (resident.RegistrationId != "ref" || resident.Stage != RegistrationStage.Approved || resident.Version != 3 ||
+    resident.FirstName != "Ім’я" || resident.LastName != "Прізвище" || resident.Email != "resident@example.test" ||
+    resident.Phone != "+380671234567" || resident.BuildingNumber != "4Б" || resident.ApartmentNumber != "007" ||
+    resident.ResidentType != ResidentType.Owner || resident.ConsentVersion != "v1" ||
+    resident.ConsentAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
+    throw new Exception("Resident profile columns were not imported");
 var apartment = await db.ResidentApartments.SingleAsync(x => x.Source == source);
 if (apartment.RegistrationId != "ref" || apartment.BuildingNumber != "4Г" || apartment.ApartmentNumber != 12 ||
     apartment.Status != ApartmentReviewStatus.Pending || apartment.ReviewedAt is not null || apartment.ReviewedBy is not null ||
@@ -73,13 +81,17 @@ var key = await db.RequestKeyItems.SingleAsync(x => x.Source == source);
 if (key.SerialNumber != "new-serial") throw new Exception("Key update failed");
 dynamo.Deleted = true;
 await Import();
+resident = await db.Residents.SingleAsync(x => x.Source == source);
+if (!resident.PersonalDataDeleted || resident.Stage != RegistrationStage.Deleted || resident.Email is not null ||
+    resident.Phone is not null || resident.FirstName is not null || resident.ConsentAt is not null)
+    throw new Exception("Resident profile columns were not updated");
 if (await db.ResidentPhones.AnyAsync(x => x.Source == source) || await db.ResidentConsents.AnyAsync(x => x.Source == source)) throw new Exception("Deleted profile retained personal data projections");
 dynamo.Deleted = false;
 await Import();
 if (await db.ResidentPhones.CountAsync(x => x.Source == source) != 1 || await db.ResidentConsents.CountAsync(x => x.Source == source) != 1) throw new Exception("Restored profile missing projections");
 dynamo.Empty = true;
 await Import();
-if (await db.SourceRecords.AnyAsync(x => x.Source == source) || await db.RequestKeyItems.AnyAsync(x => x.Source == source) ||
+if (await db.SourceRecords.AnyAsync(x => x.Source == source) || await db.Residents.AnyAsync(x => x.Source == source) || await db.RequestKeyItems.AnyAsync(x => x.Source == source) ||
     await db.ResidentApartments.AnyAsync(x => x.Source == source) ||
     await db.RequestEvents.AnyAsync(x => x.Source == source) || await db.ResidentEvents.AnyAsync(x => x.Source == source) ||
     await db.ResidentPhones.AnyAsync(x => x.Source == source) || await db.ResidentConsents.AnyAsync(x => x.Source == source) ||
@@ -141,7 +153,15 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
         if (r.TableName.EndsWith("residents"))
         {
             if (!SkipApartmentInScan && !ApartmentRemoved) items.Add(OwnerApartmentItem());
-            items.Add(new() { ["pk"] = new("COMPLEX#test#USER#42"), ["payload"] = new("{\"UserId\":42,\"BuildingId\":\"test\",\"Phone\":\"+380671234567\",\"ConsentAt\":\"2026-01-01T00:00:00Z\",\"ConsentVersion\":\"v1\",\"PersonalDataDeleted\":" + (Deleted ? "true" : "false") + "}") });
+            var profile = Deleted
+                ? """{"Id":"ref","UserId":42,"BuildingId":"test","Stage":"Deleted","PersonalDataDeleted":true}"""
+                : """
+                  {"Id":"ref","UserId":42,"BuildingId":"test","Stage":"Approved","Version":3,
+                   "Phone":"+380671234567","FirstName":"Ім’я","LastName":"Прізвище","Email":"resident@example.test",
+                   "BuildingNumber":"4Б","ApartmentNumber":"007","ResidentType":"Owner",
+                   "ConsentAt":"2026-01-01T02:00:00+02:00","ConsentVersion":"v1"}
+                  """;
+            items.Add(new() { ["pk"] = new("COMPLEX#test#USER#42"), ["payload"] = new(profile) });
             items.Add(new() { ["pk"] = new("COMPLEX#test#RECORD#REGISTRATION#ref#EVENT#DECIDED"), ["sourcePk"] = new("REGISTRATION#ref"), ["sourceSk"] = new("EVENT#DECIDED"), ["recordData"] = new() { M = new() { ["actor"] = new("test") } } });
             items.Add(new() { ["pk"] = new("COMPLEX#test#RECORD#USER#42#MEMBERSHIP"), ["sourcePk"] = new("USER#42"), ["sourceSk"] = new("MEMBERSHIP"), ["complexId"] = new("test"), ["recordData"] = new() { M = new() { ["active"] = new() { BOOL = true } } } });
         }

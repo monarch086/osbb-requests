@@ -38,7 +38,14 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.Property(x => x.Status).HasConversion<string>();
             e.HasIndex(x => new { x.Source, x.ComplexId, x.BuildingNumber, x.ApartmentNumber });
         });
-        model.Entity<Resident>(e => { e.ToTable("residents"); e.HasKey(x => new { x.Source, x.ComplexId, x.TelegramUserId }); e.Property(x => x.Payload).HasColumnType("jsonb"); });
+        model.Entity<Resident>(e =>
+        {
+            e.ToTable("residents");
+            e.HasKey(x => new { x.Source, x.ComplexId, x.TelegramUserId });
+            e.Property(x => x.Stage).HasConversion<string>();
+            e.Property(x => x.ResumeAfterConsent).HasConversion<string>();
+            e.Property(x => x.ResidentType).HasConversion<string>();
+        });
         model.Entity<Request>(e => { e.ToTable("requests"); e.HasKey(x => new { x.Source, x.OwnerId, x.RequestId }); e.Property(x => x.Payload).HasColumnType("jsonb"); e.HasIndex(x => new { x.Source, x.ComplexId, x.Status, x.CreatedAt }); });
         model.Entity<Administrator>(e => { e.ToTable("administrators"); e.HasKey(x => new { x.Source, x.UserId }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<RequestKeyItem>(e => { e.ToTable("request_key_items"); e.HasKey(x => new { x.Source, x.OwnerId, x.RequestId, x.Position }); e.HasIndex(x => x.Phone); e.HasOne<Request>().WithMany().HasForeignKey(x => new { x.Source, x.OwnerId, x.RequestId }).OnDelete(DeleteBehavior.Cascade); });

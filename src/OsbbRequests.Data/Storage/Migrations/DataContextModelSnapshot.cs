@@ -351,9 +351,70 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("TelegramUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Payload")
+                    b.Property<string>("ApartmentNumber")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BuildingNumber")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ConsentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ConsentVersion")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecisionReason")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FirstName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastName")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("PersonalDataDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("PersonalDataDeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RegistrationId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResidentType")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResumeAfterConsent")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("TypeBeforeAddress")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("TypeChangeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
 
                     b.HasKey("Source", "ComplexId", "TelegramUserId");
 
