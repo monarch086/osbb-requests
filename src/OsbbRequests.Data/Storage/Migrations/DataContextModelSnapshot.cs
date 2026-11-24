@@ -138,19 +138,14 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("SourceId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Key")
-                        .HasColumnType("text");
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
 
-                    b.Property<string>("Date")
-                        .IsRequired()
+                    b.Property<string>("Endpoint")
                         .HasColumnType("text");
 
                     b.Property<double>("DurationMs")
                         .HasColumnType("double precision");
-
-                    b.Property<string>("Endpoint")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<double>("ReadUnits")
                         .HasColumnType("double precision");
@@ -161,7 +156,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<double>("WriteUnits")
                         .HasColumnType("double precision");
 
-                    b.HasKey("SourceId", "Key");
+                    b.HasKey("SourceId", "Date", "Endpoint");
 
                     b.ToTable("api_daily_statistics", (string)null);
                 });
@@ -466,12 +461,6 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("ComplexId")
                         .HasColumnType("bigint");
 
-                    b.Property<DateTimeOffset?>("ConsentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ConsentVersion")
-                        .HasColumnType("text");
-
                     b.Property<DateTimeOffset?>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -492,9 +481,6 @@ namespace OsbbRequests.Data.Storage.Migrations
 
                     b.Property<DateTimeOffset?>("PersonalDataDeletedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Phone")
-                        .HasColumnType("text");
 
                     b.Property<string>("RegistrationId")
                         .HasColumnType("text");
@@ -590,7 +576,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("ResidentId")
                         .HasColumnType("bigint");
 
-                    b.Property<DateTimeOffset>("ConsentedAt")
+                    b.Property<DateTimeOffset?>("ConsentedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Version")
@@ -674,9 +660,16 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean");
+
                     b.HasKey("ResidentId", "Phone");
 
                     b.HasIndex("Phone");
+
+                    b.HasIndex("ResidentId")
+                        .IsUnique()
+                        .HasFilter("\"IsPrimary\"");
 
                     b.ToTable("resident_phones", (string)null);
                 });

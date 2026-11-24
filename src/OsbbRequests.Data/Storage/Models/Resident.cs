@@ -12,7 +12,6 @@ public sealed class Resident
     public int Version { get; set; }
     public DateTimeOffset? CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
-    public string? Phone { get; set; }
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? DecisionReason { get; set; }
@@ -22,8 +21,6 @@ public sealed class Resident
     public DateTimeOffset? PersonalDataDeletedAt { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
     public string? Email { get; set; }
-    public DateTimeOffset? ConsentAt { get; set; }
-    public string? ConsentVersion { get; set; }
     public RegistrationStage? ResumeAfterConsent { get; set; }
     public ResidentType ResidentType { get; set; }
     public bool TypeBeforeAddress { get; set; }

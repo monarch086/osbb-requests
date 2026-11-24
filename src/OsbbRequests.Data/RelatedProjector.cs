@@ -105,10 +105,10 @@ internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexe
             else row.Data = json;
         }
         if (table == "residents") await ProjectResidentAsync(sourceId, key, item, ct);
-        if (table == "statistics" && pk == "API" && sk.Length > 11 && sk[10] == '#')
+        if (table == "statistics" && pk == "API" && TryParseStatisticKey(sk, out var date, out var endpoint))
         {
-            var row = await db.ApiDailyStatistics.FindAsync([sourceId, key], ct);
-            if (row is null) { row = new ApiDailyStatistic { SourceId = sourceId, Key = key, Date = sk[..10], Endpoint = sk[11..] }; db.ApiDailyStatistics.Add(row); }
+            var row = await db.ApiDailyStatistics.FindAsync([sourceId, date, endpoint], ct);
+            if (row is null) { row = new ApiDailyStatistic { SourceId = sourceId, Date = date, Endpoint = endpoint }; db.ApiDailyStatistics.Add(row); }
             row.Requests = (long)Number(item, "requests"); row.ReadUnits = Number(item, "readUnits");
             row.WriteUnits = Number(item, "writeUnits"); row.DurationMs = Number(item, "durationMs");
         }
@@ -194,8 +194,8 @@ internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexe
             if (pk.StartsWith("ADMIN#", StringComparison.Ordinal) && sk.StartsWith("EVENT#", StringComparison.Ordinal))
                 await db.AdministratorEvents.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
         }
-        if (table == "statistics" && pk == "API")
-            await db.ApiDailyStatistics.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
+        if (table == "statistics" && pk == "API" && TryParseStatisticKey(sk, out var date, out var endpoint))
+            await db.ApiDailyStatistics.Where(x => x.SourceId == sourceId && x.Date == date && x.Endpoint == endpoint).ExecuteDeleteAsync(ct);
         if (table != "residents") return;
         using var record = JsonDocument.Parse(json);
         var sourcePk = String(record.RootElement, "sourcePk") ?? "";
@@ -205,6 +205,16 @@ internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexe
         if (sourcePk.StartsWith("USER#", StringComparison.Ordinal) && sourceSk == "MEMBERSHIP")
             await db.ResidentMemberships.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
     }
+    private static bool TryParseStatisticKey(string key, out DateOnly date, out string endpoint)
+    {
+        date = default;
+        endpoint = "";
+        if (key.Length <= 11 || key[10] != '#' ||
+            !DateOnly.TryParseExact(key.AsSpan(0, 10), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date)) return false;
+        endpoint = key[11..];
+        return true;
+    }
+
     private static string? String(JsonElement root, string name) => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static DateTimeOffset? Date(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date) ? date.ToUniversalTime() : null;
     private static double Number(Dictionary<string, AttributeValue> item, string key) => double.TryParse(item.GetValueOrDefault(key)?.N, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0;

@@ -3,8 +3,7 @@ namespace OsbbRequests.Data.Storage;
 public sealed class ApiDailyStatistic
 {
     public long SourceId { get; set; }
-    public required string Key { get; set; }
-    public required string Date { get; set; }
+    public DateOnly Date { get; set; }
     public required string Endpoint { get; set; }
     public long Requests { get; set; }
     public double ReadUnits { get; set; }

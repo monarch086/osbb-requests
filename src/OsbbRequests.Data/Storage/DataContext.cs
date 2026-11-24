@@ -66,7 +66,14 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
         model.Entity<RequestKeyItem>(e => { e.ToTable("request_key_items"); e.HasKey(x => new { x.SourceId, x.OwnerId, x.RequestId, x.Position }); e.HasIndex(x => x.Phone); e.HasOne<Request>().WithMany().HasForeignKey(x => new { x.SourceId, x.OwnerId, x.RequestId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<RequestEvent>(e => { e.ToTable("request_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.HasIndex(x => new { x.SourceId, x.RequestId, x.CreatedAt }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<ResidentEvent>(e => { e.ToTable("resident_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.HasIndex(x => new { x.SourceId, x.RegistrationId }); e.Property(x => x.Data).HasColumnType("jsonb"); });
-        model.Entity<ResidentPhone>(e => { e.ToTable("resident_phones"); e.HasKey(x => new { x.ResidentId, x.Phone }); e.HasIndex(x => x.Phone); e.HasOne(x => x.Resident).WithMany().HasForeignKey(x => x.ResidentId).OnDelete(DeleteBehavior.Cascade); });
+        model.Entity<ResidentPhone>(e =>
+        {
+            e.ToTable("resident_phones");
+            e.HasKey(x => new { x.ResidentId, x.Phone });
+            e.HasIndex(x => x.Phone);
+            e.HasIndex(x => x.ResidentId).IsUnique().HasFilter("\"IsPrimary\"");
+            e.HasOne(x => x.Resident).WithMany().HasForeignKey(x => x.ResidentId).OnDelete(DeleteBehavior.Cascade);
+        });
         model.Entity<ResidentConsent>(e => { e.ToTable("resident_consents"); e.HasKey(x => x.ResidentId); e.HasOne(x => x.Resident).WithOne().HasForeignKey<ResidentConsent>(x => x.ResidentId).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<ResidentMembership>(e =>
         {
@@ -95,7 +102,7 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
         model.Entity<AdministratorEvent>(e => { e.ToTable("administrator_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<AdministratorPermission>(e => { e.ToTable("administrator_permissions"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<AdministratorNotificationSetting>(e => { e.ToTable("administrator_notification_settings"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
-        model.Entity<ApiDailyStatistic>(e => { e.ToTable("api_daily_statistics"); e.HasKey(x => new { x.SourceId, x.Key }); });
+        model.Entity<ApiDailyStatistic>(e => { e.ToTable("api_daily_statistics"); e.HasKey(x => new { x.SourceId, x.Date, x.Endpoint }); });
         model.Entity<ImportSource>(e =>
         {
             e.ToTable("import_sources");

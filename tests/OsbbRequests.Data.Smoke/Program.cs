@@ -32,10 +32,19 @@ if (await db.Residents.CountAsync(x => x.ComplexId == complexId) != 1 || await d
 var resident = await db.Residents.SingleAsync(x => x.ComplexId == complexId);
 if (resident.RegistrationId != "ref" || resident.Stage != RegistrationStage.Approved || resident.Version != 3 ||
     resident.FirstName != "Ім’я" || resident.LastName != "Прізвище" || resident.Email != "resident@example.test" ||
-    resident.Phone != "+380671234567" || resident.BuildingNumber != "4Б" || resident.ApartmentNumber != "007" ||
-    resident.ResidentType != ResidentType.Owner || resident.ConsentVersion != "v1" ||
-    resident.ConsentAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
+    resident.BuildingNumber != "4Б" || resident.ApartmentNumber != "007" || resident.ResidentType != ResidentType.Owner)
     throw new Exception("Resident profile columns were not imported");
+var primaryPhone = await db.ResidentPhones.SingleAsync(x => x.ResidentId == residentId);
+var consent = await db.ResidentConsents.SingleAsync(x => x.ResidentId == residentId);
+if (!primaryPhone.IsPrimary || primaryPhone.Phone != "+380671234567" || consent.Version != "v1" ||
+    consent.ConsentedAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
+    throw new Exception("Resident phone or consent was not imported");
+var statisticDate = new DateOnly(2026, 1, 1);
+const string statisticEndpoint = "GET /admin/me";
+var statistic = await db.ApiDailyStatistics.FindAsync(sourceId, statisticDate, statisticEndpoint);
+if (statistic is null || statistic.Requests != 4 ||
+    !await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId && x.Table == "statistics" && x.Key == "API\u001f2026-01-01#GET /admin/me"))
+    throw new Exception("Daily statistic or its DynamoDB key was not imported");
 var request = await db.Requests.SingleAsync(x => x.SourceId == sourceId);
 if (request.ComplexId != complexId || request.Status != RequestStatus.Completed || request.Visibility != RequestVisibility.Private ||
     request.Category != RequestCategories.KeyOrder || request.Description != "Тестове замовлення" ||
@@ -112,14 +121,32 @@ if (key.SerialNumber != "new-serial") throw new Exception("Key update failed");
 request = await db.Requests.SingleAsync(x => x.SourceId == sourceId);
 if (request.Status != RequestStatus.InProgress || request.PlannedDate is not null || request.Resolution is not null)
     throw new Exception("Request columns were not updated");
+db.ResidentPhones.Add(new ResidentPhone { ResidentId = residentId, Phone = "+380671234568" });
+db.ResidentPhones.Add(new ResidentPhone { ResidentId = residentId, Phone = "+380671234569" });
+await db.SaveChangesAsync();
+dynamo.PrimaryPhone = "+380671234568";
+dynamo.StatisticRequests = "8";
+await Import();
+var phones = await db.ResidentPhones.Where(x => x.ResidentId == residentId).ToListAsync();
+statistic = await db.ApiDailyStatistics.FindAsync(sourceId, statisticDate, statisticEndpoint);
+if (phones.Count != 2 || phones.Single(x => x.IsPrimary).Phone != "+380671234568" ||
+    !phones.Any(x => x.Phone == "+380671234569" && !x.IsPrimary) || statistic?.Requests != 8 ||
+    (await db.RequestKeyItems.SingleAsync(x => x.SourceId == sourceId)).Phone != "+380671234567")
+    throw new Exception("Primary phone or statistic update was incorrect");
 dynamo.Deleted = true;
 await Import();
 resident = await db.Residents.SingleAsync(x => x.ComplexId == complexId);
 if (!resident.PersonalDataDeleted || resident.Stage != RegistrationStage.Deleted || resident.Email is not null ||
-    resident.Phone is not null || resident.FirstName is not null || resident.ConsentAt is not null)
+    resident.FirstName is not null)
     throw new Exception("Resident profile columns were not updated");
 if (await db.ResidentPhones.AnyAsync(x => x.ResidentId == residentId) || await db.ResidentConsents.AnyAsync(x => x.ResidentId == residentId)) throw new Exception("Deleted profile retained personal data projections");
 dynamo.Deleted = false;
+dynamo.AwaitingConsent = true;
+await Import();
+consent = await db.ResidentConsents.SingleAsync(x => x.ResidentId == residentId);
+if (consent.ConsentedAt is not null || consent.Version != "v2" || await db.ResidentPhones.AnyAsync(x => x.ResidentId == residentId))
+    throw new Exception("A pending consent was recorded as granted or retained old contact information");
+dynamo.AwaitingConsent = false;
 await Import();
 if (await db.ResidentPhones.CountAsync(x => x.ResidentId == residentId) != 1 || await db.ResidentConsents.CountAsync(x => x.ResidentId == residentId) != 1) throw new Exception("Restored profile missing projections");
 dynamo.SkipProfile = true;
@@ -171,6 +198,9 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
     public bool Fail;
     public bool FailDescribe;
     public bool Deleted;
+    public bool AwaitingConsent;
+    public string PrimaryPhone = "+380671234567";
+    public string StatisticRequests = "4";
     public bool AccessRevoked;
     public bool ApartmentApproved;
     public bool SkipApartmentInScan;
@@ -223,9 +253,11 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
             if (!SkipApartmentInScan && !ApartmentRemoved) items.Add(OwnerApartmentItem());
             var profile = Deleted
                 ? """{"Id":"ref","UserId":42,"BuildingId":"test","Stage":"Deleted","PersonalDataDeleted":true}"""
-                : """
+                : AwaitingConsent
+                    ? """{"Id":"ref","UserId":42,"BuildingId":"test","Stage":"AwaitingConsent","ConsentVersion":"v2","PersonalDataDeletedAt":"2026-01-01T00:00:00Z"}"""
+                    : $$"""
                   {"Id":"ref","UserId":42,"BuildingId":"test","Stage":"Approved","Version":3,
-                   "Phone":"+380671234567","FirstName":"Ім’я","LastName":"Прізвище","Email":"resident@example.test",
+                   "Phone":"{{PrimaryPhone}}","FirstName":"Ім’я","LastName":"Прізвище","Email":"resident@example.test",
                    "BuildingNumber":"4Б","ApartmentNumber":"007","ResidentType":"Owner",
                    "ConsentAt":"2026-01-01T02:00:00+02:00","ConsentVersion":"v1"}
                   """;
@@ -259,7 +291,12 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
             items.Add(Item("NOTIFICATIONS#test", "RESULT#id"));
             items.Add(Item("ADMIN#admin", "EVENT#id"));
         }
-        if (r.TableName.EndsWith("statistics")) items.Add(Item("API", "2026-01-01#GET /admin/me"));
+        if (r.TableName.EndsWith("statistics"))
+        {
+            var statistic = Item("API", "2026-01-01#GET /admin/me");
+            statistic["requests"] = new() { N = StatisticRequests };
+            items.Add(statistic);
+        }
         return Task.FromResult(new ScanResponse { Items = items });
     }
 }

@@ -211,7 +211,6 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                 Version = profile.Version,
                 CreatedAt = root.TryGetProperty("CreatedAt", out _) ? profile.CreatedAt.ToUniversalTime() : null,
                 UpdatedAt = root.TryGetProperty("UpdatedAt", out _) ? profile.UpdatedAt.ToUniversalTime() : null,
-                Phone = profile.Phone,
                 FirstName = profile.FirstName,
                 LastName = profile.LastName,
                 DecisionReason = profile.DecisionReason,
@@ -221,8 +220,6 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                 PersonalDataDeletedAt = profile.PersonalDataDeletedAt?.ToUniversalTime(),
                 ApprovedAt = profile.ApprovedAt?.ToUniversalTime(),
                 Email = profile.Email,
-                ConsentAt = profile.ConsentAt?.ToUniversalTime(),
-                ConsentVersion = profile.ConsentVersion,
                 ResumeAfterConsent = profile.ResumeAfterConsent,
                 ResidentType = profile.ResidentType,
                 TypeBeforeAddress = profile.TypeBeforeAddress,
@@ -274,24 +271,32 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
     }
     private async Task ProjectResidentDetailsAsync(Resident resident, ResidentRegistration profile, CancellationToken ct)
     {
+        var deleted = profile.PersonalDataDeleted || profile.Stage == RegistrationStage.Deleted;
+        var phone = deleted || string.IsNullOrEmpty(profile.Phone) ? null : profile.Phone;
         if (resident.Id != 0)
-            await db.ResidentPhones.Where(x => x.ResidentId == resident.Id).ExecuteDeleteAsync(ct);
+            await db.ResidentPhones.Where(x => x.ResidentId == resident.Id && (deleted || (x.IsPrimary && x.Phone != phone)))
+                .ExecuteDeleteAsync(ct);
 
-        if (!profile.HasDeletedPersonalData && !string.IsNullOrEmpty(profile.Phone))
-            db.ResidentPhones.Add(new ResidentPhone { Resident = resident, Phone = profile.Phone });
+        if (phone is not null)
+        {
+            var primary = resident.Id == 0 ? null : await db.ResidentPhones.FindAsync([resident.Id, phone], ct);
+            if (primary is null) db.ResidentPhones.Add(new ResidentPhone { Resident = resident, Phone = phone, IsPrimary = true });
+            else primary.IsPrimary = true;
+        }
 
         var consent = resident.Id == 0 ? null : await db.ResidentConsents.FindAsync([resident.Id], ct);
-        if (profile.HasDeletedPersonalData || profile.ConsentAt is not { } consentAt)
+        if (deleted || (profile.ConsentAt is null && profile.ConsentVersion is null))
         {
             if (consent is not null) db.ResidentConsents.Remove(consent);
             return;
         }
 
+        var consentAt = profile.ConsentAt?.ToUniversalTime();
         if (consent is null)
-            db.ResidentConsents.Add(new ResidentConsent { Resident = resident, ConsentedAt = consentAt.ToUniversalTime(), Version = profile.ConsentVersion });
+            db.ResidentConsents.Add(new ResidentConsent { Resident = resident, ConsentedAt = consentAt, Version = profile.ConsentVersion });
         else
         {
-            consent.ConsentedAt = consentAt.ToUniversalTime();
+            consent.ConsentedAt = consentAt;
             consent.Version = profile.ConsentVersion;
         }
     }
