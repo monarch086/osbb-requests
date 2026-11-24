@@ -4,7 +4,7 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class ResidentApartment
 {
-    public required string Source { get; set; }
+    public long SourceId { get; set; }
     public required string ComplexId { get; set; }
     public long TelegramUserId { get; set; }
     public required string ApartmentId { get; set; }

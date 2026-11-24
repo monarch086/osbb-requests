@@ -23,11 +23,11 @@ internal sealed class OwnerApartmentProjector(DataContext db)
         return pk == OwnerApartments.Key(complexId, ownerId);
     }
 
-    public async Task<bool> ProjectAsync(string source, string complexId, long ownerId, Dictionary<string, AttributeValue> item, CancellationToken ct)
+    public async Task<bool> ProjectAsync(long sourceId, string complexId, long ownerId, Dictionary<string, AttributeValue> item, CancellationToken ct)
     {
         var record = OwnerApartments.Read(item, complexId, ownerId)
             ?? throw new InvalidOperationException("Missing owner apartment payload.");
-        var current = await Rows(source, complexId, ownerId).ToDictionaryAsync(row => row.ApartmentId, ct);
+        var current = await Rows(sourceId, complexId, ownerId).ToDictionaryAsync(row => row.ApartmentId, ct);
         var changed = false;
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var apartment in record.Items)
@@ -38,7 +38,7 @@ internal sealed class OwnerApartmentProjector(DataContext db)
                 throw new InvalidOperationException("Invalid owner apartment projection.");
             var next = new ResidentApartment
             {
-                Source = source,
+                SourceId = sourceId,
                 ComplexId = complexId,
                 TelegramUserId = ownerId,
                 ApartmentId = apartment.Id,
@@ -66,13 +66,13 @@ internal sealed class OwnerApartmentProjector(DataContext db)
         return changed || current.Count > 0;
     }
 
-    public Task<int> RemoveAsync(string source, string complexId, long ownerId, CancellationToken ct) =>
-        Rows(source, complexId, ownerId).ExecuteDeleteAsync(ct);
+    public Task<int> RemoveAsync(long sourceId, string complexId, long ownerId, CancellationToken ct) =>
+        Rows(sourceId, complexId, ownerId).ExecuteDeleteAsync(ct);
 
     // PostgreSQL stores timestamps at microsecond precision.
     private static DateTimeOffset ToDatabaseTimestamp(DateTimeOffset timestamp) =>
         new(timestamp.UtcTicks - timestamp.UtcTicks % 10, TimeSpan.Zero);
 
-    private IQueryable<ResidentApartment> Rows(string source, string complexId, long ownerId) =>
-        db.ResidentApartments.Where(row => row.Source == source && row.ComplexId == complexId && row.TelegramUserId == ownerId);
+    private IQueryable<ResidentApartment> Rows(long sourceId, string complexId, long ownerId) =>
+        db.ResidentApartments.Where(row => row.SourceId == sourceId && row.ComplexId == complexId && row.TelegramUserId == ownerId);
 }

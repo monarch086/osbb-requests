@@ -4,7 +4,7 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class Request
 {
-    public required string Source { get; set; }
+    public long SourceId { get; set; }
     public long OwnerId { get; set; }
     public long RequestId { get; set; }
     public required string ComplexId { get; set; }

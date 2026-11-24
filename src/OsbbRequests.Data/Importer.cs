@@ -24,7 +24,8 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
     {
         await db.Database.OpenConnectionAsync(ct);
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_lock(349875242)", ct);
-        var run = new ImportRun { Id = Guid.NewGuid(), Source = $"unknown:{region}:{stage}", StartedAt = DateTimeOffset.UtcNow, Status = "running" };
+        var startedAt = DateTimeOffset.UtcNow;
+        var run = new ImportRun { Id = Guid.NewGuid(), SourceId = await ResolveSourceIdAsync(null, ct), StartedAt = startedAt, Status = "running" };
         db.ImportRuns.Add(run);
         await db.SaveChangesAsync(ct);
         try
@@ -39,8 +40,8 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                 sources.Add((kind, name, parts[4]));
             }
             if (sources.Select(s => s.Account).Distinct(StringComparer.Ordinal).Count() != 1) throw new InvalidOperationException("Source account mismatch.");
-            var source = $"{sources[0].Account}:{region}:{stage}";
-            run.Source = source;
+            var sourceId = await ResolveSourceIdAsync(sources[0].Account, ct);
+            run.SourceId = sourceId;
             var apartments = new OwnerApartmentProjector(db);
             foreach (var table in sources)
             {
@@ -58,20 +59,20 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                         run.ReadCount++;
                         if (table.Kind == "residents" && OwnerApartmentProjector.TryParseKey(item["pk"].S, out var complexId, out var ownerId))
                         {
-                            var changed = await apartments.ProjectAsync(source, complexId, ownerId, item, ct);
-                            var legacyCopy = await db.SourceRecords.FindAsync([source, table.Kind, key], ct);
+                            var changed = await apartments.ProjectAsync(sourceId, complexId, ownerId, item, ct);
+                            var legacyCopy = await db.SourceRecords.FindAsync([sourceId, table.Kind, key], ct);
                             if (legacyCopy is not null) db.SourceRecords.Remove(legacyCopy);
                             if (changed || legacyCopy is not null) run.ChangedCount++;
                             continue;
                         }
                         var json = Document.FromAttributeMap(item).ToJson();
                         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(json))));
-                        var existing = await db.SourceRecords.FindAsync([source, table.Kind, key], ct);
+                        var existing = await db.SourceRecords.FindAsync([sourceId, table.Kind, key], ct);
                         if (existing?.Hash == hash && existing.ProjectionVersion == RelatedProjector.Version) continue;
-                        if (existing is null) db.SourceRecords.Add(new SourceRecord { Source = source, Table = table.Kind, Key = key, Hash = hash, Data = json, LastSeenAt = run.StartedAt, ProjectionVersion = RelatedProjector.Version });
+                        if (existing is null) db.SourceRecords.Add(new SourceRecord { SourceId = sourceId, Table = table.Kind, Key = key, Hash = hash, Data = json, LastSeenAt = run.StartedAt, ProjectionVersion = RelatedProjector.Version });
                         else { existing.Hash = hash; existing.Data = json; existing.LastSeenAt = run.StartedAt; existing.ProjectionVersion = RelatedProjector.Version; }
-                        await ProjectAsync(source, table.Kind, item, ct);
-                        await new RelatedProjector(db).ProjectAsync(source, table.Kind, key, item, json, ct);
+                        await ProjectAsync(sourceId, table.Kind, item, ct);
+                        await new RelatedProjector(db).ProjectAsync(sourceId, table.Kind, key, item, json, ct);
                         run.ChangedCount++;
                     }
                     await db.SaveChangesAsync(ct);
@@ -80,11 +81,11 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                     db.Attach(run);
                     start = page.LastEvaluatedKey;
                 } while (start is { Count: > 0 });
-                var savedKeys = await db.SourceRecords.AsNoTracking().Where(row => row.Source == source && row.Table == table.Kind)
+                var savedKeys = await db.SourceRecords.AsNoTracking().Where(row => row.SourceId == sourceId && row.Table == table.Kind)
                     .Select(row => row.Key).ToHashSetAsync(ct);
                 if (table.Kind == "residents")
                 {
-                    var owners = await db.ResidentApartments.Where(row => row.Source == source)
+                    var owners = await db.ResidentApartments.Where(row => row.SourceId == sourceId)
                         .Select(row => new { row.ComplexId, row.TelegramUserId }).Distinct().ToListAsync(ct);
                     savedKeys.UnionWith(owners.Select(owner =>
                         OwnerApartments.Key(owner.ComplexId, owner.TelegramUserId) + "\u001f"));
@@ -97,20 +98,20 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                     if (table.Kind is "command-data" or "statistics") dynamoKey["sk"] = new(parts[1]);
                     var current = await dynamo.GetItemAsync(new GetItemRequest { TableName = table.Name, Key = dynamoKey, ConsistentRead = true }, ct);
                     if (current.Item is { Count: > 0 }) continue;
-                    var stale = await db.SourceRecords.FindAsync([source, table.Kind, key], ct);
+                    var stale = await db.SourceRecords.FindAsync([sourceId, table.Kind, key], ct);
                     var complexId = "";
                     long ownerId = 0;
                     var isApartment = table.Kind == "residents" && OwnerApartmentProjector.TryParseKey(parts[0], out complexId, out ownerId);
                     if (stale is null && !isApartment) continue;
                     await using var deletion = await db.Database.BeginTransactionAsync(ct);
                     if (isApartment)
-                        await apartments.RemoveAsync(source, complexId, ownerId, ct);
+                        await apartments.RemoveAsync(sourceId, complexId, ownerId, ct);
                     if (stale is not null)
                     {
                         if (!isApartment)
                         {
-                            await RemoveProjectionAsync(source, table.Kind, key, stale.Data, ct);
-                            await new RelatedProjector(db).RemoveAsync(source, table.Kind, key, stale.Data, ct);
+                            await RemoveProjectionAsync(sourceId, table.Kind, key, stale.Data, ct);
+                            await new RelatedProjector(db).RemoveAsync(sourceId, table.Kind, key, stale.Data, ct);
                         }
                         db.SourceRecords.Remove(stale);
                     }
@@ -139,11 +140,24 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
         }
         Console.WriteLine($"Імпорт завершено. Прочитано: {run.ReadCount}; змінено: {run.ChangedCount}.");
     }
-    private async Task RemoveProjectionAsync(string source, string table, string key, string data, CancellationToken ct)
+
+    private async Task<long> ResolveSourceIdAsync(string? account, CancellationToken ct)
+    {
+        var source = await db.ImportSources.SingleOrDefaultAsync(row =>
+            row.AwsAccountId == account && row.Region == region && row.Stage == stage, ct);
+        if (source is not null) return source.Id;
+
+        source = new ImportSource { AwsAccountId = account, Region = region, Stage = stage };
+        db.ImportSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        return source.Id;
+    }
+
+    private async Task RemoveProjectionAsync(long sourceId, string table, string key, string data, CancellationToken ct)
     {
         if (table == "administrators")
         {
-            var admin = await db.Administrators.FindAsync([source, key], ct);
+            var admin = await db.Administrators.FindAsync([sourceId, key], ct);
             if (admin is not null) db.Administrators.Remove(admin);
         }
         var parts = key.Split('\u001f', 2);
@@ -151,7 +165,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
         {
             if (long.TryParse(parts[0][5..], out var owner) && long.TryParse(parts[1][8..], out var id))
             {
-                var request = await db.Requests.FindAsync([source, owner, id], ct);
+                var request = await db.Requests.FindAsync([sourceId, owner, id], ct);
                 if (request is not null) db.Requests.Remove(request);
             }
         }
@@ -161,11 +175,11 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
             if (!document.RootElement.TryGetProperty("payload", out var payload) || payload.ValueKind != JsonValueKind.String) return;
             using var profile = JsonDocument.Parse(payload.GetString()!);
             if (!profile.RootElement.TryGetProperty("UserId", out var user) || !profile.RootElement.TryGetProperty("BuildingId", out var complex)) return;
-            var resident = await db.Residents.FindAsync([source, complex.GetString()!, user.GetInt64()], ct);
+            var resident = await db.Residents.FindAsync([sourceId, complex.GetString()!, user.GetInt64()], ct);
             if (resident is not null) db.Residents.Remove(resident);
         }
     }
-    private async Task ProjectAsync(string source, string table, Dictionary<string, AttributeValue> item, CancellationToken ct)
+    private async Task ProjectAsync(long sourceId, string table, Dictionary<string, AttributeValue> item, CancellationToken ct)
     {
         if (!item.TryGetValue("payload", out var payload) || string.IsNullOrEmpty(payload.S)) return;
         var pk = item.GetValueOrDefault("pk")?.S ?? "";
@@ -180,7 +194,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
             var profile = root.Deserialize<ResidentRegistration>()!;
             var next = new Resident
             {
-                Source = source,
+                SourceId = sourceId,
                 ComplexId = complexId,
                 TelegramUserId = id,
                 RegistrationId = profile.Id,
@@ -205,7 +219,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                 TypeBeforeAddress = profile.TypeBeforeAddress,
                 TypeChangeCount = profile.TypeChangeCount
             };
-            var resident = await db.Residents.FindAsync([source, complexId, id], ct);
+            var resident = await db.Residents.FindAsync([sourceId, complexId, id], ct);
             if (resident is null) db.Residents.Add(next);
             else db.Entry(resident).CurrentValues.SetValues(next);
         }
@@ -214,7 +228,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
             var value = root.Deserialize<MaintenanceRequest>(RequestJsonOptions)!;
             var next = new Request
             {
-                Source = source,
+                SourceId = sourceId,
                 OwnerId = value.OwnerId,
                 RequestId = value.Id,
                 ComplexId = value.BuildingId,
@@ -235,7 +249,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                 KeyType = value.KeyType,
                 KeyQuantity = value.KeyQuantity
             };
-            var request = await db.Requests.FindAsync([source, value.OwnerId, value.Id], ct);
+            var request = await db.Requests.FindAsync([sourceId, value.OwnerId, value.Id], ct);
             if (request is null) db.Requests.Add(next);
             else db.Entry(request).CurrentValues.SetValues(next);
         }

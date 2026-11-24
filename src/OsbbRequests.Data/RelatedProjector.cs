@@ -11,17 +11,17 @@ public sealed class RelatedProjector(DataContext db)
 {
     public const int Version = 2;
 
-    public async Task ProjectAsync(string source, string table, string key, Dictionary<string, AttributeValue> item, string json, CancellationToken ct)
+    public async Task ProjectAsync(long sourceId, string table, string key, Dictionary<string, AttributeValue> item, string json, CancellationToken ct)
     {
         var pk = item.GetValueOrDefault("pk")?.S ?? "";
         var sk = item.GetValueOrDefault("sk")?.S ?? "";
         if (table == "administrators")
         {
             var id = item["UserId"].S;
-            var admin = await db.Administrators.FindAsync([source, id], ct);
+            var admin = await db.Administrators.FindAsync([sourceId, id], ct);
             if (admin is null)
             {
-                admin = new Administrator { Source = source, UserId = id };
+                admin = new Administrator { SourceId = sourceId, UserId = id };
                 db.Administrators.Add(admin);
             }
             admin.Email = item.GetValueOrDefault("Email")?.S;
@@ -31,15 +31,15 @@ public sealed class RelatedProjector(DataContext db)
             admin.CreatedAt = Date(item.GetValueOrDefault("CreatedAt")?.S);
             admin.UpdatedAt = Date(item.GetValueOrDefault("UpdatedAt")?.S);
 
-            var permissions = await db.AdministratorPermissions.FindAsync([source, id], ct);
-            if (permissions is null) { permissions = new AdministratorPermission { Source = source, UserId = id }; db.AdministratorPermissions.Add(permissions); }
+            var permissions = await db.AdministratorPermissions.FindAsync([sourceId, id], ct);
+            if (permissions is null) { permissions = new AdministratorPermission { SourceId = sourceId, UserId = id }; db.AdministratorPermissions.Add(permissions); }
             permissions.ComplexRequests = item.GetValueOrDefault("AccessComplexRequests")?.BOOL ?? true;
             permissions.KeyOrders = item.GetValueOrDefault("AccessKeyOrders")?.BOOL ?? true;
             permissions.RegisteredResidents = item.GetValueOrDefault("AccessRegisteredResidents")?.BOOL ?? true;
             permissions.PendingResidents = item.GetValueOrDefault("AccessPendingResidents")?.BOOL ?? true;
             permissions.Messages = item.GetValueOrDefault("AccessMessages")?.BOOL ?? false;
-            var settings = await db.AdministratorNotificationSettings.FindAsync([source, id], ct);
-            if (settings is null) { settings = new AdministratorNotificationSetting { Source = source, UserId = id }; db.AdministratorNotificationSettings.Add(settings); }
+            var settings = await db.AdministratorNotificationSettings.FindAsync([sourceId, id], ct);
+            if (settings is null) { settings = new AdministratorNotificationSetting { SourceId = sourceId, UserId = id }; db.AdministratorNotificationSettings.Add(settings); }
             settings.TelegramChatId = item.GetValueOrDefault("TelegramChatId")?.S;
             settings.NewResidents = item.GetValueOrDefault("NotifyNewResidents")?.BOOL ?? false;
             settings.NewApartmentRegistrations = item.GetValueOrDefault("NotifyNewApartmentRegistrations")?.BOOL ?? settings.NewResidents;
@@ -51,7 +51,7 @@ public sealed class RelatedProjector(DataContext db)
         {
             var owner = long.Parse(pk[5..], CultureInfo.InvariantCulture);
             var requestId = long.Parse(sk[8..], CultureInfo.InvariantCulture);
-            await db.RequestKeyItems.Where(x => x.Source == source && x.OwnerId == owner && x.RequestId == requestId).ExecuteDeleteAsync(ct);
+            await db.RequestKeyItems.Where(x => x.SourceId == sourceId && x.OwnerId == owner && x.RequestId == requestId).ExecuteDeleteAsync(ct);
             using var payload = JsonDocument.Parse(item["payload"].S);
             if (payload.RootElement.TryGetProperty("KeyItems", out var keys) && keys.ValueKind == JsonValueKind.Array)
             {
@@ -60,7 +60,7 @@ public sealed class RelatedProjector(DataContext db)
                 {
                     db.RequestKeyItems.Add(new RequestKeyItem
                     {
-                        Source = source,
+                        SourceId = sourceId,
                         OwnerId = owner,
                         RequestId = requestId,
                         Position = position++,
@@ -73,18 +73,18 @@ public sealed class RelatedProjector(DataContext db)
         }
         if (table == "command-data" && pk.StartsWith("REQUEST#", StringComparison.Ordinal) && sk.StartsWith("EVENT#", StringComparison.Ordinal) && long.TryParse(pk[8..], out var request))
         {
-            var row = await db.RequestEvents.FindAsync([source, key], ct);
-            if (row is null) db.RequestEvents.Add(new RequestEvent { Source = source, Key = key, RequestId = request, EventKey = sk, CreatedAt = Date(item.GetValueOrDefault("createdAt")?.S), Data = json });
+            var row = await db.RequestEvents.FindAsync([sourceId, key], ct);
+            if (row is null) db.RequestEvents.Add(new RequestEvent { SourceId = sourceId, Key = key, RequestId = request, EventKey = sk, CreatedAt = Date(item.GetValueOrDefault("createdAt")?.S), Data = json });
             else { row.Data = json; row.CreatedAt = Date(item.GetValueOrDefault("createdAt")?.S); }
         }
         if (table == "command-data" && pk.StartsWith("MESSAGES#", StringComparison.Ordinal) && sk.StartsWith("MESSAGE#", StringComparison.Ordinal))
         {
             using var payload = JsonDocument.Parse(item["payload"].S);
             var data = payload.RootElement;
-            var row = await db.BroadcastMessages.FindAsync([source, key], ct);
+            var row = await db.BroadcastMessages.FindAsync([sourceId, key], ct);
             if (row is null)
             {
-                row = new BroadcastMessage { Source = source, Key = key, ComplexId = pk[9..], MessageId = String(data, "Id") ?? "", Text = "", CreatedById = "", CreatedBy = "" };
+                row = new BroadcastMessage { SourceId = sourceId, Key = key, ComplexId = pk[9..], MessageId = String(data, "Id") ?? "", Text = "", CreatedById = "", CreatedBy = "" };
                 db.BroadcastMessages.Add(row);
             }
             row.Text = String(data, "Text") ?? "";
@@ -94,27 +94,27 @@ public sealed class RelatedProjector(DataContext db)
         }
         if (table == "command-data" && pk.StartsWith("NOTIFICATIONS#", StringComparison.Ordinal))
         {
-            var row = await db.Notifications.FindAsync([source, key], ct);
-            if (row is null) db.Notifications.Add(new Notification { Source = source, Key = key, ComplexId = pk[14..], Kind = sk.Split('#', 2)[0], Data = json });
+            var row = await db.Notifications.FindAsync([sourceId, key], ct);
+            if (row is null) db.Notifications.Add(new Notification { SourceId = sourceId, Key = key, ComplexId = pk[14..], Kind = sk.Split('#', 2)[0], Data = json });
             else row.Data = json;
         }
         if (table == "command-data" && pk.StartsWith("ADMIN#", StringComparison.Ordinal) && sk.StartsWith("EVENT#", StringComparison.Ordinal))
         {
-            var row = await db.AdministratorEvents.FindAsync([source, key], ct);
-            if (row is null) db.AdministratorEvents.Add(new AdministratorEvent { Source = source, Key = key, AdministratorId = pk[6..], Data = json });
+            var row = await db.AdministratorEvents.FindAsync([sourceId, key], ct);
+            if (row is null) db.AdministratorEvents.Add(new AdministratorEvent { SourceId = sourceId, Key = key, AdministratorId = pk[6..], Data = json });
             else row.Data = json;
         }
-        if (table == "residents") await ProjectResidentAsync(source, key, item, ct);
+        if (table == "residents") await ProjectResidentAsync(sourceId, key, item, ct);
         if (table == "statistics" && pk == "API" && sk.Length > 11 && sk[10] == '#')
         {
-            var row = await db.ApiDailyStatistics.FindAsync([source, key], ct);
-            if (row is null) { row = new ApiDailyStatistic { Source = source, Key = key, Date = sk[..10], Endpoint = sk[11..] }; db.ApiDailyStatistics.Add(row); }
+            var row = await db.ApiDailyStatistics.FindAsync([sourceId, key], ct);
+            if (row is null) { row = new ApiDailyStatistic { SourceId = sourceId, Key = key, Date = sk[..10], Endpoint = sk[11..] }; db.ApiDailyStatistics.Add(row); }
             row.Requests = (long)Number(item, "requests"); row.ReadUnits = Number(item, "readUnits");
             row.WriteUnits = Number(item, "writeUnits"); row.DurationMs = Number(item, "durationMs");
         }
     }
 
-    private async Task ProjectResidentAsync(string source, string key, Dictionary<string, AttributeValue> item, CancellationToken ct)
+    private async Task ProjectResidentAsync(long sourceId, string key, Dictionary<string, AttributeValue> item, CancellationToken ct)
     {
         var sourcePk = item.GetValueOrDefault("sourcePk")?.S ?? "";
         var sourceSk = item.GetValueOrDefault("sourceSk")?.S ?? "";
@@ -122,18 +122,18 @@ public sealed class RelatedProjector(DataContext db)
         if (sourcePk.StartsWith("REGISTRATION#", StringComparison.Ordinal) && sourceSk.StartsWith("EVENT#", StringComparison.Ordinal) && data is { Count: > 0 })
         {
             var value = Document.FromAttributeMap(data).ToJson();
-            var row = await db.ResidentEvents.FindAsync([source, key], ct);
-            if (row is null) db.ResidentEvents.Add(new ResidentEvent { Source = source, Key = key, RegistrationId = sourcePk[13..], EventKey = sourceSk, Data = value });
+            var row = await db.ResidentEvents.FindAsync([sourceId, key], ct);
+            if (row is null) db.ResidentEvents.Add(new ResidentEvent { SourceId = sourceId, Key = key, RegistrationId = sourcePk[13..], EventKey = sourceSk, Data = value });
             else row.Data = value;
         }
         if (sourcePk.StartsWith("USER#", StringComparison.Ordinal) && sourceSk == "MEMBERSHIP" && data is { Count: > 0 } && long.TryParse(sourcePk[5..], out var id))
         {
             var membershipComplex = item.GetValueOrDefault("complexId")?.S;
             if (string.IsNullOrEmpty(membershipComplex)) membershipComplex = data.GetValueOrDefault("buildingId")?.S ?? "";
-            var row = await db.ResidentMemberships.FindAsync([source, key], ct);
+            var row = await db.ResidentMemberships.FindAsync([sourceId, key], ct);
             if (row is null)
             {
-                row = new ResidentMembership { Source = source, Key = key, ComplexId = membershipComplex, TelegramUserId = id };
+                row = new ResidentMembership { SourceId = sourceId, Key = key, ComplexId = membershipComplex, TelegramUserId = id };
                 db.ResidentMemberships.Add(row);
             }
             row.ComplexId = membershipComplex;
@@ -149,53 +149,53 @@ public sealed class RelatedProjector(DataContext db)
         if (!root.TryGetProperty("UserId", out var user) || !root.TryGetProperty("BuildingId", out var complex)) return;
         var complexId = complex.GetString()!;
         var userId = user.GetInt64();
-        await db.ResidentPhones.Where(x => x.Source == source && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
+        await db.ResidentPhones.Where(x => x.SourceId == sourceId && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
         var stage = String(root, "Stage");
         var deleted = root.TryGetProperty("PersonalDataDeleted", out var deletedValue) && deletedValue.ValueKind == JsonValueKind.True ||
             stage == "Deleted" || String(root, "PersonalDataDeletedAt") is not null && stage != "Approved";
         var phone = deleted ? null : String(root, "Phone");
-        if (!string.IsNullOrEmpty(phone)) db.ResidentPhones.Add(new ResidentPhone { Source = source, ComplexId = complexId, TelegramUserId = userId, Phone = phone });
-        var consent = await db.ResidentConsents.FindAsync([source, complexId, userId], ct);
+        if (!string.IsNullOrEmpty(phone)) db.ResidentPhones.Add(new ResidentPhone { SourceId = sourceId, ComplexId = complexId, TelegramUserId = userId, Phone = phone });
+        var consent = await db.ResidentConsents.FindAsync([sourceId, complexId, userId], ct);
         var consentAt = deleted ? null : Date(String(root, "ConsentAt"));
         if (consentAt is null) { if (consent is not null) db.ResidentConsents.Remove(consent); }
-        else if (consent is null) db.ResidentConsents.Add(new ResidentConsent { Source = source, ComplexId = complexId, TelegramUserId = userId, ConsentedAt = consentAt.Value, Version = String(root, "ConsentVersion") });
+        else if (consent is null) db.ResidentConsents.Add(new ResidentConsent { SourceId = sourceId, ComplexId = complexId, TelegramUserId = userId, ConsentedAt = consentAt.Value, Version = String(root, "ConsentVersion") });
         else { consent.ConsentedAt = consentAt.Value; consent.Version = String(root, "ConsentVersion"); }
     }
 
-    public async Task RemoveAsync(string source, string table, string key, string json, CancellationToken ct)
+    public async Task RemoveAsync(long sourceId, string table, string key, string json, CancellationToken ct)
     {
         var parts = key.Split('\u001f', 2);
         var pk = parts[0];
         var sk = parts.Length > 1 ? parts[1] : "";
         if (table == "administrators")
         {
-            await db.AdministratorPermissions.Where(x => x.Source == source && x.UserId == key).ExecuteDeleteAsync(ct);
-            await db.AdministratorNotificationSettings.Where(x => x.Source == source && x.UserId == key).ExecuteDeleteAsync(ct);
+            await db.AdministratorPermissions.Where(x => x.SourceId == sourceId && x.UserId == key).ExecuteDeleteAsync(ct);
+            await db.AdministratorNotificationSettings.Where(x => x.SourceId == sourceId && x.UserId == key).ExecuteDeleteAsync(ct);
         }
         if (table == "command-data")
         {
             if (pk.StartsWith("USER#", StringComparison.Ordinal) && sk.StartsWith("REQUEST#", StringComparison.Ordinal) &&
                 long.TryParse(pk[5..], out var owner) && long.TryParse(sk[8..], out var request))
-                await db.RequestKeyItems.Where(x => x.Source == source && x.OwnerId == owner && x.RequestId == request).ExecuteDeleteAsync(ct);
+                await db.RequestKeyItems.Where(x => x.SourceId == sourceId && x.OwnerId == owner && x.RequestId == request).ExecuteDeleteAsync(ct);
             if (pk.StartsWith("REQUEST#", StringComparison.Ordinal) && sk.StartsWith("EVENT#", StringComparison.Ordinal))
-                await db.RequestEvents.Where(x => x.Source == source && x.Key == key).ExecuteDeleteAsync(ct);
+                await db.RequestEvents.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
             if (pk.StartsWith("MESSAGES#", StringComparison.Ordinal) && sk.StartsWith("MESSAGE#", StringComparison.Ordinal))
-                await db.BroadcastMessages.Where(x => x.Source == source && x.Key == key).ExecuteDeleteAsync(ct);
+                await db.BroadcastMessages.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
             if (pk.StartsWith("NOTIFICATIONS#", StringComparison.Ordinal))
-                await db.Notifications.Where(x => x.Source == source && x.Key == key).ExecuteDeleteAsync(ct);
+                await db.Notifications.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
             if (pk.StartsWith("ADMIN#", StringComparison.Ordinal) && sk.StartsWith("EVENT#", StringComparison.Ordinal))
-                await db.AdministratorEvents.Where(x => x.Source == source && x.Key == key).ExecuteDeleteAsync(ct);
+                await db.AdministratorEvents.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
         }
         if (table == "statistics" && pk == "API")
-            await db.ApiDailyStatistics.Where(x => x.Source == source && x.Key == key).ExecuteDeleteAsync(ct);
+            await db.ApiDailyStatistics.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
         if (table != "residents") return;
         using var record = JsonDocument.Parse(json);
         var sourcePk = String(record.RootElement, "sourcePk") ?? "";
         var sourceSk = String(record.RootElement, "sourceSk") ?? "";
         if (sourcePk.StartsWith("REGISTRATION#", StringComparison.Ordinal) && sourceSk.StartsWith("EVENT#", StringComparison.Ordinal))
-            await db.ResidentEvents.Where(x => x.Source == source && x.Key == key).ExecuteDeleteAsync(ct);
+            await db.ResidentEvents.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
         if (sourcePk.StartsWith("USER#", StringComparison.Ordinal) && sourceSk == "MEMBERSHIP")
-            await db.ResidentMemberships.Where(x => x.Source == source && x.Key == key).ExecuteDeleteAsync(ct);
+            await db.ResidentMemberships.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
         if (!pk.StartsWith("COMPLEX#", StringComparison.Ordinal) || !pk.Contains("#USER#", StringComparison.Ordinal) || pk.Contains("#RECORD#", StringComparison.Ordinal)) return;
         var payload = String(record.RootElement, "payload");
         if (payload is null) return;
@@ -203,8 +203,8 @@ public sealed class RelatedProjector(DataContext db)
         if (!profile.RootElement.TryGetProperty("UserId", out var user) || !profile.RootElement.TryGetProperty("BuildingId", out var complex)) return;
         var complexId = complex.GetString();
         var userId = user.GetInt64();
-        await db.ResidentPhones.Where(x => x.Source == source && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
-        await db.ResidentConsents.Where(x => x.Source == source && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
+        await db.ResidentPhones.Where(x => x.SourceId == sourceId && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
+        await db.ResidentConsents.Where(x => x.SourceId == sourceId && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
     }
     private static string? String(JsonElement root, string name) => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static DateTimeOffset? Date(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date) ? date.ToUniversalTime() : null;

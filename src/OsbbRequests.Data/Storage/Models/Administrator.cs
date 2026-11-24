@@ -2,7 +2,7 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class Administrator
 {
-    public required string Source { get; set; }
+    public long SourceId { get; set; }
     public required string UserId { get; set; }
     public string? Email { get; set; }
     public string? DisplayName { get; set; }

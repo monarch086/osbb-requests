@@ -2,7 +2,7 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class AdministratorNotificationSetting
 {
-    public required string Source { get; set; }
+    public long SourceId { get; set; }
     public required string UserId { get; set; }
     public string? TelegramChatId { get; set; }
     public bool NewResidents { get; set; }

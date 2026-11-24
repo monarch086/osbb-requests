@@ -24,8 +24,8 @@ namespace OsbbRequests.Data.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.Administrator", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UserId")
                         .HasColumnType("text");
@@ -48,15 +48,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
-                    b.HasKey("Source", "UserId");
+                    b.HasKey("SourceId", "UserId");
 
                     b.ToTable("administrators", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.AdministratorEvent", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .HasColumnType("text");
@@ -69,15 +69,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.HasKey("Source", "Key");
+                    b.HasKey("SourceId", "Key");
 
                     b.ToTable("administrator_events", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.AdministratorNotificationSetting", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UserId")
                         .HasColumnType("text");
@@ -100,15 +100,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<string>("TelegramChatId")
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "UserId");
+                    b.HasKey("SourceId", "UserId");
 
                     b.ToTable("administrator_notification_settings", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.AdministratorPermission", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UserId")
                         .HasColumnType("text");
@@ -128,15 +128,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<bool>("RegisteredResidents")
                         .HasColumnType("boolean");
 
-                    b.HasKey("Source", "UserId");
+                    b.HasKey("SourceId", "UserId");
 
                     b.ToTable("administrator_permissions", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ApiDailyStatistic", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .HasColumnType("text");
@@ -161,15 +161,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<double>("WriteUnits")
                         .HasColumnType("double precision");
 
-                    b.HasKey("Source", "Key");
+                    b.HasKey("SourceId", "Key");
 
                     b.ToTable("api_daily_statistics", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.BroadcastMessage", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .HasColumnType("text");
@@ -197,9 +197,9 @@ namespace OsbbRequests.Data.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "Key");
+                    b.HasKey("SourceId", "Key");
 
-                    b.HasIndex("Source", "ComplexId", "CreatedAt");
+                    b.HasIndex("SourceId", "ComplexId", "CreatedAt");
 
                     b.ToTable("broadcast_messages", (string)null);
                 });
@@ -219,9 +219,8 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("ReadCount")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTimeOffset>("StartedAt")
                         .HasColumnType("timestamp with time zone");
@@ -232,13 +231,44 @@ namespace OsbbRequests.Data.Storage.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SourceId");
+
                     b.ToTable("import_runs", (string)null);
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.ImportSource", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AwsAccountId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AwsAccountId", "Region", "Stage")
+                        .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("AwsAccountId", "Region", "Stage"), false);
+
+                    b.ToTable("import_sources", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.Notification", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .HasColumnType("text");
@@ -255,15 +285,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "Key");
+                    b.HasKey("SourceId", "Key");
 
                     b.ToTable("notifications", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.Request", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<long>("OwnerId")
                         .HasColumnType("bigint");
@@ -326,17 +356,17 @@ namespace OsbbRequests.Data.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "OwnerId", "RequestId");
+                    b.HasKey("SourceId", "OwnerId", "RequestId");
 
-                    b.HasIndex("Source", "ComplexId", "Status", "CreatedAt");
+                    b.HasIndex("SourceId", "ComplexId", "Status", "CreatedAt");
 
                     b.ToTable("requests", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.RequestEvent", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .HasColumnType("text");
@@ -355,17 +385,17 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("RequestId")
                         .HasColumnType("bigint");
 
-                    b.HasKey("Source", "Key");
+                    b.HasKey("SourceId", "Key");
 
-                    b.HasIndex("Source", "RequestId", "CreatedAt");
+                    b.HasIndex("SourceId", "RequestId", "CreatedAt");
 
                     b.ToTable("request_events", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.RequestKeyItem", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<long>("OwnerId")
                         .HasColumnType("bigint");
@@ -387,7 +417,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "OwnerId", "RequestId", "Position");
+                    b.HasKey("SourceId", "OwnerId", "RequestId", "Position");
 
                     b.HasIndex("Phone");
 
@@ -396,8 +426,8 @@ namespace OsbbRequests.Data.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.Resident", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ComplexId")
                         .HasColumnType("text");
@@ -470,15 +500,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
-                    b.HasKey("Source", "ComplexId", "TelegramUserId");
+                    b.HasKey("SourceId", "ComplexId", "TelegramUserId");
 
                     b.ToTable("residents", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentApartment", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ComplexId")
                         .HasColumnType("text");
@@ -513,9 +543,9 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<DateTimeOffset>("SubmittedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.HasKey("Source", "ComplexId", "TelegramUserId", "ApartmentId");
+                    b.HasKey("SourceId", "ComplexId", "TelegramUserId", "ApartmentId");
 
-                    b.HasIndex("Source", "ComplexId", "BuildingNumber", "ApartmentNumber");
+                    b.HasIndex("SourceId", "ComplexId", "BuildingNumber", "ApartmentNumber");
 
                     b.ToTable("resident_apartments", null, t =>
                         {
@@ -527,8 +557,8 @@ namespace OsbbRequests.Data.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentConsent", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ComplexId")
                         .HasColumnType("text");
@@ -542,15 +572,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<string>("Version")
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "ComplexId", "TelegramUserId");
+                    b.HasKey("SourceId", "ComplexId", "TelegramUserId");
 
                     b.ToTable("resident_consents", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentEvent", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .HasColumnType("text");
@@ -567,17 +597,17 @@ namespace OsbbRequests.Data.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "Key");
+                    b.HasKey("SourceId", "Key");
 
-                    b.HasIndex("Source", "RegistrationId");
+                    b.HasIndex("SourceId", "RegistrationId");
 
                     b.ToTable("resident_events", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentMembership", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .HasColumnType("text");
@@ -601,15 +631,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("TelegramUserId")
                         .HasColumnType("bigint");
 
-                    b.HasKey("Source", "Key");
+                    b.HasKey("SourceId", "Key");
 
                     b.ToTable("resident_memberships", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentPhone", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ComplexId")
                         .HasColumnType("text");
@@ -620,7 +650,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("text");
 
-                    b.HasKey("Source", "ComplexId", "TelegramUserId", "Phone");
+                    b.HasKey("SourceId", "ComplexId", "TelegramUserId", "Phone");
 
                     b.HasIndex("Phone");
 
@@ -629,8 +659,8 @@ namespace OsbbRequests.Data.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.SourceRecord", b =>
                 {
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Table")
                         .HasColumnType("text");
@@ -652,53 +682,200 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<int>("ProjectionVersion")
                         .HasColumnType("integer");
 
-                    b.HasKey("Source", "Table", "Key");
+                    b.HasKey("SourceId", "Table", "Key");
 
                     b.ToTable("source_records", (string)null);
                 });
 
+            modelBuilder.Entity("OsbbRequests.Data.Storage.Administrator", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.AdministratorEvent", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("OsbbRequests.Data.Storage.AdministratorNotificationSetting", b =>
                 {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("OsbbRequests.Data.Storage.Administrator", null)
                         .WithMany()
-                        .HasForeignKey("Source", "UserId")
+                        .HasForeignKey("SourceId", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.AdministratorPermission", b =>
                 {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("OsbbRequests.Data.Storage.Administrator", null)
                         .WithMany()
-                        .HasForeignKey("Source", "UserId")
+                        .HasForeignKey("SourceId", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.ApiDailyStatistic", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.BroadcastMessage", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.ImportRun", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.Notification", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.Request", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.RequestEvent", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.RequestKeyItem", b =>
                 {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("OsbbRequests.Data.Storage.Request", null)
                         .WithMany()
-                        .HasForeignKey("Source", "OwnerId", "RequestId")
+                        .HasForeignKey("SourceId", "OwnerId", "RequestId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.Resident", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentApartment", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentConsent", b =>
                 {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("OsbbRequests.Data.Storage.Resident", null)
                         .WithMany()
-                        .HasForeignKey("Source", "ComplexId", "TelegramUserId")
+                        .HasForeignKey("SourceId", "ComplexId", "TelegramUserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentEvent", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentMembership", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentPhone", b =>
                 {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("OsbbRequests.Data.Storage.Resident", null)
                         .WithMany()
-                        .HasForeignKey("Source", "ComplexId", "TelegramUserId")
+                        .HasForeignKey("SourceId", "ComplexId", "TelegramUserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.Data.Storage.SourceRecord", b =>
+                {
+                    b.HasOne("OsbbRequests.Data.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

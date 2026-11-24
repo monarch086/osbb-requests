@@ -2,7 +2,7 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class SourceRecord
 {
-    public required string Source { get; set; }
+    public long SourceId { get; set; }
     public required string Table { get; set; }
     public required string Key { get; set; }
     public required string Hash { get; set; }
