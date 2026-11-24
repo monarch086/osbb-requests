@@ -90,8 +90,15 @@ if (administrator.IsActive || administrator.Version != 2 || administrator.Update
     membership.Active || membership.ComplexId != complexId || membership.ReviewedBy != "admin@example.test" ||
     membership.ReviewedAt != reviewAt || membership.RegistrationId is not null)
     throw new Exception("Administrator or membership columns were not updated");
-db.SourceRecords.Add(new SourceRecord { SourceId = sourceId, Table = "residents", Key = FakeDynamo.ApartmentKey + "\u001f",
-    Data = "{\"payload\":\"legacy\"}", Hash = "legacy", LastSeenAt = DateTimeOffset.UtcNow });
+db.SourceRecords.Add(new SourceRecord
+{
+    SourceId = sourceId,
+    Table = "residents",
+    Key = FakeDynamo.ApartmentKey + "\u001f",
+    Data = "{\"payload\":\"legacy\"}",
+    Hash = "legacy",
+    LastSeenAt = DateTimeOffset.UtcNow
+});
 await db.SaveChangesAsync();
 await Import();
 if (await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId && x.Key == FakeDynamo.ApartmentKey + "\u001f"))
@@ -165,6 +172,13 @@ if ((await db.ResidentApartments.SingleAsync(x => x.ComplexId == complexId)).Res
     (await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId)).ResidentId != residentId)
     throw new Exception("Import did not link a newly available profile");
 
+dynamo.SkipRequest = true;
+await Import();
+if (await db.Requests.AnyAsync(x => x.SourceId == sourceId) ||
+    await db.RequestKeyItems.AnyAsync(x => x.SourceId == sourceId) ||
+    !await db.RequestEvents.AnyAsync(x => x.SourceId == sourceId && x.RequestId == 1))
+    throw new Exception("Removing a request failed to preserve its independently imported history");
+
 dynamo.Empty = true;
 await Import();
 if (await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId) || await db.Residents.AnyAsync(x => x.ComplexId == complexId) || await db.Requests.AnyAsync(x => x.SourceId == sourceId) || await db.RequestKeyItems.AnyAsync(x => x.SourceId == sourceId) ||
@@ -194,6 +208,7 @@ Console.WriteLine("Synthetic import, projection upgrade, repeat, update, deletio
 sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
 {
     public bool Empty;
+    public bool SkipRequest;
     public bool SkipProfile;
     public bool Fail;
     public bool FailDescribe;
@@ -282,7 +297,7 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
                  "Category":"Замовлення ключів","Location":"","Description":"Тестове замовлення","AssignedTo":"admin","Priority":"High",
                  "KeyItems":[{"Type":"Магніт","Phone":"+380671234567","SerialNumber":"{{Serial}}"}]}
                 """);
-            items.Add(request);
+            if (!SkipRequest) items.Add(request);
             items.Add(Item("REQUEST#1", "EVENT#CREATED"));
             items.Add(Item("REGISTRATION#ref", "EVENT#DECIDED"));
             var message = Item("MESSAGES#test", "MESSAGE#2026-01-01#id");

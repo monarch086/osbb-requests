@@ -34,8 +34,7 @@ public partial class NormalizeResidentContactsAndStatistics : Migration
             FROM residents
             WHERE ("ConsentAt" IS NOT NULL OR "ConsentVersion" IS NOT NULL)
               AND NOT "PersonalDataDeleted" AND "Stage" <> 'Deleted'
-            ON CONFLICT ("ResidentId") DO UPDATE SET
-                "ConsentedAt" = EXCLUDED."ConsentedAt", "Version" = EXCLUDED."Version";
+            ON CONFLICT ("ResidentId") DO NOTHING;
             """);
 
         migrationBuilder.CreateIndex(
