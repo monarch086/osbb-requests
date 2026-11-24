@@ -66,6 +66,9 @@ export class StatisticsComponent implements OnInit, OnDestroy {
     this.sequence++;
   }
   protected async load(days: 1 | 7 | 30): Promise<void> {
+    if (days !== this.days) {
+      this.selectedDay = null;
+    }
     this.days = days;
     const sequence = ++this.sequence;
     this.loading = true;
@@ -76,8 +79,6 @@ export class StatisticsComponent implements OnInit, OnDestroy {
         return;
       }
       this.dailyItems = result.items;
-      this.selectedDay = null;
-      this.updateItems();
       const today = new Date();
       this.chart = Array.from({ length: days }, (_, i) => {
         const date = new Date(
@@ -94,6 +95,10 @@ export class StatisticsComponent implements OnInit, OnDestroy {
         };
       });
       this.maxRead = Math.max(0, ...this.chart.map((day) => day.readUnits));
+      if (this.selectedDay && !this.chart.some((day) => day.date === this.selectedDay)) {
+        this.selectedDay = null;
+      }
+      this.updateItems();
     } catch (error) {
       if (sequence === this.sequence) {
         this.error = errorMessage(error);

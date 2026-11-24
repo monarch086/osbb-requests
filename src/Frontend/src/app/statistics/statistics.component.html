@@ -4,36 +4,46 @@
     Календарні дні за UTC, включно з поточним днем. Дані збираються від моменту ввімкнення
     статистики.
   </p>
-  <div class="btn-group mb-4" role="group" aria-label="Період статистики">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <div class="btn-group" role="group" aria-label="Період статистики">
+      <button
+        type="button"
+        class="btn"
+        [class.btn-primary]="days === 1"
+        [class.btn-outline-secondary]="days !== 1"
+        [disabled]="loading"
+        (click)="load(1)"
+      >
+        День
+      </button>
+      <button
+        type="button"
+        class="btn"
+        [class.btn-primary]="days === 7"
+        [class.btn-outline-secondary]="days !== 7"
+        [disabled]="loading"
+        (click)="load(7)"
+      >
+        Тиждень
+      </button>
+      <button
+        type="button"
+        class="btn"
+        [class.btn-primary]="days === 30"
+        [class.btn-outline-secondary]="days !== 30"
+        [disabled]="loading"
+        (click)="load(30)"
+      >
+        Місяць
+      </button>
+    </div>
     <button
       type="button"
-      class="btn"
-      [class.btn-primary]="days === 1"
-      [class.btn-outline-secondary]="days !== 1"
+      class="btn btn-outline-secondary"
       [disabled]="loading"
-      (click)="load(1)"
+      (click)="load(days)"
     >
-      День
-    </button>
-    <button
-      type="button"
-      class="btn"
-      [class.btn-primary]="days === 7"
-      [class.btn-outline-secondary]="days !== 7"
-      [disabled]="loading"
-      (click)="load(7)"
-    >
-      Тиждень
-    </button>
-    <button
-      type="button"
-      class="btn"
-      [class.btn-primary]="days === 30"
-      [class.btn-outline-secondary]="days !== 30"
-      [disabled]="loading"
-      (click)="load(30)"
-    >
-      Місяць
+      ↻ Оновити
     </button>
   </div>
   @if (error) {
