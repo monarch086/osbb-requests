@@ -4,9 +4,9 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class ResidentApartment
 {
-    public long SourceId { get; set; }
-    public required string ComplexId { get; set; }
+    public long ComplexId { get; set; }
     public long TelegramUserId { get; set; }
+    public long? ResidentId { get; set; }
     public required string ApartmentId { get; set; }
     public required string RegistrationId { get; set; }
     public required string BuildingNumber { get; set; }

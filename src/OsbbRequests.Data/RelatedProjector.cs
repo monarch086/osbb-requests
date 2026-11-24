@@ -7,7 +7,7 @@ using OsbbRequests.Data.Storage;
 
 namespace OsbbRequests.Data;
 
-public sealed class RelatedProjector(DataContext db)
+internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexes)
 {
     public const int Version = 2;
 
@@ -84,7 +84,7 @@ public sealed class RelatedProjector(DataContext db)
             var row = await db.BroadcastMessages.FindAsync([sourceId, key], ct);
             if (row is null)
             {
-                row = new BroadcastMessage { SourceId = sourceId, Key = key, ComplexId = pk[9..], MessageId = String(data, "Id") ?? "", Text = "", CreatedById = "", CreatedBy = "" };
+                row = new BroadcastMessage { SourceId = sourceId, Key = key, ComplexId = await complexes.GetOrCreateIdAsync(pk[9..], ct), MessageId = String(data, "Id") ?? "", Text = "", CreatedById = "", CreatedBy = "" };
                 db.BroadcastMessages.Add(row);
             }
             row.Text = String(data, "Text") ?? "";
@@ -95,7 +95,7 @@ public sealed class RelatedProjector(DataContext db)
         if (table == "command-data" && pk.StartsWith("NOTIFICATIONS#", StringComparison.Ordinal))
         {
             var row = await db.Notifications.FindAsync([sourceId, key], ct);
-            if (row is null) db.Notifications.Add(new Notification { SourceId = sourceId, Key = key, ComplexId = pk[14..], Kind = sk.Split('#', 2)[0], Data = json });
+            if (row is null) db.Notifications.Add(new Notification { SourceId = sourceId, Key = key, ComplexId = await complexes.GetOrCreateIdAsync(pk[14..], ct), Kind = sk.Split('#', 2)[0], Data = json });
             else row.Data = json;
         }
         if (table == "command-data" && pk.StartsWith("ADMIN#", StringComparison.Ordinal) && sk.StartsWith("EVENT#", StringComparison.Ordinal))
@@ -130,36 +130,44 @@ public sealed class RelatedProjector(DataContext db)
         {
             var membershipComplex = item.GetValueOrDefault("complexId")?.S;
             if (string.IsNullOrEmpty(membershipComplex)) membershipComplex = data.GetValueOrDefault("buildingId")?.S ?? "";
+            var complexId = string.IsNullOrEmpty(membershipComplex) ? (long?)null : await complexes.GetOrCreateIdAsync(membershipComplex, ct);
             var row = await db.ResidentMemberships.FindAsync([sourceId, key], ct);
             if (row is null)
             {
-                row = new ResidentMembership { SourceId = sourceId, Key = key, ComplexId = membershipComplex, TelegramUserId = id };
+                row = new ResidentMembership { SourceId = sourceId, Key = key, ComplexId = complexId, TelegramUserId = id };
                 db.ResidentMemberships.Add(row);
             }
-            row.ComplexId = membershipComplex;
+            if (row.ComplexId != complexId || row.TelegramUserId != id) row.ResidentId = null;
+            row.ComplexId = complexId;
+            row.TelegramUserId = id;
             row.Active = data.GetValueOrDefault("active")?.BOOL == true;
             row.RegistrationId = data.GetValueOrDefault("registrationId")?.S;
             row.ReviewedBy = data.GetValueOrDefault("reviewedBy")?.S;
             row.ReviewedAt = Date(data.GetValueOrDefault("reviewedAt")?.S);
         }
-        var pk = item.GetValueOrDefault("pk")?.S ?? "";
-        if (!pk.StartsWith("COMPLEX#", StringComparison.Ordinal) || !pk.Contains("#USER#", StringComparison.Ordinal) || pk.Contains("#RECORD#", StringComparison.Ordinal) || !item.TryGetValue("payload", out var payload) || string.IsNullOrEmpty(payload.S)) return;
-        using var profile = JsonDocument.Parse(payload.S);
-        var root = profile.RootElement;
-        if (!root.TryGetProperty("UserId", out var user) || !root.TryGetProperty("BuildingId", out var complex)) return;
-        var complexId = complex.GetString()!;
-        var userId = user.GetInt64();
-        await db.ResidentPhones.Where(x => x.SourceId == sourceId && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
-        var stage = String(root, "Stage");
-        var deleted = root.TryGetProperty("PersonalDataDeleted", out var deletedValue) && deletedValue.ValueKind == JsonValueKind.True ||
-            stage == "Deleted" || String(root, "PersonalDataDeletedAt") is not null && stage != "Approved";
-        var phone = deleted ? null : String(root, "Phone");
-        if (!string.IsNullOrEmpty(phone)) db.ResidentPhones.Add(new ResidentPhone { SourceId = sourceId, ComplexId = complexId, TelegramUserId = userId, Phone = phone });
-        var consent = await db.ResidentConsents.FindAsync([sourceId, complexId, userId], ct);
-        var consentAt = deleted ? null : Date(String(root, "ConsentAt"));
-        if (consentAt is null) { if (consent is not null) db.ResidentConsents.Remove(consent); }
-        else if (consent is null) db.ResidentConsents.Add(new ResidentConsent { SourceId = sourceId, ComplexId = complexId, TelegramUserId = userId, ConsentedAt = consentAt.Value, Version = String(root, "ConsentVersion") });
-        else { consent.ConsentedAt = consentAt.Value; consent.Version = String(root, "ConsentVersion"); }
+    }
+
+    public async Task ReconcileResidentLinksAsync(long sourceId, CancellationToken ct)
+    {
+        // The residents scan can return apartments and memberships before their profiles.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE resident_apartments AS apartment
+            SET "ResidentId" = resident."Id"
+            FROM residents AS resident
+            JOIN complexes AS complex ON complex."Id" = resident."ComplexId"
+            WHERE complex."SourceId" = {sourceId}
+              AND apartment."ComplexId" = resident."ComplexId"
+              AND apartment."TelegramUserId" = resident."TelegramUserId"
+              AND apartment."ResidentId" IS DISTINCT FROM resident."Id";
+
+            UPDATE resident_memberships AS membership
+            SET "ResidentId" = resident."Id"
+            FROM residents AS resident
+            WHERE membership."SourceId" = {sourceId}
+              AND membership."ComplexId" = resident."ComplexId"
+              AND membership."TelegramUserId" = resident."TelegramUserId"
+              AND membership."ResidentId" IS DISTINCT FROM resident."Id";
+            """, ct);
     }
 
     public async Task RemoveAsync(long sourceId, string table, string key, string json, CancellationToken ct)
@@ -196,15 +204,6 @@ public sealed class RelatedProjector(DataContext db)
             await db.ResidentEvents.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
         if (sourcePk.StartsWith("USER#", StringComparison.Ordinal) && sourceSk == "MEMBERSHIP")
             await db.ResidentMemberships.Where(x => x.SourceId == sourceId && x.Key == key).ExecuteDeleteAsync(ct);
-        if (!pk.StartsWith("COMPLEX#", StringComparison.Ordinal) || !pk.Contains("#USER#", StringComparison.Ordinal) || pk.Contains("#RECORD#", StringComparison.Ordinal)) return;
-        var payload = String(record.RootElement, "payload");
-        if (payload is null) return;
-        using var profile = JsonDocument.Parse(payload);
-        if (!profile.RootElement.TryGetProperty("UserId", out var user) || !profile.RootElement.TryGetProperty("BuildingId", out var complex)) return;
-        var complexId = complex.GetString();
-        var userId = user.GetInt64();
-        await db.ResidentPhones.Where(x => x.SourceId == sourceId && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
-        await db.ResidentConsents.Where(x => x.SourceId == sourceId && x.ComplexId == complexId && x.TelegramUserId == userId).ExecuteDeleteAsync(ct);
     }
     private static string? String(JsonElement root, string name) => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static DateTimeOffset? Date(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date) ? date.ToUniversalTime() : null;

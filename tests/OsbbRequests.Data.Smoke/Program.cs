@@ -19,15 +19,17 @@ async Task Import() { await new Importer(db, dynamo, stage, "eu-central-1").Impo
 await Import();
 var sourceId = await db.ImportSources.Where(x => x.AwsAccountId == "123456789012" && x.Region == "eu-central-1" && x.Stage == stage)
     .Select(x => x.Id).SingleAsync();
-if (await db.Residents.CountAsync(x => x.SourceId == sourceId) != 1 || await db.Requests.CountAsync(x => x.SourceId == sourceId) != 1 ||
+var complexId = await db.Complexes.Where(x => x.SourceId == sourceId && x.ExternalId == "test").Select(x => x.Id).SingleAsync();
+var residentId = await db.Residents.Where(x => x.ComplexId == complexId).Select(x => x.Id).SingleAsync();
+if (await db.Residents.CountAsync(x => x.ComplexId == complexId) != 1 || await db.Requests.CountAsync(x => x.SourceId == sourceId) != 1 ||
     await db.Administrators.CountAsync(x => x.SourceId == sourceId) != 1 || await db.RequestKeyItems.CountAsync(x => x.SourceId == sourceId) != 1 ||
     await db.RequestEvents.CountAsync(x => x.SourceId == sourceId) != 1 || await db.ResidentEvents.CountAsync(x => x.SourceId == sourceId) != 1 ||
-    await db.ResidentPhones.CountAsync(x => x.SourceId == sourceId) != 1 || await db.ResidentConsents.CountAsync(x => x.SourceId == sourceId) != 1 ||
+    await db.ResidentPhones.CountAsync(x => x.ResidentId == residentId) != 1 || await db.ResidentConsents.CountAsync(x => x.ResidentId == residentId) != 1 ||
     await db.ResidentMemberships.CountAsync(x => x.SourceId == sourceId) != 1 || await db.BroadcastMessages.CountAsync(x => x.SourceId == sourceId) != 1 ||
     await db.Notifications.CountAsync(x => x.SourceId == sourceId) != 1 || await db.AdministratorEvents.CountAsync(x => x.SourceId == sourceId) != 1 ||
     await db.AdministratorPermissions.CountAsync(x => x.SourceId == sourceId) != 1 || await db.AdministratorNotificationSettings.CountAsync(x => x.SourceId == sourceId) != 1 ||
     await db.ApiDailyStatistics.CountAsync(x => x.SourceId == sourceId) != 1) throw new Exception("Projection failed");
-var resident = await db.Residents.SingleAsync(x => x.SourceId == sourceId);
+var resident = await db.Residents.SingleAsync(x => x.ComplexId == complexId);
 if (resident.RegistrationId != "ref" || resident.Stage != RegistrationStage.Approved || resident.Version != 3 ||
     resident.FirstName != "Ім’я" || resident.LastName != "Прізвище" || resident.Email != "resident@example.test" ||
     resident.Phone != "+380671234567" || resident.BuildingNumber != "4Б" || resident.ApartmentNumber != "007" ||
@@ -35,14 +37,14 @@ if (resident.RegistrationId != "ref" || resident.Stage != RegistrationStage.Appr
     resident.ConsentAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
     throw new Exception("Resident profile columns were not imported");
 var request = await db.Requests.SingleAsync(x => x.SourceId == sourceId);
-if (request.Status != RequestStatus.Completed || request.Visibility != RequestVisibility.Private ||
+if (request.ComplexId != complexId || request.Status != RequestStatus.Completed || request.Visibility != RequestVisibility.Private ||
     request.Category != RequestCategories.KeyOrder || request.Description != "Тестове замовлення" ||
     request.Location != "" || request.PlannedDate != new DateOnly(2026, 1, 2) || request.AssignedTo != "admin" ||
     request.Priority != "High" || request.Resolution != "Готово" || request.Scope is not null ||
     request.CreatedAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
     throw new Exception("Request columns were not imported");
-var apartment = await db.ResidentApartments.SingleAsync(x => x.SourceId == sourceId);
-if (apartment.RegistrationId != "ref" || apartment.BuildingNumber != "4Г" || apartment.ApartmentNumber != 12 ||
+var apartment = await db.ResidentApartments.SingleAsync(x => x.ComplexId == complexId);
+if (apartment.ResidentId != residentId || apartment.RegistrationId != "ref" || apartment.BuildingNumber != "4Г" || apartment.ApartmentNumber != 12 ||
     apartment.Status != ApartmentReviewStatus.Pending || apartment.ReviewedAt is not null || apartment.ReviewedBy is not null ||
     await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId && x.Key == FakeDynamo.ApartmentKey + "\u001f"))
     throw new Exception("Relational apartment import failed");
@@ -54,7 +56,7 @@ if (administrator.Email != "admin@example.test" || administrator.DisplayName != 
     administrator.CreatedAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
     throw new Exception("Administrator columns were not imported");
 var membership = await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId);
-if (membership.ComplexId != "test" || membership.TelegramUserId != 42 || !membership.Active ||
+if (membership.ResidentId != residentId || membership.ComplexId != complexId || membership.TelegramUserId != 42 || !membership.Active ||
     membership.RegistrationId != "ref" || membership.ReviewedBy != "system" ||
     membership.ReviewedAt != new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero))
     throw new Exception("Membership columns were not imported");
@@ -76,7 +78,7 @@ administrator = await db.Administrators.SingleAsync(x => x.SourceId == sourceId)
 membership = await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId);
 var reviewAt = new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero);
 if (administrator.IsActive || administrator.Version != 2 || administrator.UpdatedAt != reviewAt ||
-    membership.Active || membership.ComplexId != "test" || membership.ReviewedBy != "admin@example.test" ||
+    membership.Active || membership.ComplexId != complexId || membership.ReviewedBy != "admin@example.test" ||
     membership.ReviewedAt != reviewAt || membership.RegistrationId is not null)
     throw new Exception("Administrator or membership columns were not updated");
 db.SourceRecords.Add(new SourceRecord { SourceId = sourceId, Table = "residents", Key = FakeDynamo.ApartmentKey + "\u001f",
@@ -87,16 +89,16 @@ if (await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId && x.Key == Fake
     throw new Exception("Legacy JSON apartment copy survived import");
 dynamo.ApartmentApproved = true;
 await Import();
-apartment = await db.ResidentApartments.SingleAsync(x => x.SourceId == sourceId);
+apartment = await db.ResidentApartments.SingleAsync(x => x.ComplexId == complexId);
 if (apartment.Status != ApartmentReviewStatus.Approved || apartment.ReviewedBy != "reviewer@example.test" ||
     apartment.ReviewedAt != DateTimeOffset.Parse("2026-01-03T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture))
     throw new Exception("Apartment decision was not updated");
 dynamo.SkipApartmentInScan = true;
 await Import();
-if (!await db.ResidentApartments.AnyAsync(x => x.SourceId == sourceId)) throw new Exception("Unseen but existing apartment record was deleted");
+if (!await db.ResidentApartments.AnyAsync(x => x.ComplexId == complexId)) throw new Exception("Unseen but existing apartment record was deleted");
 dynamo.ApartmentRemoved = true;
 await Import();
-if (await db.ResidentApartments.AnyAsync(x => x.SourceId == sourceId)) throw new Exception("Deleted apartment record remained");
+if (await db.ResidentApartments.AnyAsync(x => x.ComplexId == complexId)) throw new Exception("Deleted apartment record remained");
 dynamo.SkipApartmentInScan = false;
 dynamo.ApartmentRemoved = false;
 await db.SourceRecords.Where(x => x.SourceId == sourceId).ExecuteUpdateAsync(x => x.SetProperty(row => row.ProjectionVersion, 0));
@@ -112,20 +114,36 @@ if (request.Status != RequestStatus.InProgress || request.PlannedDate is not nul
     throw new Exception("Request columns were not updated");
 dynamo.Deleted = true;
 await Import();
-resident = await db.Residents.SingleAsync(x => x.SourceId == sourceId);
+resident = await db.Residents.SingleAsync(x => x.ComplexId == complexId);
 if (!resident.PersonalDataDeleted || resident.Stage != RegistrationStage.Deleted || resident.Email is not null ||
     resident.Phone is not null || resident.FirstName is not null || resident.ConsentAt is not null)
     throw new Exception("Resident profile columns were not updated");
-if (await db.ResidentPhones.AnyAsync(x => x.SourceId == sourceId) || await db.ResidentConsents.AnyAsync(x => x.SourceId == sourceId)) throw new Exception("Deleted profile retained personal data projections");
+if (await db.ResidentPhones.AnyAsync(x => x.ResidentId == residentId) || await db.ResidentConsents.AnyAsync(x => x.ResidentId == residentId)) throw new Exception("Deleted profile retained personal data projections");
 dynamo.Deleted = false;
 await Import();
-if (await db.ResidentPhones.CountAsync(x => x.SourceId == sourceId) != 1 || await db.ResidentConsents.CountAsync(x => x.SourceId == sourceId) != 1) throw new Exception("Restored profile missing projections");
+if (await db.ResidentPhones.CountAsync(x => x.ResidentId == residentId) != 1 || await db.ResidentConsents.CountAsync(x => x.ResidentId == residentId) != 1) throw new Exception("Restored profile missing projections");
+dynamo.SkipProfile = true;
+await Import();
+if (await db.Residents.AnyAsync(x => x.ComplexId == complexId) ||
+    await db.ResidentPhones.AnyAsync(x => x.ResidentId == residentId) ||
+    await db.ResidentConsents.AnyAsync(x => x.ResidentId == residentId) ||
+    (await db.ResidentApartments.SingleAsync(x => x.ComplexId == complexId)).ResidentId is not null ||
+    (await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId)).ResidentId is not null)
+    throw new Exception("Removing a profile failed to unlink its historical records");
+
+dynamo.SkipProfile = false;
+await Import();
+residentId = await db.Residents.Where(x => x.ComplexId == complexId).Select(x => x.Id).SingleAsync();
+if ((await db.ResidentApartments.SingleAsync(x => x.ComplexId == complexId)).ResidentId != residentId ||
+    (await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId)).ResidentId != residentId)
+    throw new Exception("Import did not link a newly available profile");
+
 dynamo.Empty = true;
 await Import();
-if (await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId) || await db.Residents.AnyAsync(x => x.SourceId == sourceId) || await db.Requests.AnyAsync(x => x.SourceId == sourceId) || await db.RequestKeyItems.AnyAsync(x => x.SourceId == sourceId) ||
-    await db.ResidentApartments.AnyAsync(x => x.SourceId == sourceId) ||
+if (await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId) || await db.Residents.AnyAsync(x => x.ComplexId == complexId) || await db.Requests.AnyAsync(x => x.SourceId == sourceId) || await db.RequestKeyItems.AnyAsync(x => x.SourceId == sourceId) ||
+    await db.ResidentApartments.AnyAsync(x => x.ComplexId == complexId) ||
     await db.RequestEvents.AnyAsync(x => x.SourceId == sourceId) || await db.ResidentEvents.AnyAsync(x => x.SourceId == sourceId) ||
-    await db.ResidentPhones.AnyAsync(x => x.SourceId == sourceId) || await db.ResidentConsents.AnyAsync(x => x.SourceId == sourceId) ||
+    await db.ResidentPhones.AnyAsync(x => x.ResidentId == residentId) || await db.ResidentConsents.AnyAsync(x => x.ResidentId == residentId) ||
     await db.Administrators.AnyAsync(x => x.SourceId == sourceId) || await db.ResidentMemberships.AnyAsync(x => x.SourceId == sourceId) || await db.BroadcastMessages.AnyAsync(x => x.SourceId == sourceId) ||
     await db.Notifications.AnyAsync(x => x.SourceId == sourceId) || await db.AdministratorEvents.AnyAsync(x => x.SourceId == sourceId) ||
     await db.AdministratorPermissions.AnyAsync(x => x.SourceId == sourceId) || await db.AdministratorNotificationSettings.AnyAsync(x => x.SourceId == sourceId) ||
@@ -142,12 +160,14 @@ var unverifiedId = await db.ImportSources.Where(x => x.AwsAccountId == null && x
 var unverified = await db.ImportRuns.SingleAsync(x => x.SourceId == unverifiedId);
 if (unverified.Status != "failed" || unverified.FinishedAt is null) throw new Exception("Source discovery failure was not recorded");
 await db.ImportRuns.Where(x => x.SourceId == sourceId || x.SourceId == unverifiedId).ExecuteDeleteAsync();
+await db.Complexes.Where(x => x.SourceId == sourceId).ExecuteDeleteAsync();
 await db.ImportSources.Where(x => x.Id == sourceId || x.Id == unverifiedId).ExecuteDeleteAsync();
 Console.WriteLine("Synthetic import, projection upgrade, repeat, update, deletion and failure passed.");
 
 sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
 {
     public bool Empty;
+    public bool SkipProfile;
     public bool Fail;
     public bool FailDescribe;
     public bool Deleted;
@@ -209,7 +229,7 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
                    "BuildingNumber":"4Б","ApartmentNumber":"007","ResidentType":"Owner",
                    "ConsentAt":"2026-01-01T02:00:00+02:00","ConsentVersion":"v1"}
                   """;
-            items.Add(new() { ["pk"] = new("COMPLEX#test#USER#42"), ["payload"] = new(profile) });
+            if (!SkipProfile) items.Add(new() { ["pk"] = new("COMPLEX#test#USER#42"), ["payload"] = new(profile) });
             items.Add(new() { ["pk"] = new("COMPLEX#test#RECORD#REGISTRATION#ref#EVENT#DECIDED"), ["sourcePk"] = new("REGISTRATION#ref"), ["sourceSk"] = new("EVENT#DECIDED"), ["recordData"] = new() { M = new() { ["actor"] = new("test") } } });
             var membership = Item("USER#42", "MEMBERSHIP");
             membership["buildingId"] = new("test");

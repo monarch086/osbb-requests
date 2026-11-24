@@ -2,8 +2,7 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class ResidentPhone
 {
-    public long SourceId { get; set; }
-    public required string ComplexId { get; set; }
-    public long TelegramUserId { get; set; }
+    public long ResidentId { get; set; }
+    public Resident Resident { get; set; } = null!;
     public required string Phone { get; set; }
 }

@@ -4,8 +4,8 @@ namespace OsbbRequests.Data.Storage;
 
 public sealed class Resident
 {
-    public long SourceId { get; set; }
-    public required string ComplexId { get; set; }
+    public long Id { get; set; }
+    public long ComplexId { get; set; }
     public long TelegramUserId { get; set; }
     public string? RegistrationId { get; set; }
     public RegistrationStage Stage { get; set; }

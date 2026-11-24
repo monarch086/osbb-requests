@@ -8,6 +8,7 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
     public DbSet<SourceRecord> SourceRecords => Set<SourceRecord>();
     public DbSet<ImportRun> ImportRuns => Set<ImportRun>();
     public DbSet<ImportSource> ImportSources => Set<ImportSource>();
+    public DbSet<Complex> Complexes => Set<Complex>();
     public DbSet<ResidentApartment> ResidentApartments => Set<ResidentApartment>();
     public DbSet<Resident> Residents => Set<Resident>();
     public DbSet<Request> Requests => Set<Request>();
@@ -35,14 +36,17 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
                 table.HasCheckConstraint("CK_resident_apartments_number", "\"ApartmentNumber\" BETWEEN 1 AND 999");
                 table.HasCheckConstraint("CK_resident_apartments_status", "\"Status\" IN ('Pending', 'Approved', 'Rejected')");
             });
-            e.HasKey(x => new { x.SourceId, x.ComplexId, x.TelegramUserId, x.ApartmentId });
+            e.HasKey(x => new { x.ComplexId, x.TelegramUserId, x.ApartmentId });
             e.Property(x => x.Status).HasConversion<string>();
-            e.HasIndex(x => new { x.SourceId, x.ComplexId, x.BuildingNumber, x.ApartmentNumber });
+            e.HasIndex(x => new { x.ComplexId, x.BuildingNumber, x.ApartmentNumber });
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => x.ComplexId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Resident>().WithMany().HasForeignKey(x => x.ResidentId).OnDelete(DeleteBehavior.SetNull);
         });
         model.Entity<Resident>(e =>
         {
             e.ToTable("residents");
-            e.HasKey(x => new { x.SourceId, x.ComplexId, x.TelegramUserId });
+            e.HasIndex(x => new { x.ComplexId, x.TelegramUserId }).IsUnique();
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => x.ComplexId).OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.Stage).HasConversion<string>();
             e.Property(x => x.ResumeAfterConsent).HasConversion<string>();
             e.Property(x => x.ResidentType).HasConversion<string>();
@@ -55,16 +59,39 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.Property(x => x.Visibility).HasConversion<string>();
             e.Property(x => x.Scope).HasConversion<string>();
             e.HasIndex(x => new { x.SourceId, x.ComplexId, x.Status, x.CreatedAt });
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
+                .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         model.Entity<Administrator>(e => { e.ToTable("administrators"); e.HasKey(x => new { x.SourceId, x.UserId }); });
         model.Entity<RequestKeyItem>(e => { e.ToTable("request_key_items"); e.HasKey(x => new { x.SourceId, x.OwnerId, x.RequestId, x.Position }); e.HasIndex(x => x.Phone); e.HasOne<Request>().WithMany().HasForeignKey(x => new { x.SourceId, x.OwnerId, x.RequestId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<RequestEvent>(e => { e.ToTable("request_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.HasIndex(x => new { x.SourceId, x.RequestId, x.CreatedAt }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<ResidentEvent>(e => { e.ToTable("resident_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.HasIndex(x => new { x.SourceId, x.RegistrationId }); e.Property(x => x.Data).HasColumnType("jsonb"); });
-        model.Entity<ResidentPhone>(e => { e.ToTable("resident_phones"); e.HasKey(x => new { x.SourceId, x.ComplexId, x.TelegramUserId, x.Phone }); e.HasIndex(x => x.Phone); e.HasOne<Resident>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId, x.TelegramUserId }).OnDelete(DeleteBehavior.Cascade); });
-        model.Entity<ResidentConsent>(e => { e.ToTable("resident_consents"); e.HasKey(x => new { x.SourceId, x.ComplexId, x.TelegramUserId }); e.HasOne<Resident>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId, x.TelegramUserId }).OnDelete(DeleteBehavior.Cascade); });
-        model.Entity<ResidentMembership>(e => { e.ToTable("resident_memberships"); e.HasKey(x => new { x.SourceId, x.Key }); });
-        model.Entity<BroadcastMessage>(e => { e.ToTable("broadcast_messages"); e.HasKey(x => new { x.SourceId, x.Key }); e.HasIndex(x => new { x.SourceId, x.ComplexId, x.CreatedAt }); });
-        model.Entity<Notification>(e => { e.ToTable("notifications"); e.HasKey(x => new { x.SourceId, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
+        model.Entity<ResidentPhone>(e => { e.ToTable("resident_phones"); e.HasKey(x => new { x.ResidentId, x.Phone }); e.HasIndex(x => x.Phone); e.HasOne(x => x.Resident).WithMany().HasForeignKey(x => x.ResidentId).OnDelete(DeleteBehavior.Cascade); });
+        model.Entity<ResidentConsent>(e => { e.ToTable("resident_consents"); e.HasKey(x => x.ResidentId); e.HasOne(x => x.Resident).WithOne().HasForeignKey<ResidentConsent>(x => x.ResidentId).OnDelete(DeleteBehavior.Cascade); });
+        model.Entity<ResidentMembership>(e =>
+        {
+            e.ToTable("resident_memberships");
+            e.HasKey(x => new { x.SourceId, x.Key });
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
+                .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Resident>().WithMany().HasForeignKey(x => x.ResidentId).OnDelete(DeleteBehavior.SetNull);
+        });
+        model.Entity<BroadcastMessage>(e =>
+        {
+            e.ToTable("broadcast_messages");
+            e.HasKey(x => new { x.SourceId, x.Key });
+            e.HasIndex(x => new { x.SourceId, x.ComplexId, x.CreatedAt });
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
+                .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<Notification>(e =>
+        {
+            e.ToTable("notifications");
+            e.HasKey(x => new { x.SourceId, x.Key });
+            e.Property(x => x.Data).HasColumnType("jsonb");
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
+                .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
         model.Entity<AdministratorEvent>(e => { e.ToTable("administrator_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<AdministratorPermission>(e => { e.ToTable("administrator_permissions"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<AdministratorNotificationSetting>(e => { e.ToTable("administrator_notification_settings"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
@@ -73,6 +100,11 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
         {
             e.ToTable("import_sources");
             e.HasIndex(x => new { x.AwsAccountId, x.Region, x.Stage }).IsUnique().AreNullsDistinct(false);
+        });
+        model.Entity<Complex>(e =>
+        {
+            e.ToTable("complexes");
+            e.HasIndex(x => new { x.SourceId, x.ExternalId }).IsUnique();
         });
         foreach (var entity in model.Model.GetEntityTypes().Where(type => type.FindProperty(nameof(ImportRun.SourceId)) is not null))
         {
