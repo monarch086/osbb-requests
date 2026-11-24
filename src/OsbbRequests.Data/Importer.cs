@@ -70,7 +70,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                         if (existing?.Hash == hash && existing.ProjectionVersion == RelatedProjector.Version) continue;
                         if (existing is null) db.SourceRecords.Add(new SourceRecord { Source = source, Table = table.Kind, Key = key, Hash = hash, Data = json, LastSeenAt = run.StartedAt, ProjectionVersion = RelatedProjector.Version });
                         else { existing.Hash = hash; existing.Data = json; existing.LastSeenAt = run.StartedAt; existing.ProjectionVersion = RelatedProjector.Version; }
-                        await ProjectAsync(source, table.Kind, item, json, ct);
+                        await ProjectAsync(source, table.Kind, item, ct);
                         await new RelatedProjector(db).ProjectAsync(source, table.Kind, key, item, json, ct);
                         run.ChangedCount++;
                     }
@@ -165,15 +165,8 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
             if (resident is not null) db.Residents.Remove(resident);
         }
     }
-    private async Task ProjectAsync(string source, string table, Dictionary<string, AttributeValue> item, string json, CancellationToken ct)
+    private async Task ProjectAsync(string source, string table, Dictionary<string, AttributeValue> item, CancellationToken ct)
     {
-        if (table == "administrators")
-        {
-            var id = item["UserId"].S;
-            var admin = await db.Administrators.FindAsync([source, id], ct);
-            if (admin is null) db.Administrators.Add(new Administrator { Source = source, UserId = id, Data = json });
-            else admin.Data = json;
-        }
         if (!item.TryGetValue("payload", out var payload) || string.IsNullOrEmpty(payload.S)) return;
         var pk = item.GetValueOrDefault("pk")?.S ?? "";
         var sk = item.GetValueOrDefault("sk")?.S ?? "";

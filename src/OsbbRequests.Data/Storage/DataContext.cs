@@ -55,13 +55,13 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.Property(x => x.Scope).HasConversion<string>();
             e.HasIndex(x => new { x.Source, x.ComplexId, x.Status, x.CreatedAt });
         });
-        model.Entity<Administrator>(e => { e.ToTable("administrators"); e.HasKey(x => new { x.Source, x.UserId }); e.Property(x => x.Data).HasColumnType("jsonb"); });
+        model.Entity<Administrator>(e => { e.ToTable("administrators"); e.HasKey(x => new { x.Source, x.UserId }); });
         model.Entity<RequestKeyItem>(e => { e.ToTable("request_key_items"); e.HasKey(x => new { x.Source, x.OwnerId, x.RequestId, x.Position }); e.HasIndex(x => x.Phone); e.HasOne<Request>().WithMany().HasForeignKey(x => new { x.Source, x.OwnerId, x.RequestId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<RequestEvent>(e => { e.ToTable("request_events"); e.HasKey(x => new { x.Source, x.Key }); e.HasIndex(x => new { x.Source, x.RequestId, x.CreatedAt }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<ResidentEvent>(e => { e.ToTable("resident_events"); e.HasKey(x => new { x.Source, x.Key }); e.HasIndex(x => new { x.Source, x.RegistrationId }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<ResidentPhone>(e => { e.ToTable("resident_phones"); e.HasKey(x => new { x.Source, x.ComplexId, x.TelegramUserId, x.Phone }); e.HasIndex(x => x.Phone); e.HasOne<Resident>().WithMany().HasForeignKey(x => new { x.Source, x.ComplexId, x.TelegramUserId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<ResidentConsent>(e => { e.ToTable("resident_consents"); e.HasKey(x => new { x.Source, x.ComplexId, x.TelegramUserId }); e.HasOne<Resident>().WithMany().HasForeignKey(x => new { x.Source, x.ComplexId, x.TelegramUserId }).OnDelete(DeleteBehavior.Cascade); });
-        model.Entity<ResidentMembership>(e => { e.ToTable("resident_memberships"); e.HasKey(x => new { x.Source, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
+        model.Entity<ResidentMembership>(e => { e.ToTable("resident_memberships"); e.HasKey(x => new { x.Source, x.Key }); });
         model.Entity<BroadcastMessage>(e => { e.ToTable("broadcast_messages"); e.HasKey(x => new { x.Source, x.Key }); e.HasIndex(x => new { x.Source, x.ComplexId, x.CreatedAt }); });
         model.Entity<Notification>(e => { e.ToTable("notifications"); e.HasKey(x => new { x.Source, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<AdministratorEvent>(e => { e.ToTable("administrator_events"); e.HasKey(x => new { x.Source, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });

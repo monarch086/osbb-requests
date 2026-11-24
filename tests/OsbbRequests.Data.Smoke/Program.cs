@@ -47,6 +47,16 @@ if (apartment.RegistrationId != "ref" || apartment.BuildingNumber != "4Г" || ap
     throw new Exception("Relational apartment import failed");
 var permissions = await db.AdministratorPermissions.SingleAsync(x => x.Source == source);
 var settings = await db.AdministratorNotificationSettings.SingleAsync(x => x.Source == source);
+var administrator = await db.Administrators.SingleAsync(x => x.Source == source);
+if (administrator.Email != "admin@example.test" || administrator.DisplayName != "Адміністратор" ||
+    !administrator.IsActive || administrator.Version != 1 || administrator.UpdatedAt is not null ||
+    administrator.CreatedAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
+    throw new Exception("Administrator columns were not imported");
+var membership = await db.ResidentMemberships.SingleAsync(x => x.Source == source);
+if (membership.ComplexId != "test" || membership.TelegramUserId != 42 || !membership.Active ||
+    membership.RegistrationId != "ref" || membership.ReviewedBy != "system" ||
+    membership.ReviewedAt != new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero))
+    throw new Exception("Membership columns were not imported");
 if (!permissions.ComplexRequests || !permissions.KeyOrders || permissions.Messages || !settings.NewRequests || !settings.NewKeyOrders)
     throw new Exception("Legacy administrator defaults failed");
 if (!settings.NewResidents || !settings.NewApartmentRegistrations)
@@ -55,10 +65,18 @@ await Import();
 var run = await db.ImportRuns.Where(x => x.Source == source).OrderByDescending(x => x.StartedAt).FirstAsync();
 if (run.ChangedCount != 0 || run.Status != "succeeded") throw new Exception("Repeat failed");
 dynamo.ApartmentNotifications = false;
+dynamo.AccessRevoked = true;
 await Import();
 settings = await db.AdministratorNotificationSettings.SingleAsync(x => x.Source == source);
 if (!settings.NewResidents || settings.NewApartmentRegistrations)
     throw new Exception("Explicit apartment notification setting was not imported");
+administrator = await db.Administrators.SingleAsync(x => x.Source == source);
+membership = await db.ResidentMemberships.SingleAsync(x => x.Source == source);
+var reviewAt = new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero);
+if (administrator.IsActive || administrator.Version != 2 || administrator.UpdatedAt != reviewAt ||
+    membership.Active || membership.ComplexId != "test" || membership.ReviewedBy != "admin@example.test" ||
+    membership.ReviewedAt != reviewAt || membership.RegistrationId is not null)
+    throw new Exception("Administrator or membership columns were not updated");
 db.SourceRecords.Add(new SourceRecord { Source = source, Table = "residents", Key = FakeDynamo.ApartmentKey + "\u001f",
     Data = "{\"payload\":\"legacy\"}", Hash = "legacy", LastSeenAt = DateTimeOffset.UtcNow });
 await db.SaveChangesAsync();
@@ -106,7 +124,7 @@ if (await db.SourceRecords.AnyAsync(x => x.Source == source) || await db.Residen
     await db.ResidentApartments.AnyAsync(x => x.Source == source) ||
     await db.RequestEvents.AnyAsync(x => x.Source == source) || await db.ResidentEvents.AnyAsync(x => x.Source == source) ||
     await db.ResidentPhones.AnyAsync(x => x.Source == source) || await db.ResidentConsents.AnyAsync(x => x.Source == source) ||
-    await db.ResidentMemberships.AnyAsync(x => x.Source == source) || await db.BroadcastMessages.AnyAsync(x => x.Source == source) ||
+    await db.Administrators.AnyAsync(x => x.Source == source) || await db.ResidentMemberships.AnyAsync(x => x.Source == source) || await db.BroadcastMessages.AnyAsync(x => x.Source == source) ||
     await db.Notifications.AnyAsync(x => x.Source == source) || await db.AdministratorEvents.AnyAsync(x => x.Source == source) ||
     await db.AdministratorPermissions.AnyAsync(x => x.Source == source) || await db.AdministratorNotificationSettings.AnyAsync(x => x.Source == source) ||
     await db.ApiDailyStatistics.AnyAsync(x => x.Source == source)) throw new Exception("Deletion reconciliation failed");
@@ -123,6 +141,7 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
     public bool Empty;
     public bool Fail;
     public bool Deleted;
+    public bool AccessRevoked;
     public bool ApartmentApproved;
     public bool SkipApartmentInScan;
     public bool ApartmentRemoved;
@@ -155,9 +174,15 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
             var admin = new Dictionary<string, AttributeValue>
             {
                 ["UserId"] = new("admin"),
+                ["Email"] = new("admin@example.test"),
+                ["DisplayName"] = new("Адміністратор"),
+                ["CreatedAt"] = new("2026-01-01T02:00:00+02:00"),
+                ["IsActive"] = new() { BOOL = !AccessRevoked },
+                ["Version"] = new() { N = AccessRevoked ? "2" : "1" },
                 ["NotifyNewRequests"] = new() { BOOL = true },
                 ["NotifyNewResidents"] = new() { BOOL = true }
             };
+            if (AccessRevoked) admin["UpdatedAt"] = new("2026-01-03T00:00:00Z");
             if (ApartmentNotifications is { } value) admin["NotifyNewApartmentRegistrations"] = new() { BOOL = value };
             items.Add(admin);
         }
@@ -174,7 +199,13 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
                   """;
             items.Add(new() { ["pk"] = new("COMPLEX#test#USER#42"), ["payload"] = new(profile) });
             items.Add(new() { ["pk"] = new("COMPLEX#test#RECORD#REGISTRATION#ref#EVENT#DECIDED"), ["sourcePk"] = new("REGISTRATION#ref"), ["sourceSk"] = new("EVENT#DECIDED"), ["recordData"] = new() { M = new() { ["actor"] = new("test") } } });
-            items.Add(new() { ["pk"] = new("COMPLEX#test#RECORD#USER#42#MEMBERSHIP"), ["sourcePk"] = new("USER#42"), ["sourceSk"] = new("MEMBERSHIP"), ["complexId"] = new("test"), ["recordData"] = new() { M = new() { ["active"] = new() { BOOL = true } } } });
+            var membership = Item("USER#42", "MEMBERSHIP");
+            membership["buildingId"] = new("test");
+            membership["active"] = new() { BOOL = !AccessRevoked };
+            membership["reviewedBy"] = new(AccessRevoked ? "admin@example.test" : "system");
+            membership["reviewedAt"] = new(AccessRevoked ? "2026-01-03T00:00:00Z" : "2026-01-02T02:00:00+02:00");
+            if (!AccessRevoked) membership["registrationId"] = new("ref");
+            items.Add(new() { ["pk"] = new("COMPLEX#test#RECORD#USER#42#MEMBERSHIP"), ["sourcePk"] = new("USER#42"), ["sourceSk"] = new("MEMBERSHIP"), ["recordData"] = new() { M = membership } });
         }
         if (r.TableName.EndsWith("command-data"))
         {

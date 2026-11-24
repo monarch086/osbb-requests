@@ -18,6 +18,19 @@ public sealed class RelatedProjector(DataContext db)
         if (table == "administrators")
         {
             var id = item["UserId"].S;
+            var admin = await db.Administrators.FindAsync([source, id], ct);
+            if (admin is null)
+            {
+                admin = new Administrator { Source = source, UserId = id };
+                db.Administrators.Add(admin);
+            }
+            admin.Email = item.GetValueOrDefault("Email")?.S;
+            admin.DisplayName = item.GetValueOrDefault("DisplayName")?.S;
+            admin.IsActive = item.GetValueOrDefault("IsActive")?.BOOL == true;
+            admin.Version = int.Parse(item.GetValueOrDefault("Version")?.N ?? "0", CultureInfo.InvariantCulture);
+            admin.CreatedAt = Date(item.GetValueOrDefault("CreatedAt")?.S);
+            admin.UpdatedAt = Date(item.GetValueOrDefault("UpdatedAt")?.S);
+
             var permissions = await db.AdministratorPermissions.FindAsync([source, id], ct);
             if (permissions is null) { permissions = new AdministratorPermission { Source = source, UserId = id }; db.AdministratorPermissions.Add(permissions); }
             permissions.ComplexRequests = item.GetValueOrDefault("AccessComplexRequests")?.BOOL ?? true;
@@ -115,11 +128,19 @@ public sealed class RelatedProjector(DataContext db)
         }
         if (sourcePk.StartsWith("USER#", StringComparison.Ordinal) && sourceSk == "MEMBERSHIP" && data is { Count: > 0 } && long.TryParse(sourcePk[5..], out var id))
         {
-            var value = Document.FromAttributeMap(data).ToJson();
+            var membershipComplex = item.GetValueOrDefault("complexId")?.S;
+            if (string.IsNullOrEmpty(membershipComplex)) membershipComplex = data.GetValueOrDefault("buildingId")?.S ?? "";
             var row = await db.ResidentMemberships.FindAsync([source, key], ct);
-            if (row is null) { row = new ResidentMembership { Source = source, Key = key, ComplexId = item.GetValueOrDefault("complexId")?.S ?? "", TelegramUserId = id, Data = value }; db.ResidentMemberships.Add(row); }
+            if (row is null)
+            {
+                row = new ResidentMembership { Source = source, Key = key, ComplexId = membershipComplex, TelegramUserId = id };
+                db.ResidentMemberships.Add(row);
+            }
+            row.ComplexId = membershipComplex;
             row.Active = data.GetValueOrDefault("active")?.BOOL == true;
-            row.Data = value;
+            row.RegistrationId = data.GetValueOrDefault("registrationId")?.S;
+            row.ReviewedBy = data.GetValueOrDefault("reviewedBy")?.S;
+            row.ReviewedAt = Date(data.GetValueOrDefault("reviewedAt")?.S);
         }
         var pk = item.GetValueOrDefault("pk")?.S ?? "";
         if (!pk.StartsWith("COMPLEX#", StringComparison.Ordinal) || !pk.Contains("#USER#", StringComparison.Ordinal) || pk.Contains("#RECORD#", StringComparison.Ordinal) || !item.TryGetValue("payload", out var payload) || string.IsNullOrEmpty(payload.S)) return;
