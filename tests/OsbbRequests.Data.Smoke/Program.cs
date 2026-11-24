@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using OsbbRequests.Data;
 using OsbbRequests.Data.Storage;
+using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Residents;
 
@@ -32,6 +33,13 @@ if (resident.RegistrationId != "ref" || resident.Stage != RegistrationStage.Appr
     resident.ResidentType != ResidentType.Owner || resident.ConsentVersion != "v1" ||
     resident.ConsentAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
     throw new Exception("Resident profile columns were not imported");
+var request = await db.Requests.SingleAsync(x => x.Source == source);
+if (request.Status != RequestStatus.Completed || request.Visibility != RequestVisibility.Private ||
+    request.Category != RequestCategories.KeyOrder || request.Description != "Тестове замовлення" ||
+    request.Location != "" || request.PlannedDate != new DateOnly(2026, 1, 2) || request.AssignedTo != "admin" ||
+    request.Priority != "High" || request.Resolution != "Готово" || request.Scope is not null ||
+    request.CreatedAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
+    throw new Exception("Request columns were not imported");
 var apartment = await db.ResidentApartments.SingleAsync(x => x.Source == source);
 if (apartment.RegistrationId != "ref" || apartment.BuildingNumber != "4Г" || apartment.ApartmentNumber != 12 ||
     apartment.Status != ApartmentReviewStatus.Pending || apartment.ReviewedAt is not null || apartment.ReviewedBy is not null ||
@@ -79,6 +87,9 @@ dynamo.Serial = "new-serial";
 await Import();
 var key = await db.RequestKeyItems.SingleAsync(x => x.Source == source);
 if (key.SerialNumber != "new-serial") throw new Exception("Key update failed");
+request = await db.Requests.SingleAsync(x => x.Source == source);
+if (request.Status != RequestStatus.InProgress || request.PlannedDate is not null || request.Resolution is not null)
+    throw new Exception("Request columns were not updated");
 dynamo.Deleted = true;
 await Import();
 resident = await db.Residents.SingleAsync(x => x.Source == source);
@@ -91,7 +102,7 @@ await Import();
 if (await db.ResidentPhones.CountAsync(x => x.Source == source) != 1 || await db.ResidentConsents.CountAsync(x => x.Source == source) != 1) throw new Exception("Restored profile missing projections");
 dynamo.Empty = true;
 await Import();
-if (await db.SourceRecords.AnyAsync(x => x.Source == source) || await db.Residents.AnyAsync(x => x.Source == source) || await db.RequestKeyItems.AnyAsync(x => x.Source == source) ||
+if (await db.SourceRecords.AnyAsync(x => x.Source == source) || await db.Residents.AnyAsync(x => x.Source == source) || await db.Requests.AnyAsync(x => x.Source == source) || await db.RequestKeyItems.AnyAsync(x => x.Source == source) ||
     await db.ResidentApartments.AnyAsync(x => x.Source == source) ||
     await db.RequestEvents.AnyAsync(x => x.Source == source) || await db.ResidentEvents.AnyAsync(x => x.Source == source) ||
     await db.ResidentPhones.AnyAsync(x => x.Source == source) || await db.ResidentConsents.AnyAsync(x => x.Source == source) ||
@@ -168,7 +179,14 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
         if (r.TableName.EndsWith("command-data"))
         {
             var request = Item("USER#42", "REQUEST#00000000000000000001");
-            request["payload"] = new("{\"Id\":1,\"OwnerId\":42,\"BuildingId\":\"test\",\"Status\":3,\"CreatedAt\":\"2026-01-01T00:00:00Z\",\"KeyItems\":[{\"Type\":\"Магніт\",\"Phone\":\"+380671234567\",\"SerialNumber\":\"" + Serial + "\"}]}");
+            var status = Serial == "old-serial"
+                ? "\"Status\":3,\"PlannedDate\":\"2026-01-02\",\"Resolution\":\"Готово\""
+                : "\"Status\":\"InProgress\"";
+            request["payload"] = new($$"""
+                {"Id":1,"OwnerId":42,"BuildingId":"test",{{status}},"CreatedAt":"2026-01-01T02:00:00+02:00",
+                 "Category":"Замовлення ключів","Location":"","Description":"Тестове замовлення","AssignedTo":"admin","Priority":"High",
+                 "KeyItems":[{"Type":"Магніт","Phone":"+380671234567","SerialNumber":"{{Serial}}"}]}
+                """);
             items.Add(request);
             items.Add(Item("REQUEST#1", "EVENT#CREATED"));
             items.Add(Item("REGISTRATION#ref", "EVENT#DECIDED"));

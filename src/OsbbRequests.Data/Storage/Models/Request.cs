@@ -1,3 +1,5 @@
+using OsbbRequests.Shared.Domain;
+
 namespace OsbbRequests.Data.Storage;
 
 public sealed class Request
@@ -6,7 +8,20 @@ public sealed class Request
     public long OwnerId { get; set; }
     public long RequestId { get; set; }
     public required string ComplexId { get; set; }
-    public required string Status { get; set; }
+    public RequestStatus Status { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
-    public required string Payload { get; set; }
+    public string? Category { get; set; }
+    public string? Location { get; set; }
+    public string? Description { get; set; }
+    public RequestVisibility Visibility { get; set; }
+    public string? Resolution { get; set; }
+    public string? AssignedTo { get; set; }
+    public string Priority { get; set; } = "Normal";
+    public DateOnly? PlannedDate { get; set; }
+    public RequestScope? Scope { get; set; }
+    public string? BuildingNumber { get; set; }
+    public int? Floor { get; set; }
+    public int? Entrance { get; set; }
+    public string? KeyType { get; set; }
+    public int? KeyQuantity { get; set; }
 }

@@ -257,6 +257,15 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<long>("RequestId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("AssignedTo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuildingNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Category")
+                        .HasColumnType("text");
+
                     b.Property<string>("ComplexId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -264,11 +273,42 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Payload")
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Entrance")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Floor")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("KeyQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("KeyType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Location")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("PlannedDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Priority")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("text");
+
+                    b.Property<string>("Resolution")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Scope")
+                        .HasColumnType("text");
 
                     b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Visibility")
                         .IsRequired()
                         .HasColumnType("text");
 

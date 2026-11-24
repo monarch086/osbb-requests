@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.Data.Storage;
+using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.Shared.Residents;
 
@@ -13,6 +15,10 @@ namespace OsbbRequests.Data;
 
 public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stage, string region)
 {
+    private static readonly JsonSerializerOptions RequestJsonOptions = new()
+    {
+        Converters = { new JsonStringEnumConverter<RequestStatus>(), new JsonStringEnumConverter<RequestVisibility>() }
+    };
     private readonly string[] tables = ["administrators", "command-data", "residents", "statistics"];
     public async Task ImportAsync(CancellationToken ct)
     {
@@ -212,14 +218,33 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
         }
         if (table == "command-data" && pk.StartsWith("USER#", StringComparison.Ordinal) && sk.StartsWith("REQUEST#", StringComparison.Ordinal))
         {
-            var owner = root.GetProperty("OwnerId").GetInt64();
-            var id = root.GetProperty("Id").GetInt64();
-            var complex = root.GetProperty("BuildingId").GetString()!;
-            var status = root.GetProperty("Status").ToString();
-            var created = root.GetProperty("CreatedAt").GetDateTimeOffset().ToUniversalTime();
-            var request = await db.Requests.FindAsync([source, owner, id], ct);
-            if (request is null) db.Requests.Add(new Request { Source = source, OwnerId = owner, RequestId = id, ComplexId = complex, Status = status, CreatedAt = created, Payload = payload.S });
-            else { request.Payload = payload.S; request.ComplexId = complex; request.Status = status; request.CreatedAt = created; }
+            var value = root.Deserialize<MaintenanceRequest>(RequestJsonOptions)!;
+            var next = new Request
+            {
+                Source = source,
+                OwnerId = value.OwnerId,
+                RequestId = value.Id,
+                ComplexId = value.BuildingId,
+                CreatedAt = value.CreatedAt.ToUniversalTime(),
+                Status = value.Status,
+                Category = value.Category,
+                Location = value.Location,
+                Description = value.Description,
+                Visibility = value.Visibility,
+                Resolution = value.Resolution,
+                AssignedTo = value.AssignedTo,
+                Priority = value.Priority ?? "Normal",
+                PlannedDate = value.PlannedDate,
+                Scope = value.Scope,
+                BuildingNumber = value.BuildingNumber,
+                Floor = value.Floor,
+                Entrance = value.Entrance,
+                KeyType = value.KeyType,
+                KeyQuantity = value.KeyQuantity
+            };
+            var request = await db.Requests.FindAsync([source, value.OwnerId, value.Id], ct);
+            if (request is null) db.Requests.Add(next);
+            else db.Entry(request).CurrentValues.SetValues(next);
         }
     }
     private static string Canonical(string json)
