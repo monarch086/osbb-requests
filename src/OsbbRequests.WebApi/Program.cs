@@ -3,7 +3,6 @@ using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Amazon.Runtime;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using OsbbRequests.DataImport.Storage;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -41,14 +40,8 @@ builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(services =>
     new AmazonCognitoIdentityProviderClient(new AnonymousAWSCredentials(), CognitoRegion(services)));
 builder.Services.AddSingleton<IIdentityProvider, CognitoIdentity>();
 builder.Services.AddDbContextFactory<DataContext>(options => options.UseNpgsql(
-    builder.Configuration.GetConnectionString("Postgres") ?? new NpgsqlConnectionStringBuilder
-    {
-        Host = "postgres",
-        Database = "osbb_web_api",
-        Username = "osbb",
-        Password = builder.Configuration["Postgres:Password"],
-        GssEncryptionMode = GssEncryptionMode.Disable
-    }.ConnectionString));
+    builder.Configuration.GetConnectionString("Postgres") ??
+        throw new InvalidOperationException("Необхідно налаштувати ConnectionStrings:Postgres.")));
 builder.Services.AddSingleton(new PostgresOptions(
     builder.Configuration["Postgres:Region"] ?? "eu-central-1",
     builder.Configuration["Postgres:Stage"] ?? "dev",

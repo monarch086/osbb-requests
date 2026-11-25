@@ -3,15 +3,15 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: osbb
-      POSTGRES_USER: osbb
+      POSTGRES_DB: ${OSBB_IMPORT_DATABASE:?Set OSBB_IMPORT_DATABASE}
+      POSTGRES_USER: ${OSBB_POSTGRES_USER:-osbb}
       POSTGRES_PASSWORD: ${OSBB_POSTGRES_PASSWORD:?Set OSBB_POSTGRES_PASSWORD}
     ports:
       - '127.0.0.1:${OSBB_POSTGRES_PORT:-5433}:5432'
     volumes:
       - osbb_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U osbb -d osbb']
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
       timeout: 3s
       retries: 12
@@ -36,11 +36,7 @@ services:
     environment:
       HOME: /app
       AWS_PROFILE: ${AWS_PROFILE:-default}
-      OSBB_POSTGRES_HOST: postgres
-      OSBB_POSTGRES_PORT: '5432'
-      OSBB_POSTGRES_DB: ${OSBB_POSTGRES_DB:-osbb}
-      OSBB_POSTGRES_USER: ${OSBB_POSTGRES_USER:-osbb}
-      OSBB_POSTGRES_PASSWORD: ${OSBB_POSTGRES_PASSWORD:?Set OSBB_POSTGRES_PASSWORD}
+      OSBB_IMPORT_CONNECTION_STRING: ${OSBB_IMPORT_DOCKER_CONNECTION_STRING:?Set OSBB_IMPORT_DOCKER_CONNECTION_STRING}
     volumes:
       - type: bind
         source: ${OSBB_AWS_DIRECTORY:-${HOME}/.aws}
@@ -61,7 +57,7 @@ services:
       ASPNETCORE_HTTP_PORTS: '8080'
       Cognito__UserPoolId: ${OSBB_COGNITO_USER_POOL_ID:-}
       Cognito__ClientId: ${OSBB_COGNITO_CLIENT_ID:-}
-      Postgres__Password: ${OSBB_POSTGRES_PASSWORD:?Set OSBB_POSTGRES_PASSWORD}
+      ConnectionStrings__Postgres: ${OSBB_WEB_API_CONNECTION_STRING:?Set OSBB_WEB_API_CONNECTION_STRING}
       Postgres__ComplexId: ${OSBB_COMPLEX_ID:-osbb-requests-dev}
       Postgres__AccountId: ${OSBB_SOURCE_ACCOUNT_ID:-}
     ports:

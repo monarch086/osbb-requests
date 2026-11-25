@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using OsbbRequests.DataImport;
 using OsbbRequests.DataImport.Storage;
 
@@ -14,20 +13,12 @@ if (args.Length is not (1 or 5) || args[0] is not ("migrate" or "import") ||
     Console.Error.WriteLine("Використання: osbb-data migrate | osbb-data import --stage STAGE --region REGION");
     return 2;
 }
-var password = Environment.GetEnvironmentVariable("OSBB_POSTGRES_PASSWORD");
-if (string.IsNullOrEmpty(password))
+var connection = Environment.GetEnvironmentVariable("OSBB_IMPORT_CONNECTION_STRING");
+if (string.IsNullOrWhiteSpace(connection))
 {
-    Console.Error.WriteLine("Необхідно встановити OSBB_POSTGRES_PASSWORD.");
+    Console.Error.WriteLine("Необхідно встановити OSBB_IMPORT_CONNECTION_STRING.");
     return 2;
 }
-var connection = new NpgsqlConnectionStringBuilder
-{
-    Host = Environment.GetEnvironmentVariable("OSBB_POSTGRES_HOST") ?? "127.0.0.1",
-    Port = int.TryParse(Environment.GetEnvironmentVariable("OSBB_POSTGRES_PORT"), out var port) ? port : 5433,
-    Database = Environment.GetEnvironmentVariable("OSBB_POSTGRES_DB") ?? "osbb",
-    Username = Environment.GetEnvironmentVariable("OSBB_POSTGRES_USER") ?? "osbb",
-    Password = password
-}.ConnectionString;
 try
 {
     await using var context = new DataContext(new DbContextOptionsBuilder<DataContext>().UseNpgsql(connection).Options);

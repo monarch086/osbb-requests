@@ -104,6 +104,7 @@ public sealed partial class AdminAuthenticationTests : IDisposable
         {
             builder.UseSetting("Cognito:UserPoolId", Pool);
             builder.UseSetting("Cognito:ClientId", Client);
+            builder.UseSetting("ConnectionStrings:Postgres", "Host=127.0.0.1;Port=1;Database=unused");
             builder.ConfigureTestServices(services =>
             {
                 services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme,

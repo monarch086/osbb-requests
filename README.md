@@ -502,7 +502,7 @@ python3 scripts/verify-resident-phone-index.py --stage dev --region eu-central-1
 
 ## Локальний Web API
 
-Скрипт `./scripts/osbb-web-api` збирає та запускає в Compose адмінпанель на `http://127.0.0.1:8083` і Web API на `http://127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_web_api` з копії імпортованої `osbb`. Наступні запуски використовують наявну копію. Порти можна налаштувати через `OSBB_FRONTEND_PORT` та `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
+Скрипт `./scripts/osbb-web-api` збирає та запускає в Compose адмінпанель на `http://127.0.0.1:8083` і Web API на `http://127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_web_api` з копії імпортованої `osbb-import`. Наступні запуски використовують наявну копію. Порти можна налаштувати через `OSBB_FRONTEND_PORT` та `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
 
 ```bash
 ./scripts/osbb-web-api
@@ -517,20 +517,35 @@ curl --fail http://127.0.0.1:8082/health
 
 Усі адміністративні маршрути читають і зберігають дані у PostgreSQL. Для нових редагувань історія заявки відображає ті самі поля аудиту, що й хмарний API. Cognito використовується для перевірки токенів і підтвердженого email при першому вході. AWS credentials потрібні скрипту на хості для CloudFormation. У контейнер вони не передаються, а образ Web API не містить клієнта DynamoDB. Роль `IsSuperAdmin` береться з імпортованого профілю і доступна через API лише для читання.
 
-Щотижневий імпортер оновлює `osbb`. Робоча база `osbb_web_api` зберігає власні зміни, історію й події `LOCAL_PENDING`. Чинний Telegram-воркер обробляє події DynamoDB, тож локальні зміни й сповіщення не передаються в бот. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_web_api ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
+Щотижневий імпортер оновлює `osbb-import`. Робоча база `osbb_web_api` зберігає власні зміни, історію й події `LOCAL_PENDING`. Чинний Telegram-воркер обробляє події DynamoDB, тож локальні зміни й сповіщення не передаються в бот. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_web_api ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
 
 ## Локальна PostgreSQL та імпорт DynamoDB (експериментально)
 
-Compose-стек `compose.data.yml` запускає PostgreSQL 17 на `127.0.0.1:5433` із постійним локальним томом. Пароль зберігається лише локально в `.env.data.local` (файл виключений із Git). Для першого запуску згенеруйте його та запустіть базу:
+Compose-стек `compose.data.yml` запускає PostgreSQL 17 на `127.0.0.1:5433` із постійним локальним томом. Назви баз і рядки підключення зберігаються у файлі середовища. Для першого локального запуску створіть приватний `.env.data.local` із шаблону `.env.data.example` і запустіть базу:
 
 ```bash
 umask 077
-python3 -c 'import secrets; from pathlib import Path; Path(".env.data.local").write_text("OSBB_POSTGRES_PASSWORD=" + secrets.token_hex(24) + "\n")'
+python3 -c 'import secrets; from pathlib import Path; Path(".env.data.local").open("x").write(Path(".env.data.example").read_text().replace("replace-with-the-postgres-password", secrets.token_hex(24)))'
 docker compose --env-file .env.data.local -f compose.data.yml up -d
 ./scripts/osbb-data migrate
 ```
 
-Не перегенеровуйте пароль для вже ініціалізованого тому: PostgreSQL застосовує його під час першого створення бази. Для повторних запусків використовуйте наявний `.env.data.local`. Команди виконуються на хості; для AWS використовується стандартний ланцюг credentials SDK, а джерелу потрібні read-only дозволи `dynamodb:DescribeTable`, `dynamodb:Scan`, `dynamodb:GetItem` для чотирьох таблиць обраного stage. У стек також входить Adminer — вебінтерфейс PostgreSQL на [http://127.0.0.1:8081/?pgsql=postgres&db=osbb](http://127.0.0.1:8081/?pgsql=postgres&db=osbb). При вході виберіть PostgreSQL, сервер `postgres`, користувача `osbb` і базу `osbb`; пароль — значення `OSBB_POSTGRES_PASSWORD` із `.env.data.local`. Адреса сервера налаштована через Docker-мережу; пароль у конфігурацію Adminer не передається. За замовчуванням інтерфейс доступний лише на localhost; адресу та порт можна змінити через `OSBB_ADMINER_BIND` і `OSBB_ADMINER_PORT` у `.env.data.local`, після чого повторно виконати `docker compose --env-file .env.data.local -f compose.data.yml up -d`. Наприклад, `OSBB_ADMINER_BIND=192.168.0.41` відкриває доступ через цю мережеву адресу. HTTP не шифрує пароль і дані, тому використовуйте лише довірену мережу або захищений тунель. Adminer дає змогу змінювати дані, тому для перегляду надавайте доступ лише довіреним користувачам хоста.
+Для наявного `.env.data.local` додайте відсутні змінні з шаблону, зберігши поточний пароль. `OSBB_IMPORT_DATABASE` і `OSBB_WEB_API_DATABASE` задають назви баз. Рядки `OSBB_IMPORT_HOST_CONNECTION_STRING`, `OSBB_IMPORT_DOCKER_CONNECTION_STRING` та `OSBB_WEB_API_CONNECTION_STRING` використовують ці назви для CLI на хості, контейнера імпорту і контейнера Web API відповідно.
+
+Для іншого середовища скопіюйте шаблон, наприклад у `.env.data.staging`. Скрипти `osbb-data`, `osbb-data-weekly` і `osbb-web-api` за замовчуванням читають `.env.data.local`. Альтернативний файл можна вибрати через `OSBB_DATA_ENV_FILE=.env.data.staging ./scripts/osbb-web-api`. У прямих командах Compose передайте той самий файл через `--env-file`. Для окремого стека на тому самому хості задайте у файлі власний `COMPOSE_PROJECT_NAME` та вільні порти.
+
+Якщо наявний том ще використовує стару назву бази `osbb`, дочекайтеся завершення імпорту та закрийте підключення до неї. Створіть бекап, перейменуйте базу з підключення до службової бази `postgres` і оновіть контейнер.
+
+```bash
+OSBB_POSTGRES_DB=osbb ./scripts/osbb-data backup
+docker compose --env-file .env.data.local -f compose.data.yml exec -T postgres \
+  psql -U osbb -d postgres -v ON_ERROR_STOP=1 -c 'ALTER DATABASE osbb RENAME TO "osbb-import";'
+docker compose --env-file .env.data.local -f compose.data.yml up -d --wait postgres
+```
+
+Після перейменування задайте `OSBB_IMPORT_DATABASE=osbb-import` у файлі середовища. Змінну `OSBB_POSTGRES_DB` можна передати окремій команді `backup`, щоб вибрати іншу базу.
+
+Не перегенеровуйте пароль для вже ініціалізованого тому: PostgreSQL застосовує його під час першого створення бази. Для повторних запусків використовуйте наявний `.env.data.local`. Команди виконуються на хості; для AWS використовується стандартний ланцюг credentials SDK, а джерелу потрібні read-only дозволи `dynamodb:DescribeTable`, `dynamodb:Scan`, `dynamodb:GetItem` для чотирьох таблиць обраного stage. У стек також входить Adminer — вебінтерфейс PostgreSQL на [http://127.0.0.1:8081/?pgsql=postgres&db=osbb-import](http://127.0.0.1:8081/?pgsql=postgres&db=osbb-import). При вході виберіть PostgreSQL, сервер `postgres`, користувача `osbb` і базу `osbb-import`; пароль — значення `OSBB_POSTGRES_PASSWORD` із `.env.data.local`. Адреса сервера налаштована через Docker-мережу; пароль у конфігурацію Adminer не передається. За замовчуванням інтерфейс доступний лише на localhost; адресу та порт можна змінити через `OSBB_ADMINER_BIND` і `OSBB_ADMINER_PORT` у `.env.data.local`, після чого повторно виконати `docker compose --env-file .env.data.local -f compose.data.yml up -d`. Наприклад, `OSBB_ADMINER_BIND=192.168.0.41` відкриває доступ через цю мережеву адресу. HTTP не шифрує пароль і дані, тому використовуйте лише довірену мережу або захищений тунель. Adminer дає змогу змінювати дані, тому для перегляду надавайте доступ лише довіреним користувачам хоста.
 
 Для ручного запуску через Compose зберіть і запустіть одноразовий контейнер `importer`:
 
@@ -548,7 +563,7 @@ OSBB_IMPORTER_UID="$(id -u)" OSBB_IMPORTER_GID="$(id -g)" \
 ./scripts/osbb-data import --stage dev --region eu-central-1
 ```
 
-Повну логічну копію локальної бази `osbb` можна створити командою:
+Повну логічну копію локальної бази `osbb-import` можна створити командою:
 
 ```bash
 ./scripts/osbb-data backup
@@ -596,7 +611,7 @@ loginctl enable-linger "$USER"
 
 Локальна база містить персональні дані, включно з історичними записами й можливими старими дублями з `command-data`. Захистіть доступ до хоста та Docker volume; після видалення інформації в боті локальна копія оновлюється лише після повторного імпорту. Не додавайте пароль або дані до Git. Команда `docker compose --env-file .env.data.local -f compose.data.yml down` зупиняє стек, зберігаючи том.
 
-Нові міграції створюються через локальний EF Core tool: `dotnet tool restore`, потім `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.DataImport --output-dir Storage/Migrations`; команда `migrate` застосовує їх. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
+Для створення міграції експортуйте змінні потрібного середовища, наприклад `set -a; source .env.data.local; set +a`. Потім виконайте `dotnet tool restore` і `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.DataImport --output-dir Storage/Migrations`. Команда `migrate` застосовує міграції. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
 
 Перевірку імпорту синтетичними даними можна виконати на окремій тестовій базі:
 
@@ -606,4 +621,4 @@ set -a; source .env.data.local; set +a
 dotnet run --project tests/OsbbRequests.DataImport.Smoke
 ```
 
-Тест не використовує AWS і перевіряє пов’язані проєкції, їхню міграцію, первинний та повторний імпорт, зміну, видалення й облік помилки. Тестова база окрема від `osbb`.
+Тест не використовує AWS і перевіряє пов’язані проєкції, їхню міграцію, первинний та повторний імпорт, зміну, видалення й облік помилки. Тестова база окрема від `osbb-import`.

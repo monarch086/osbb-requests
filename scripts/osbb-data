@@ -1,28 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -f "$project_root/.env.data.local" ]]; then
-  set -a
-  # This file is local and must be writable only by the operator.
-  source "$project_root/.env.data.local"
-  set +a
-fi
+source "$project_root/scripts/osbb-data-env.sh"
 if [[ "${1:-}" == "backup" ]]; then
   if [[ $# -ne 1 ]]; then
     printf '%s\n' 'Використання: ./scripts/osbb-data backup' >&2
     exit 2
   fi
   backup_dir="${OSBB_BACKUP_DIR:-$project_root/backups}"
-  database="${OSBB_POSTGRES_DB:-osbb}"
+  database="${OSBB_POSTGRES_DB:-${OSBB_IMPORT_DATABASE:?Set OSBB_IMPORT_DATABASE}}"
   database_user="${OSBB_POSTGRES_USER:-osbb}"
   umask 077
   mkdir -p -- "$backup_dir"
   timestamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
   temporary="$(mktemp "$backup_dir/osbb-$timestamp-XXXXXXXX.partial")"
   trap 'rm -f -- "$temporary"' EXIT
-  docker compose -f "$project_root/compose.data.yml" exec -T postgres \
+  "${compose[@]}" exec -T postgres \
     pg_dump --username "$database_user" --dbname "$database" --format custom > "$temporary"
-  docker compose -f "$project_root/compose.data.yml" exec -T postgres \
+  "${compose[@]}" exec -T postgres \
     pg_restore --list < "$temporary" > /dev/null
   destination="${temporary%.partial}.dump"
   ln -- "$temporary" "$destination"
@@ -31,4 +26,5 @@ if [[ "${1:-}" == "backup" ]]; then
   printf 'Резервну копію створено: %s\n' "$destination"
   exit 0
 fi
+export OSBB_IMPORT_CONNECTION_STRING="${OSBB_IMPORT_HOST_CONNECTION_STRING:?Set OSBB_IMPORT_HOST_CONNECTION_STRING}"
 exec dotnet run --project "$project_root/src/OsbbRequests.DataImport" -- "$@"
