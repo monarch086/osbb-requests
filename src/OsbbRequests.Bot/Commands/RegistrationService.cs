@@ -1,5 +1,5 @@
-using OsbbRequests.Shared.Models;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain.Models;
+using OsbbRequests.Domain;
 using System.Globalization;
 using System.Net.Mail;
 using System.Text.RegularExpressions;

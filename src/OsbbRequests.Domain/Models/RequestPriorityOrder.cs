@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace OsbbRequests.Shared.Models;
+namespace OsbbRequests.Domain.Models;
 
 public static class RequestPriorityOrder
 {

@@ -1,6 +1,6 @@
 using System.Globalization;
 using Amazon.DynamoDBv2.Model;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Shared.Residents;
 

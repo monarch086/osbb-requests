@@ -1,4 +1,4 @@
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Telegram;
 using System.Net.Http.Json;
 using System.Net.Sockets;
@@ -6,7 +6,7 @@ using System.Globalization;
 using System.Text.Json;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Commands;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
 namespace OsbbRequests.Bot.Telegram;
 

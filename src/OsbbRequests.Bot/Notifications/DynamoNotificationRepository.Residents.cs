@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Bot.Notifications;

@@ -1,10 +1,8 @@
 using System.Globalization;
-using OsbbRequests.AdminApi.Data;
-using OsbbRequests.AdminApi.Models;
-using OsbbRequests.Shared.Models;
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Domain.Admin;
+using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Export;
+namespace OsbbRequests.Services.Export;
 
 public sealed class ResidentExport(IAdminStore store)
 {
@@ -18,7 +16,7 @@ public sealed class ResidentExport(IAdminStore store)
         string[] headings = pending ? [.. columns, "Дата подання"] : [.. columns, "Підтверджені додаткові квартири", "Дата реєстрації"];
         var file = Spreadsheet.Create(pending ? "Очікують перевірки" : "Мешканці", headings,
             residents.Select(r => Row(r, pending, apartments?.GetValueOrDefault(r.Id))), ct);
-        if (file.Length > 4 * 1024 * 1024) throw new ApiError(413, "Файл завеликий. Звузьте фільтри та спробуйте ще раз.");
+        if (file.Length > 4 * 1024 * 1024) throw new AdminOperationException(AdminFailure.TooLarge, "Файл завеликий. Звузьте фільтри та спробуйте ще раз.");
         return file;
     }
 

@@ -1,7 +1,7 @@
 using System.Globalization;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
-namespace OsbbRequests.Shared.Models;
+namespace OsbbRequests.Domain.Models;
 
 public sealed record ResidentNotification(string Id, string ComplexId, long OwnerId, long? RequestId,
     int? RequestVersion, string Text, DateTimeOffset CreatedAt, AdministratorEvent? AdministratorEvent = null, string? AdministratorId = null, string? ResidentBroadcastId = null, string? RegistrationId = null)

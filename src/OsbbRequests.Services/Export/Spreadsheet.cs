@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Xml;
 
-namespace OsbbRequests.AdminApi.Export;
+namespace OsbbRequests.Services.Export;
 
 internal static class Spreadsheet
 {

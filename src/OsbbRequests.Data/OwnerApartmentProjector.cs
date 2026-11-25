@@ -2,7 +2,7 @@ using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.Data.Storage;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Data;

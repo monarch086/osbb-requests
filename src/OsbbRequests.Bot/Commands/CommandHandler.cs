@@ -1,9 +1,9 @@
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using System.Globalization;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Telegram;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
 namespace OsbbRequests.Bot.Commands;
 

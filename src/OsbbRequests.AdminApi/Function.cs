@@ -1,3 +1,4 @@
+using OsbbRequests.Services;
 using Amazon.CognitoIdentityProvider;
 using Amazon.DynamoDBv2;
 using Amazon.Lambda.APIGatewayEvents;
@@ -5,7 +6,7 @@ using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using OsbbRequests.AdminApi.Auth;
 using OsbbRequests.AdminApi.Data;
-using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Domain.Admin;
 using OsbbRequests.Shared.Telegram;
 using OsbbRequests.AdminApi.Statistics;
 
@@ -30,9 +31,10 @@ public sealed class Function
     public Function()
     {
         statistics = new StatisticsStore(new AmazonDynamoDBClient(), Config("STATISTICS_TABLE"));
-        handler = new ApiHandler(new DynamoAdminStore(new MeteredDynamoDb(), Config("ADMINISTRATORS_TABLE"),
+        var store = new DynamoAdminStore(new MeteredDynamoDb(), Config("ADMINISTRATORS_TABLE"),
             Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting(), Config("RESIDENTS_TABLE"), Environment.GetEnvironmentVariable("COMPACT_RESIDENT_DIRECTORY") == "true",
-            Environment.GetEnvironmentVariable("COMPACT_RESIDENT_NAME_DIRECTORY") == "true"), new CognitoIdentity(new AmazonCognitoIdentityProviderClient()), statistics);
+            Environment.GetEnvironmentVariable("COMPACT_RESIDENT_NAME_DIRECTORY") == "true");
+        handler = new ApiHandler(new AdminService(store, new CognitoIdentity(new AmazonCognitoIdentityProviderClient()), statistics));
         notifier = TelegramServiceNotifier.FromEnvironment(Http);
     }
     public Function(ApiHandler handler, IServiceNotifier? notifier = null, IStatisticsStore? statistics = null)

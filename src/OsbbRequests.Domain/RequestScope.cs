@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace OsbbRequests.Shared.Domain;
+namespace OsbbRequests.Domain;
 
 [JsonConverter(typeof(JsonStringEnumConverter<RequestScope>))]
 public enum RequestScope { Complex, Building }
@@ -19,7 +19,7 @@ public static class ComplexLayout
         _ => false
     };
     public static bool IsValidRequest(string category, RequestScope? scope, string? buildingNumber, int? floor, int? entrance = null) =>
-        category == OsbbRequests.Shared.Models.RequestCategories.KeyOrder && scope is null && buildingNumber is null && floor is null && entrance is null ||
+        category == OsbbRequests.Domain.Models.RequestCategories.KeyOrder && scope is null && buildingNumber is null && floor is null && entrance is null ||
         IsValid(scope, buildingNumber, floor, entrance);
     public static string Target(RequestScope? scope, string? buildingNumber) => scope == RequestScope.Complex ? "Complex" :
         scope == RequestScope.Building && buildingNumber is not null && BuildingNumbers.Contains(buildingNumber, StringComparer.Ordinal) ? "Building" + buildingNumber : "Unspecified";

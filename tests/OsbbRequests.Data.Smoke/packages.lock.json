@@ -207,12 +207,16 @@
           "System.Security.Cryptography.Xml": "[10.0.15, )"
         }
       },
+      "osbbrequests.domain": {
+        "type": "Project"
+      },
       "osbbrequests.shared": {
         "type": "Project",
         "dependencies": {
           "AWSSDK.DynamoDBv2": "[4.0.108, )",
           "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )",
-          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )"
+          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
+          "OsbbRequests.Domain": "[1.0.0, )"
         }
       }
     },

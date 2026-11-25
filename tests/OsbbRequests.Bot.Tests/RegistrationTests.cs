@@ -1,4 +1,4 @@
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using System.Net;
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;

@@ -1,4 +1,4 @@
-namespace OsbbRequests.Shared.Domain;
+namespace OsbbRequests.Domain;
 
 public enum RequestVisibility
 {

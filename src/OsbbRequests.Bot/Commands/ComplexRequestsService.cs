@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
 namespace OsbbRequests.Bot.Commands;
 

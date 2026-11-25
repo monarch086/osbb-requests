@@ -1,3 +1,4 @@
+using OsbbRequests.AdminApi;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
@@ -7,9 +8,9 @@ using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.AdminApi.Data;
-using OsbbRequests.AdminApi.Models;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Admin;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 using Xunit;
 
@@ -118,7 +119,7 @@ public sealed class ResidentReadCutoverTests
         using var db = new ReadDynamo();
         const string phone = "+380671230025";
         var keys = Enumerable.Range(0, 26).Select(i => new KeyOrderItem("Магніт", $"+38067123{i:D4}", $"serial-{i:D2}")).ToArray();
-        var ticket = new MaintenanceRequest(2, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: keys);
+        var ticket = new MaintenanceRequest(2, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, Status: OsbbRequests.Domain.RequestStatus.Completed, KeyItems: keys);
         var ticketRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
         var olderTicket = ticket with { Id = 1, OwnerId = 98, KeyItems = [new("Перепустка", "067 123 0025")] };
         var olderRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(olderTicket)) };
@@ -169,7 +170,7 @@ public sealed class ResidentReadCutoverTests
         for (var id = 1; id <= 26; id++)
         {
             var ticket = new MaintenanceRequest(id, id, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
-                Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: [new("Магніт", $"+38067123{id:D4}")]);
+                Status: OsbbRequests.Domain.RequestStatus.Completed, KeyItems: [new("Магніт", $"+38067123{id:D4}")]);
             var row = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
             entries.Add(row);
             db.RawRows[$"USER#{id}"] = row;
@@ -189,7 +190,7 @@ public sealed class ResidentReadCutoverTests
     {
         using var db = new ReadDynamo();
         var rows = new List<Dictionary<string, AttributeValue>>();
-        var statuses = Enum.GetValues<OsbbRequests.Shared.Domain.RequestStatus>();
+        var statuses = Enum.GetValues<OsbbRequests.Domain.RequestStatus>();
         foreach (var status in statuses)
         {
             var id = (int)status + 1;
@@ -207,9 +208,9 @@ public sealed class ResidentReadCutoverTests
         Assert.Single(result.Items);
         var query = Assert.Single(db.Queries, query => query.IndexName == "BuildingRequestsIndex");
         Assert.Equal("Completed", query.ExpressionAttributeValues[":status0"].S);
-        var completedId = (int)OsbbRequests.Shared.Domain.RequestStatus.Completed + 1;
+        var completedId = (int)OsbbRequests.Domain.RequestStatus.Completed + 1;
         var changed = new MaintenanceRequest(completedId, completedId, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
-            Status: OsbbRequests.Shared.Domain.RequestStatus.InProgress, KeyItems: [new("Магніт", "+380671234567")]);
+            Status: OsbbRequests.Domain.RequestStatus.InProgress, KeyItems: [new("Магніт", "+380671234567")]);
         db.RawRows[$"USER#{completedId}"] = new() { ["payload"] = new(JsonSerializer.Serialize(changed)) };
         var stale = await store.ListResidentsWithKeysAsync(1, default);
         Assert.Empty(stale.Items);
@@ -273,7 +274,7 @@ public sealed class ResidentReadCutoverTests
         using var db = new ReadDynamo();
         var store = new DynamoCommandRepository(db, "old", residentsTable: "residents", complexId: "complex");
         var ticket = new MaintenanceRequest(1, 42, "complex", RequestCategories.KeyOrder, "", "Замовлення", DateTimeOffset.UnixEpoch,
-            Scope: OsbbRequests.Shared.Domain.RequestScope.Complex, KeyType: "Магніт", KeyQuantity: 1);
+            Scope: OsbbRequests.Domain.RequestScope.Complex, KeyType: "Магніт", KeyQuantity: 1);
         await store.CommitAsync(new CommandEnvelope(1, 42, 42, "/new"), new CommandOutcome("ok", ticket, OwnerProfileVersion: 3), default);
         var checks = db.Transaction!.TransactItems.Where(item => item.ConditionCheck is not null).Select(item => item.ConditionCheck).ToList();
         Assert.Equal(2, checks.Count);

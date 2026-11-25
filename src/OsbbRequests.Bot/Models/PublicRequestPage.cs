@@ -1,4 +1,4 @@
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
 namespace OsbbRequests.Bot.Models;
 

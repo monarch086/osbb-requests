@@ -1,9 +1,8 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Domain;
 
-namespace OsbbRequests.Shared.Models;
+namespace OsbbRequests.Domain.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<AdministratorEvent>))]
 public enum AdministratorEvent { NewResident, NewRequest, NewAdministrator, NewComplexRequest, NewKeyOrder, NewApartmentRegistration }

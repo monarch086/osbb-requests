@@ -1,10 +1,9 @@
 using System.Globalization;
-using OsbbRequests.AdminApi.Data;
-using OsbbRequests.AdminApi.Models;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Admin;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Export;
+namespace OsbbRequests.Services.Export;
 
 public sealed class TicketExport(IAdminStore store)
 {
@@ -22,9 +21,9 @@ public sealed class TicketExport(IAdminStore store)
             ct.ThrowIfCancellationRequested();
             var page = await store.ListRequestsAsync(filters, cursor, ct);
             items.AddRange(page.Items);
-            if (items.Count > 1_048_575) throw new ApiError(413, "Забагато заявок для Excel. Звузьте фільтри та спробуйте ще раз.");
+            if (items.Count > 1_048_575) throw new AdminOperationException(AdminFailure.TooLarge, "Забагато заявок для Excel. Звузьте фільтри та спробуйте ще раз.");
             cursor = page.Cursor;
-            if (cursor is not null && !cursors.Add(cursor)) throw new ApiError(503, "Не вдалося завантажити всі заявки. Спробуйте ще раз.");
+            if (cursor is not null && !cursors.Add(cursor)) throw new AdminOperationException(AdminFailure.Unavailable, "Не вдалося завантажити всі заявки. Спробуйте ще раз.");
         } while (cursor is not null);
         var authors = new Dictionary<long, RequestAuthor?>();
         foreach (var batch in items.DistinctBy(item => item.Request.OwnerId).Chunk(8))
@@ -35,7 +34,7 @@ public sealed class TicketExport(IAdminStore store)
         }
         var rows = items.Select(item => Row(item.Request, authors[item.Request.OwnerId]));
         var file = Spreadsheet.Create("Заявки", Headings, rows, ct);
-        if (file.Length > MaxFileBytes) throw new ApiError(413, "Файл завеликий. Звузьте фільтри та спробуйте ще раз.");
+        if (file.Length > MaxFileBytes) throw new AdminOperationException(AdminFailure.TooLarge, "Файл завеликий. Звузьте фільтри та спробуйте ще раз.");
         return file;
     }
 

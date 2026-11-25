@@ -1,5 +1,5 @@
 using System.Globalization;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
 namespace OsbbRequests.Bot.Commands;
 

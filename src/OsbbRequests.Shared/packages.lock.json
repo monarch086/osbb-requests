@@ -62,6 +62,9 @@
         "type": "Transitive",
         "resolved": "72.1.0.3",
         "contentHash": "xTHoHJKtgHDsYkQ/RU3o4U36ktjQqnR+ML00HDDK2SWr+9nMekxnXvtLZ2I4cqF8s51frxqTRgx1jDVtIzCf3w=="
+      },
+      "osbbrequests.domain": {
+        "type": "Project"
       }
     },
     "net10.0/linux-arm64": {

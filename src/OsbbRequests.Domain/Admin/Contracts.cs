@@ -1,6 +1,6 @@
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Models;
+namespace OsbbRequests.Domain.Admin;
 
 public sealed record AdminUser(string UserId, string Email, string DisplayName, bool IsActive, bool IsSuperAdmin, int Version,
     string? TelegramChatId = null, bool NotifyNewResidents = false, bool NotifyNewRequests = false, bool NotifyNewAdministrators = false, PagePermissions? Permissions = null, bool NotifyNewKeyOrders = false, bool NotifyNewApartmentRegistrations = false)
@@ -18,7 +18,7 @@ public sealed record Identity(string UserId, string Email, string DisplayName);
 public sealed record Page<T>(IReadOnlyList<T> Items, string? Cursor);
 public sealed record ResidentCounts(int Total, int Owners, int FamilyMembers, int Tenants, int Employees);
 public sealed record ResidentListRow(string Id, string? FirstName, string? LastName, ResidentType ResidentType, string? BuildingNumber, string? ApartmentNumber);
-public sealed record CompactResidentPage(IReadOnlyList<ResidentListRow> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts, string? StartCursor, string? NextCursor);
+public sealed record CompactResidentPage(IReadOnlyList<ResidentListRow> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts, string? StartCursor, string? NextCursor) : IResidentDirectoryView;
 public sealed record ResidentDirectoryPage(IReadOnlyList<ResidentRegistration> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts);
 public sealed record MessageChange(string Id, string Text);
 public sealed record BroadcastMessage(string Id, string Text, string CreatedBy, string CreatedById, DateTimeOffset CreatedAt);
@@ -45,7 +45,3 @@ public sealed record ResidentKeyPage(IReadOnlyList<ResidentKeyEntry> Items, int 
 public sealed record RequestCounts(int Total, int NewCount, int ProgressCount);
 public sealed record AdminRequestPage(IReadOnlyList<ManagedRequest> Items, string? Cursor, int PageNumber, int PageSize, RequestCounts? Counts);
 public sealed record RequestFilters(IReadOnlyList<string>? Statuses, string? Category, string? Search, string? From, string? To, string? Target = null, int? Floor = null, string? Section = null);
-public sealed class ApiError(int status, string message) : Exception(message)
-{
-    public int Status { get; } = status;
-}

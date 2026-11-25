@@ -1,7 +1,7 @@
 using OsbbRequests.Shared.Residents;
 using Amazon.DynamoDBv2.Model;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Bot.Persistence;
 

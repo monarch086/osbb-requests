@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace OsbbRequests.Shared.Models;
+namespace OsbbRequests.Domain.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<RegistrationStage>))]
 public enum RegistrationStage

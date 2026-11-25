@@ -7,5 +7,7 @@
 !src/OsbbRequests.Data/**
 !src/OsbbRequests.Shared/
 !src/OsbbRequests.Shared/**
+!src/OsbbRequests.Domain/
+!src/OsbbRequests.Domain/**
 **/bin/
 **/obj/

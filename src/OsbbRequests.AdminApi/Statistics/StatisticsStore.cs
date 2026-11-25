@@ -1,3 +1,5 @@
+using OsbbRequests.Domain.Admin;
+using OsbbRequests.Services;
 using System.Diagnostics;
 using System.Globalization;
 using Amazon.DynamoDBv2;
@@ -5,13 +7,6 @@ using Amazon.DynamoDBv2.Model;
 using Amazon.Lambda.APIGatewayEvents;
 
 namespace OsbbRequests.AdminApi.Statistics;
-
-public sealed record DailyStatistic(string Date, string Endpoint, long Requests, double ReadUnits, double WriteUnits, double DurationMs);
-public interface IStatisticsStore
-{
-    Task<IReadOnlyList<DailyStatistic>> ReadAsync(int days, CancellationToken ct);
-    Task RecordAsync(string endpoint, double read, double write, long durationMs, CancellationToken ct);
-}
 
 public sealed class StatisticsStore(IAmazonDynamoDB db, string table) : IStatisticsStore
 {

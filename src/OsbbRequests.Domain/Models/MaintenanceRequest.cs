@@ -1,6 +1,6 @@
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
-namespace OsbbRequests.Shared.Models;
+namespace OsbbRequests.Domain.Models;
 
 public sealed record MaintenanceRequest(
     long Id, long OwnerId, string BuildingId, string Category, string Location,

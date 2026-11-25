@@ -1,6 +1,6 @@
 using OsbbRequests.Shared.Telegram;
-using OsbbRequests.Shared.Models;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain.Models;
+using OsbbRequests.Domain;
 using System.Net;
 using System.Reflection;
 using System.Text;

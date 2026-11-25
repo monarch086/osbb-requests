@@ -1,5 +1,5 @@
 using OsbbRequests.Bot.Models;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Bot.Commands;

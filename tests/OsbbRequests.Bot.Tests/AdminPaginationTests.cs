@@ -1,3 +1,4 @@
+using OsbbRequests.AdminApi;
 using System.Globalization;
 using System.Text.Json;
 using Amazon;
@@ -5,8 +6,8 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 using OsbbRequests.AdminApi.Data;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -93,7 +94,7 @@ public sealed class AdminPaginationTests
         using var db = new PagedDynamo("residents");
         var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
         var directory = await store.ListResidentsAsync(null, default);
-        await Assert.ThrowsAsync<OsbbRequests.AdminApi.Models.ApiError>(() => store.ListRegistrationsAsync(directory.Cursor, default));
+        await Assert.ThrowsAsync<ApiError>(() => store.ListRegistrationsAsync(directory.Cursor, default));
         Assert.Equal(1, db.QueryCount);
     }
 
@@ -114,7 +115,7 @@ public sealed class AdminPaginationTests
     {
         using var db = new PagedDynamo("requests");
         var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
-        var filters = new OsbbRequests.AdminApi.Models.RequestFilters(["New", "InProgress"], "інше", "опис", null, null, "Complex");
+        var filters = new OsbbRequests.Domain.Admin.RequestFilters(["New", "InProgress"], "інше", "опис", null, null, "Complex");
         var first = await store.ListRequestsAsync(filters, null, default);
         await store.ListRequestsAsync(filters, first.Cursor, default);
         var query = db.Query!;

@@ -1,3 +1,4 @@
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Data.Storage;

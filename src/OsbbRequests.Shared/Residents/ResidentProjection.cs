@@ -1,5 +1,5 @@
 using System.Globalization;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Shared.Residents;
 

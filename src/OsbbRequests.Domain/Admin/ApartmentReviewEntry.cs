@@ -1,6 +1,6 @@
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Models;
+namespace OsbbRequests.Domain.Admin;
 
 public sealed record ApartmentReviewEntry(string RegistrationId, string? FirstName, string? LastName,
     IReadOnlyList<OwnerApartment> Apartments);

@@ -1,8 +1,7 @@
-using OsbbRequests.AdminApi.Models;
-using OsbbRequests.Shared.Models;
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Domain.Admin;
+using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Services;
 
 public interface IAdminStore
 {

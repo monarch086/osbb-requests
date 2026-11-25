@@ -5,7 +5,7 @@ using Amazon.Runtime;
 using OsbbRequests.Bot.Commands;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 using System.Text.Json;
 using Xunit;

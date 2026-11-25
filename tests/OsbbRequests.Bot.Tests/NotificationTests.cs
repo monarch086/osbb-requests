@@ -1,3 +1,4 @@
+using OsbbRequests.AdminApi;
 using System.Net;
 using System.Text.Json;
 using Amazon;
@@ -5,14 +6,14 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 using OsbbRequests.AdminApi.Data;
-using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Domain.Admin;
 using OsbbRequests.Bot;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Telegram;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -82,7 +83,7 @@ public sealed class NotificationTests
     [Fact]
     public async Task ApprovalNotificationRetriesThenDeliversOnlyToApprovedResident()
     {
-        var registration = new OsbbRequests.Shared.Models.ResidentRegistration(new string('a', 32), 99, "complex", RegistrationStage.Approved, 5,
+        var registration = new OsbbRequests.Domain.Models.ResidentRegistration(new string('a', 32), 99, "complex", RegistrationStage.Approved, 5,
             Now.AddDays(-1), Now, "+380500000000", "Олена", "Тестова");
         var notification = ResidentNotification.RegistrationApproved(registration);
         var repository = new MemoryNotifications(new NotificationWorkItem(ResidentNotification.DueKey(Now, notification.Id), notification, 0));
@@ -239,7 +240,7 @@ public sealed class NotificationTests
     [Fact]
     public async Task ResidentApprovalUpdatesChatMenuBeforeSendingConfirmation()
     {
-        var registration = new OsbbRequests.Shared.Models.ResidentRegistration("reference", 42, "complex", RegistrationStage.Approved,
+        var registration = new OsbbRequests.Domain.Models.ResidentRegistration("reference", 42, "complex", RegistrationStage.Approved,
             5, Now, Now);
         var work = Work() with { Notification = ResidentNotification.RegistrationApproved(registration) };
         var repository = new MemoryNotifications(work);

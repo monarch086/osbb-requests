@@ -1,13 +1,9 @@
+using OsbbRequests.Services;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
-using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Domain.Admin;
 
 namespace OsbbRequests.AdminApi.Auth;
-
-public interface IIdentityProvider
-{
-    Task<Identity> GetAsync(string accessToken, string expectedUserId, CancellationToken cancellationToken);
-}
 
 public sealed class CognitoIdentity(IAmazonCognitoIdentityProvider client) : IIdentityProvider
 {

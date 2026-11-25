@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using OsbbRequests.Data;
 using OsbbRequests.Data.Storage;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
 var builder = new NpgsqlConnectionStringBuilder { Host = "127.0.0.1", Port = 5433, Database = "osbb_import_test", Username = "osbb", Password = Environment.GetEnvironmentVariable("OSBB_POSTGRES_PASSWORD") };

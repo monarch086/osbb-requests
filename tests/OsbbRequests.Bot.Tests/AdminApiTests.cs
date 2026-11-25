@@ -1,15 +1,14 @@
+using OsbbRequests.Services;
 using System.Text.Json;
 using System.IO.Compression;
 using System.Xml.Linq;
 using Amazon.Lambda.APIGatewayEvents;
 using OsbbRequests.AdminApi;
-using OsbbRequests.AdminApi.Auth;
 using OsbbRequests.AdminApi.Data;
-using OsbbRequests.AdminApi.Models;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Admin;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.AdminApi.Statistics;
+using OsbbRequests.Domain;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -61,7 +60,42 @@ public sealed class AdminApiTests
             body = body is null ? null : JsonSerializer.Serialize(body),
             requestContext = new { http = new { method }, authorizer = user is null ? null : new { jwt = new { claims = new Dictionary<string, string> { ["sub"] = user, ["token_use"] = tokenUse } } } }
         }), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-    private static ApiHandler Handler(FakeStore store) => new(store, new FakeIdentity());
+    private static ApiHandler Handler(FakeStore store) => new(new AdminService(store, new FakeIdentity()));
+
+    [Fact]
+    public async Task SharedExportReturnsWorkbookBytesAndUsesDomainPermissions()
+    {
+        var store = new FakeStore();
+        var service = new AdminService(store, new FakeIdentity());
+        var search = new RequestSearch(Section: "complex");
+        var inactive = Regular with { IsActive = false };
+        var restricted = Regular with { Permissions = new(false, true, false, false, false) };
+
+        foreach (var actor in new[] { inactive, restricted })
+        {
+            var error = await Assert.ThrowsAsync<AdminOperationException>(() => service.ExportRequestsAsync(actor, search, default));
+            Assert.Equal(AdminFailure.Forbidden, error.Failure);
+        }
+        Assert.Equal(0, store.ExportReads);
+
+        var file = await service.ExportRequestsAsync(Regular, search, default);
+        using var archive = new ZipArchive(new MemoryStream(file), ZipArchiveMode.Read);
+        Assert.NotNull(archive.GetEntry("xl/worksheets/sheet1.xml"));
+    }
+
+    [Fact]
+    public async Task GatewayAdapterDecodesJsonAndRejectsInvalidEncoding()
+    {
+        var handler = Handler(new FakeStore());
+        var request = Request("/admin/messages", method: "POST", user: "super",
+            body: new { id = "a51503dd-a080-4a9a-9875-26300c6d702d", text = "Оголошення" });
+        request.IsBase64Encoded = true;
+        request.Body = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(request.Body));
+        Assert.Equal(200, (await handler.HandleAsync(request, default)).StatusCode);
+
+        request.Body = "!";
+        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(request, default))).Status);
+    }
 
     [Fact]
     public async Task RequestPageCanSkipCountsAndRejectsInvalidCountOption()
@@ -79,7 +113,7 @@ public sealed class AdminApiTests
     public async Task StatisticsRequiresActiveSuperAdminAndRecognizedPeriod()
     {
         var stats = new FakeStatistics();
-        var handler = new ApiHandler(new FakeStore(), new FakeIdentity(), stats);
+        var handler = new ApiHandler(new AdminService(new FakeStore(), new FakeIdentity(), stats));
         Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics"), default))).Status);
         Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics", user: "target"), default))).Status);
         Assert.Equal(401, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics", user: null), default))).Status);
@@ -1088,7 +1122,7 @@ public sealed class AdminApiTests
         public Task<Page<ApartmentReviewEntry>> ListApartmentReviewsAsync(string? cursor, CancellationToken ct) => Task.FromResult(new Page<ApartmentReviewEntry>([], null));
         public int ApartmentDecisions;
         public Task DecideApartmentAsync(AdminUser actor, string registrationId, string apartmentId, bool approved, CancellationToken ct) { ApartmentDecisions++; return Task.CompletedTask; }
-        public Task<IReadOnlyList<OsbbRequests.Shared.Residents.OwnerApartment>> ListOwnerApartmentsAsync(ResidentRegistration profile, CancellationToken ct) => Task.FromResult<IReadOnlyList<OsbbRequests.Shared.Residents.OwnerApartment>>([]);
+        public Task<IReadOnlyList<OwnerApartment>> ListOwnerApartmentsAsync(ResidentRegistration profile, CancellationToken ct) => Task.FromResult<IReadOnlyList<OwnerApartment>>([]);
         public int ApartmentExportReads;
         public Task<IReadOnlyDictionary<string, IReadOnlyList<OwnerApartment>>> ListApprovedApartmentsForExportAsync(IReadOnlyList<ResidentRegistration> residents, CancellationToken ct)
         {

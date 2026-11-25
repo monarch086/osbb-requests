@@ -3,8 +3,8 @@ using System.Text.Json;
 using OsbbRequests.Bot.Telegram;
 using OsbbRequests.Bot.Commands;
 using OsbbRequests.Bot.Models;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;

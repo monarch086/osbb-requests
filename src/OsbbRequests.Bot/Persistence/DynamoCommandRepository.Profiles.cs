@@ -2,7 +2,7 @@ using OsbbRequests.Shared.Residents;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Bot.Models;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Bot.Persistence;
 
@@ -62,7 +62,7 @@ public sealed partial class DynamoCommandRepository
             ResidentDirectoryWrites.Add(writes, residentsTable, profile, directoryRow);
             OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(previous.Phone, out var oldPhone);
             string? newPhone = null;
-            if (profile.Stage == OsbbRequests.Shared.Models.RegistrationStage.Approved && !profile.PersonalDataDeleted)
+            if (profile.Stage == OsbbRequests.Domain.Models.RegistrationStage.Approved && !profile.PersonalDataDeleted)
                 OsbbRequests.Shared.Residents.ResidentPhoneIndex.TryNormalize(profile.Phone, out newPhone);
             if (oldPhone is not null && oldPhone != newPhone) writes.Add(PhoneAssociationDelete(previous, oldPhone));
             if (newPhone is not null) writes.Add(PhoneAssociationPut(profile, newPhone));
@@ -74,7 +74,7 @@ public sealed partial class DynamoCommandRepository
         {
             if (residentsTable is not null)
                 writes.Add(new() { Delete = new() { TableName = residentsTable, Key = new() { ["pk"] = new(OwnerApartments.Key(profile.BuildingId, profile.UserId)) } } });
-            if (profile.Stage != OsbbRequests.Shared.Models.RegistrationStage.Deleted)
+            if (profile.Stage != OsbbRequests.Domain.Models.RegistrationStage.Deleted)
                 throw new InvalidOperationException("Deleted profile must revoke resident access.");
             if (residentsTable is not null)
             {

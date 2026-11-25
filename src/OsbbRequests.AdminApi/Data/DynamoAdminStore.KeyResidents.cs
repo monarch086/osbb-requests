@@ -1,10 +1,11 @@
+using OsbbRequests.Services;
 using System.Globalization;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
-using OsbbRequests.Shared.Models;
-using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Domain.Models;
+using OsbbRequests.Domain.Admin;
 using OsbbRequests.Shared.Residents;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 

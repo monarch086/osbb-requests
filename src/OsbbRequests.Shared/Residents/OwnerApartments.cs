@@ -1,18 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Shared.Residents;
-
-public enum ApartmentReviewStatus { Pending, Approved, Rejected }
-
-public sealed record OwnerApartment(string Id, string BuildingNumber, int ApartmentNumber, DateTimeOffset SubmittedAt,
-    ApartmentReviewStatus Status = ApartmentReviewStatus.Pending, DateTimeOffset? ReviewedAt = null, string? ReviewedBy = null)
-{
-    [System.Text.Json.Serialization.JsonIgnore]
-    public string Address => $"Будинок {BuildingNumber}, кв. {ApartmentNumber}";
-}
 
 public sealed record OwnerApartments(string ComplexId, long OwnerId, string RegistrationId, int Version, IReadOnlyList<OwnerApartment> Items)
 {

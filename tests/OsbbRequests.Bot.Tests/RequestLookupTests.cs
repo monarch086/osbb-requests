@@ -1,6 +1,6 @@
 using OsbbRequests.Bot.Commands;
 using OsbbRequests.Bot.Models;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;

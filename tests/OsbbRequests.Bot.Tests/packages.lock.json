@@ -198,6 +198,7 @@
           "Amazon.Lambda.APIGatewayEvents": "[3.0.1, )",
           "Amazon.Lambda.Core": "[3.3.0, )",
           "Amazon.Lambda.Serialization.SystemTextJson": "[3.0.1, )",
+          "OsbbRequests.Services": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )"
         }
       },
@@ -214,12 +215,22 @@
           "OsbbRequests.Shared": "[1.0.0, )"
         }
       },
+      "osbbrequests.domain": {
+        "type": "Project"
+      },
+      "osbbrequests.services": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Domain": "[1.0.0, )"
+        }
+      },
       "osbbrequests.shared": {
         "type": "Project",
         "dependencies": {
           "AWSSDK.DynamoDBv2": "[4.0.108, )",
           "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )",
-          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )"
+          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
+          "OsbbRequests.Domain": "[1.0.0, )"
         }
       }
     },

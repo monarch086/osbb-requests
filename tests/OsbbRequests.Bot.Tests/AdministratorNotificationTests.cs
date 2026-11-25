@@ -1,13 +1,14 @@
+using OsbbRequests.AdminApi;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 using OsbbRequests.AdminApi.Data;
-using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Domain.Admin;
 using OsbbRequests.Bot.Notifications;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
