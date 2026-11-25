@@ -7,7 +7,10 @@ using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.AdminApi.Data;
+using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -211,6 +214,57 @@ public sealed class ResidentReadCutoverTests
         var stale = await store.ListResidentsWithKeysAsync(1, default);
         Assert.Empty(stale.Items);
         Assert.Equal(1, stale.Total);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task KeyChangeUpdatesTheRequestAndWritesHistoryForEveryMatchingResident(bool remove)
+    {
+        using var db = new ReadDynamo();
+        const string phone = "+380671234567";
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
+        var actor = new AdminUser("admin", "admin@example.test", "Admin", true, false, 3, Permissions: new(false, true, false, false, false));
+        var request = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "Замовлення", DateTimeOffset.UnixEpoch,
+            Status: RequestStatus.Completed, KeyItems: [new("Магніт", phone, "old"), new("Магніт", phone, "other")]);
+        db.RawRows["USER#99"] = new() { ["payload"] = new(JsonSerializer.Serialize(request)), ["version"] = new() { N = "4" } };
+        db.ItemsByIndex[ResidentPhoneIndex.IndexName] = [];
+        foreach (var id in new[] { 42, 43 })
+        {
+            var key = ResidentPhoneIndex.ItemKey("complex", id, phone);
+            db.ItemsByIndex[ResidentPhoneIndex.IndexName].Add(new() { ["pk"] = new(key) });
+            db.RawRows[key] = new() { ["complexId"] = new("complex"), ["phoneLookup"] = new(ResidentPhoneIndex.LookupKey("complex", phone)), ["residentId"] = new() { N = id.ToString(System.Globalization.CultureInfo.InvariantCulture) } };
+            var resident = new ResidentRegistration($"ref-{id}", id, "complex", RegistrationStage.Approved, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Мешканець");
+            db.Rows[$"COMPLEX#complex#RECORD#USER#{id}#REGISTRATION"] = new() { ["payload"] = new(JsonSerializer.Serialize(resident)) };
+        }
+
+        var change = remove ? new ResidentKeyUpdate(4, Remove: true) : new ResidentKeyUpdate(4, Type: "Перепустка", SerialNumber: " new ");
+        await store.UpdateResidentKeyAsync(actor, 99, 1, 0, change, default);
+        var writes = db.Transaction!.TransactItems;
+        var update = Assert.Single(writes, item => item.Update is not null).Update;
+        Assert.Equal("4", update.ExpressionAttributeValues[":expected"].N);
+        var saved = JsonSerializer.Deserialize<MaintenanceRequest>(update.ExpressionAttributeValues[":payload"].S)!;
+        Assert.Equal(RequestStatus.Completed, saved.Status);
+        Assert.Equal(remove ? 1 : 2, saved.KeyQuantity);
+        Assert.Equal("other", saved.KeyItems![^1].SerialNumber);
+        if (!remove) Assert.Equal(new KeyOrderItem("Перепустка", phone, "new"), saved.KeyItems![0]);
+
+        var history = writes.Where(item => item.Put?.TableName == "residents").Select(item => item.Put.Item).ToArray();
+        Assert.Equal(2, writes.Count(item => item.ConditionCheck?.TableName == "residents"));
+        Assert.Equal(new[] { "REGISTRATION#ref-42", "REGISTRATION#ref-43" }, history.Select(item => item["sourcePk"].S));
+        Assert.All(history, item =>
+        {
+            Assert.StartsWith("EVENT#TYPE#", item["recordOrder"].S);
+            Assert.True(item.ContainsKey(ResidentRecordKey.IndexGroupAttribute));
+            var entry = JsonSerializer.Deserialize<ResidentTypeChange>(item["recordData"].M["payload"].S)!;
+            Assert.Equal(actor.Email, entry.Actor);
+            Assert.Equal(new ResidentKeyChange(1, new("Магніт", "old"), remove ? null : new("Перепустка", "new")), entry.KeyChange);
+        });
+
+        db.Transaction = null;
+        var conflict = await Assert.ThrowsAsync<ApiError>(() => store.UpdateResidentKeyAsync(actor, 99, 1, 0, change with { Version = 3 }, default));
+        Assert.Equal(409, conflict.Status);
+        Assert.Null(db.Transaction);
     }
 
     [Fact]

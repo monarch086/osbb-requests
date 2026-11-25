@@ -120,12 +120,17 @@ export interface ResidentDataChange {
   residentType: ResidentType;
 }
 export interface ResidentTypeHistory {
-  previousType: ResidentType;
-  newType: ResidentType;
+  previousType: ResidentType | null;
+  newType: ResidentType | null;
   firstNameChanged?: boolean;
   lastNameChanged?: boolean;
   actor: string;
   createdAt: string;
+  keyChange?: {
+    requestId: number;
+    previous: ResidentKeyDetails;
+    current: ResidentKeyDetails | null;
+  } | null;
 }
 export type TicketStatus =
   'New' | 'InProgress' | 'AwaitingClarification' | 'Completed' | 'Rejected';
@@ -161,12 +166,17 @@ export interface ResidentKeyEntry {
   residents: KeyResident[];
   keys: ResidentKey[];
 }
-export interface ResidentKey {
+export interface ResidentKeyDetails {
   type: string;
   serialNumber: string | null;
+}
+export interface ResidentKey extends ResidentKeyDetails {
   requestId: number;
   keyIndex: number;
+  ownerId: number;
+  version: number;
 }
+export type ResidentKeyUpdate = ResidentKeyDetails | { remove: true };
 export interface ResidentKeyPage {
   items: ResidentKeyEntry[];
   pageNumber: number;

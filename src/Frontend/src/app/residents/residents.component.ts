@@ -6,6 +6,7 @@ import type {
   PagePermissions,
   Registration,
   ResidentCounts,
+  ResidentKey,
   ResidentKeyEntry,
   ResidentListRow,
 } from '../api.models';
@@ -30,6 +31,8 @@ export class ResidentsComponent {
   protected readonly typeLabel = residentTypeLabel;
   @Input() registeredResidents: ResidentListRow[] = [];
   @Input() keyResidents: ResidentKeyEntry[] = [];
+  @Output() readonly editKey = new EventEmitter<ResidentKey>();
+  @Output() readonly removeKey = new EventEmitter<ResidentKey>();
   @Input() filters: ResidentFilters = {
     sort: 'registeredAt',
     direction: 'desc',

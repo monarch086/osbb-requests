@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.AdminApi.Models;
@@ -48,7 +49,7 @@ public sealed partial class DynamoAdminStore
                 if (latest?.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || key.Index >= items.Count) continue;
                 var item = items[key.Index];
                 if (KeyDirectoryPhone(item.Phone) != group.Key) continue;
-                currentKeys.Add(new(item.Type, item.SerialNumber, key.RequestId, key.Index));
+                currentKeys.Add(new(item.Type, item.SerialNumber, key.RequestId, key.Index, key.OwnerId, latest.Version));
             }
             if (currentKeys.Count > 0) current.Add((group.Key, currentKeys));
         }
@@ -59,6 +60,53 @@ public sealed partial class DynamoAdminStore
 
     private static string KeyDirectoryPhone(string phone) => ResidentPhoneIndex.TryNormalize(phone, out var normalized) ? normalized! : phone;
 
+    public async Task UpdateResidentKeyAsync(AdminUser actor, long ownerId, long requestId, int index, ResidentKeyUpdate change, CancellationToken ct)
+    {
+        if (!actor.IsActive || !actor.EffectivePermissions.KeyOrders) throw new ApiError(403, "Недостатньо прав для редагування ключів.");
+        if (change.Version is null || change.Version < 0 ||
+            (change.Remove ? change.Type is not null || change.SerialNumber is not null : change.Type is not ("Магніт" or "Перепустка")) ||
+            change.SerialNumber is { Length: > 25 }) throw new ApiError(400, "Оберіть тип ключа та вкажіть серійний номер до 25 символів за наявності.");
+        var current = await GetRequestAsync(ownerId, requestId, ct) ?? throw new ApiError(404, "Заявку не знайдено.");
+        if (current.Version != change.Version || current.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || index < 0 || index >= items.Count)
+            throw new ApiError(409, "Замовлення або ключ змінено. Оновіть список.");
+        var previous = items[index];
+        var updated = change.Remove ? null : previous with { Type = change.Type!, SerialNumber = string.IsNullOrWhiteSpace(change.SerialNumber) ? null : change.SerialNumber.Trim() };
+        if (updated == previous) throw new ApiError(400, "Дані ключа не змінено.");
+
+        var profiles = (await FindKeyProfilesAsync([previous.Phone], ct))[0].DistinctBy(profile => profile.UserId).ToArray();
+        if (profiles.Length == 0) throw new ApiError(409, "Профіль мешканця для цього ключа не знайдено.");
+        // The request update, author check and request audit use three of the 100 transaction actions.
+        if (profiles.Length > 48) throw new ApiError(409, "Цей номер пов’язано із завеликою кількістю профілів.");
+        var now = DateTimeOffset.UtcNow;
+        var details = new ResidentKeyChange(requestId, new(previous.Type, previous.SerialNumber), updated is null ? null : new(updated.Type, updated.SerialNumber));
+        var payload = S(JsonSerializer.Serialize(new ResidentTypeChange(null, null, actor.Email, now, KeyChange: details)));
+        var writes = new List<TransactWriteItem>();
+        foreach (var profile in profiles)
+        {
+            var profileKey = ResidentRecordKey.Create(building, "USER#" + profile.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION");
+            writes.Add(new()
+            {
+                ConditionCheck = new()
+                {
+                    TableName = residentsTable!,
+                    Key = new() { ["pk"] = S(profileKey.Key) },
+                    ConditionExpression = "#v = :version",
+                    ExpressionAttributeNames = new() { ["#v"] = "version" },
+                    ExpressionAttributeValues = new() { [":version"] = N(profile.Version) }
+                }
+            });
+            var audit = Key("REGISTRATION#" + profile.Id, "EVENT#TYPE#" + now.ToString("O", CultureInfo.InvariantCulture) + "#" + Guid.NewGuid().ToString("N"));
+            audit["payload"] = payload;
+            writes.Add(RelatedResidentPut(audit, building, immutable: true));
+        }
+
+        var remaining = items.ToList();
+        if (updated is null) remaining.RemoveAt(index);
+        else remaining[index] = updated;
+        var next = current.Request with { KeyItems = remaining, KeyQuantity = remaining.Count };
+        await SaveRequestAsync(actor, current, next, ct, residentWrites: writes);
+    }
+
     public Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct)
     {
         if (request.BuildingId != building || request.Category != RequestCategories.KeyOrder)
@@ -68,15 +116,23 @@ public sealed partial class DynamoAdminStore
 
     private async Task<IReadOnlyList<IReadOnlyList<KeyResident>>> FindKeyResidentsAsync(IEnumerable<string> phones, CancellationToken ct)
     {
+        var groups = await FindKeyProfilesAsync(phones, ct);
+        return groups.Select(group => (IReadOnlyList<KeyResident>)group.Select(profile => new KeyResident(
+            string.Join(" ", new[] { profile.FirstName, profile.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim(),
+            profile.BuildingNumber, profile.ApartmentNumber)).Where(resident => resident.Name.Length > 0).ToArray()).ToArray();
+    }
+
+    private async Task<IReadOnlyList<IReadOnlyList<ResidentRegistration>>> FindKeyProfilesAsync(IEnumerable<string> phones, CancellationToken ct)
+    {
         if (residentsTable is null) throw new InvalidOperationException("Invalid key order.");
-        var cache = new Dictionary<string, IReadOnlyList<KeyResident>>(StringComparer.Ordinal);
-        var results = new List<IReadOnlyList<KeyResident>>();
+        var cache = new Dictionary<string, IReadOnlyList<ResidentRegistration>>(StringComparer.Ordinal);
+        var results = new List<IReadOnlyList<ResidentRegistration>>();
         foreach (var value in phones)
         {
             if (!ResidentPhoneIndex.TryNormalize(value, out var phone)) { results.Add([]); continue; }
             if (!cache.TryGetValue(phone!, out var names))
             {
-                var matches = new List<KeyResident>();
+                var matches = new List<ResidentRegistration>();
                 var lookup = ResidentPhoneIndex.LookupKey(building, phone!);
                 Dictionary<string, AttributeValue>? cursor = null;
                 do
@@ -101,8 +157,7 @@ public sealed partial class DynamoAdminStore
                         var resident = Payload<ResidentRegistration>(source);
                         if (resident.UserId != id || resident.BuildingId != building || resident.Stage != RegistrationStage.Approved || resident.PersonalDataDeleted ||
                             !ResidentPhoneIndex.TryNormalize(resident.Phone, out var currentPhone) || currentPhone != phone) continue;
-                        var name = string.Join(" ", new[] { resident.FirstName, resident.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
-                        if (name.Length > 0) matches.Add(new(name, resident.BuildingNumber, resident.ApartmentNumber));
+                        matches.Add(resident);
                     }
                     cursor = page.LastEvaluatedKey;
                 } while (cursor is { Count: > 0 });

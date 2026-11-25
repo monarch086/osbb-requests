@@ -37,6 +37,7 @@ public interface IAdminStore
     Task<ManagedRequest?> GetRequestAsync(long ownerId, long requestId, CancellationToken ct);
     Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct);
     Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct);
+    Task UpdateResidentKeyAsync(AdminUser actor, long ownerId, long requestId, int index, ResidentKeyUpdate change, CancellationToken ct);
     Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct);
     Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct, string? comment = null);
     Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct);

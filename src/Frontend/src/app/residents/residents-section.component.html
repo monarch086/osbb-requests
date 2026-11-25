@@ -36,7 +36,19 @@
   [saving]="saving"
   (selectPending)="openPending($event)"
   (selectRegistered)="openRegistered($event)"
+  (editKey)="openKey($event, false)"
+  (removeKey)="openKey($event, true)"
 />
+@if (selectedKey; as key) {
+  <app-resident-key-dialog
+    [key]="key"
+    [remove]="removingKey"
+    [saving]="saving"
+    [error]="error"
+    (saved)="saveKey($event)"
+    (closed)="closeKey()"
+  />
+}
 @if (lists.residentView === 'apartments') {
   <app-apartment-reviews
     [refreshVersion]="apartmentRefreshVersion"

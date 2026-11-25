@@ -115,6 +115,21 @@ public sealed class AdminApiTests
     }
 
     [Fact]
+    public async Task EditingResidentKeysRequiresKeyOrderPermission()
+    {
+        var store = new FakeStore();
+        var handler = Handler(store);
+        const string path = "/admin/residents/keys/99/42/0";
+        var body = new { version = 1, remove = true };
+        store.Users["regular"] = Regular with { Permissions = new(false, false, true, false, false) };
+        Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request(path, method: "PATCH", body: body), default))).Status);
+        Assert.Equal(0, store.KeyResidentWrites);
+        store.Users["regular"] = Regular with { Permissions = new(false, true, false, false, false) };
+        Assert.Equal(200, (await handler.HandleAsync(Request(path, method: "PATCH", body: body), default)).StatusCode);
+        Assert.Equal(1, store.KeyResidentWrites);
+    }
+
+    [Fact]
     public async Task AnonymousAndIdTokensCannotReadPrivateData()
     {
         var store = new FakeStore();
@@ -1091,7 +1106,9 @@ public sealed class AdminApiTests
         public int ExportReads;
         public int AuthorReads;
         public int KeyResidentReads;
+        public int KeyResidentWrites;
         public Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct) { KeyResidentReads++; return Task.FromResult(new ResidentKeyPage([], page, 25, 0)); }
+        public Task UpdateResidentKeyAsync(AdminUser actor, long ownerId, long requestId, int index, ResidentKeyUpdate change, CancellationToken ct) { KeyResidentWrites++; return Task.CompletedTask; }
         public Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct) => Task.FromResult<IReadOnlyList<IReadOnlyList<KeyResident>>>(request.KeyItems!.Select(_ => (IReadOnlyList<KeyResident>)new[] { new KeyResident("Олена Тестова", "4Б", "12") }).ToArray());
         public int PermissionWrites;
         public Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct) { PermissionWrites++; return Task.CompletedTask; }

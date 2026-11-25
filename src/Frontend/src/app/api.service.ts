@@ -17,7 +17,9 @@ import type {
   RegistrationApproval,
   ResidentDataChange,
   ResidentDirectoryPage,
+  ResidentKey,
   ResidentKeyPage,
+  ResidentKeyUpdate,
   ResidentListRow,
   ResidentTypeHistory,
   Ticket,
@@ -68,6 +70,17 @@ export class ApiService {
   getResidentsWithKeys(page: number): Promise<ResidentKeyPage> {
     return this.request(
       '/residents/keys?' + new URLSearchParams({ page: String(page) }).toString(),
+    );
+  }
+
+  updateResidentKey(key: ResidentKey, change: ResidentKeyUpdate): Promise<{ ok: boolean }> {
+    return this.request(
+      `/residents/keys/${key.ownerId}/${key.requestId}/${key.keyIndex}`,
+      'PATCH',
+      {
+        ...change,
+        version: key.version,
+      },
     );
   }
 
