@@ -7,12 +7,12 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.EntityFrameworkCore;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
-namespace OsbbRequests.Data;
+namespace OsbbRequests.DataImport;
 
 public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stage, string region)
 {

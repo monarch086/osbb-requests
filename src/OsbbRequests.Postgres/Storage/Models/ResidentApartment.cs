@@ -1,7 +1,7 @@
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
-namespace OsbbRequests.Data.Storage;
+namespace OsbbRequests.DataImport.Storage;
 
 public sealed class ResidentApartment
 {

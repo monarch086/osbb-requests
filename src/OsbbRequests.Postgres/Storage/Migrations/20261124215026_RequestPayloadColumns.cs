@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace OsbbRequests.Data.Storage.Migrations
+namespace OsbbRequests.DataImport.Storage.Migrations
 {
     /// <inheritdoc />
     public partial class RequestPayloadColumns : Migration

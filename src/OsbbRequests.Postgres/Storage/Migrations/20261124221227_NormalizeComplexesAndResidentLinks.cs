@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
-namespace OsbbRequests.Data.Storage.Migrations
+namespace OsbbRequests.DataImport.Storage.Migrations
 {
     public partial class NormalizeComplexesAndResidentLinks : Migration
     {

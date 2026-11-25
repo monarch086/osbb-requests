@@ -1,4 +1,4 @@
-namespace OsbbRequests.Data.Storage;
+namespace OsbbRequests.DataImport.Storage;
 
 public sealed class ApiDailyStatistic
 {

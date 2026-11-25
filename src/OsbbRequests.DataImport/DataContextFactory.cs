@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace OsbbRequests.Data.Storage;
+namespace OsbbRequests.DataImport.Storage;
 
 public sealed class DataContextFactory : IDesignTimeDbContextFactory<DataContext>
 {

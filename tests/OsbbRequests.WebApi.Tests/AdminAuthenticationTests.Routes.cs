@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -292,7 +292,7 @@ public sealed partial class AdminAuthenticationTests
     {
         await using var db = await TestDatabase.CreateAsync();
         (await db.Readout.SourceRecords.SingleAsync()).Data = "{}";
-        var permissions = new OsbbRequests.Data.Storage.AdministratorPermission
+        var permissions = new OsbbRequests.DataImport.Storage.AdministratorPermission
         {
             SourceId = 1,
             UserId = "test-user",

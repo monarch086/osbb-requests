@@ -3,6 +3,6 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/OsbbRequests.Data/OsbbRequests.Data.csproj" />
+    <ProjectReference Include="../../src/OsbbRequests.DataImport/OsbbRequests.DataImport.csproj" />
   </ItemGroup>
 </Project>

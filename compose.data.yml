@@ -29,7 +29,7 @@ services:
     image: osbb-requests-importer:local
     build:
       context: .
-      dockerfile: src/OsbbRequests.Data/Dockerfile
+      dockerfile: src/OsbbRequests.DataImport/Dockerfile
     profiles: [tools]
     command: [import, --stage, dev, --region, eu-central-1]
     user: '${OSBB_IMPORTER_UID:-1000}:${OSBB_IMPORTER_GID:-1000}'

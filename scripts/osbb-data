@@ -31,4 +31,4 @@ if [[ "${1:-}" == "backup" ]]; then
   printf 'Резервну копію створено: %s\n' "$destination"
   exit 0
 fi
-exec dotnet run --project "$project_root/src/OsbbRequests.Data" -- "$@"
+exec dotnet run --project "$project_root/src/OsbbRequests.DataImport" -- "$@"

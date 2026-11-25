@@ -3,9 +3,9 @@ using System.Text.Json;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.EntityFrameworkCore;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 
-namespace OsbbRequests.Data;
+namespace OsbbRequests.DataImport;
 
 internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexes)
 {

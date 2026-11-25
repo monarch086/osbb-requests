@@ -3,8 +3,8 @@ using Amazon;
 using Amazon.DynamoDBv2;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using OsbbRequests.Data;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport;
+using OsbbRequests.DataImport.Storage;
 
 if (args.Length is not (1 or 5) || args[0] is not ("migrate" or "import") ||
     (args[0] == "migrate" && args.Length != 1) ||

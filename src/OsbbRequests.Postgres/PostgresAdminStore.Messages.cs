@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services;
-using StoredMessage = OsbbRequests.Data.Storage.BroadcastMessage;
+using StoredMessage = OsbbRequests.DataImport.Storage.BroadcastMessage;
 
 namespace OsbbRequests.Postgres;
 
@@ -60,7 +60,7 @@ public sealed partial class PostgresAdminStore
         }
     }
 
-    private static Task<StoredMessage?> FindMessage(OsbbRequests.Data.Storage.DataContext db, Scope current, string id, CancellationToken ct) =>
+    private static Task<StoredMessage?> FindMessage(OsbbRequests.DataImport.Storage.DataContext db, Scope current, string id, CancellationToken ct) =>
         db.BroadcastMessages.Where(row => row.SourceId == current.SourceId && row.ComplexId == current.ComplexId && row.MessageId == id)
             .OrderByDescending(row => row.CreatedAt).FirstOrDefaultAsync(ct);
 

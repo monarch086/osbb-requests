@@ -1,11 +1,11 @@
 using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.EntityFrameworkCore;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
 using OsbbRequests.Shared.Residents;
 
-namespace OsbbRequests.Data;
+namespace OsbbRequests.DataImport;
 
 internal sealed class OwnerApartmentProjector(DataContext db)
 {

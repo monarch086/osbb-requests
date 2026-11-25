@@ -17,11 +17,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.Bot.Tests", "tests\OsbbRequests.Bot.Tests\OsbbRequests.Bot.Tests.csproj", "{ACD7F6B4-7623-4381-A025-CC14B0AD9329}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.Data", "src\OsbbRequests.Data\OsbbRequests.Data.csproj", "{61B86155-89CE-4C5A-97F1-FB1BE9E5FC6E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.DataImport", "src\OsbbRequests.DataImport\OsbbRequests.DataImport.csproj", "{61B86155-89CE-4C5A-97F1-FB1BE9E5FC6E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.ResidentNameKeys", "src\OsbbRequests.ResidentNameKeys\OsbbRequests.ResidentNameKeys.csproj", "{C05EABC9-31B6-4EB0-AF71-7A449EE90550}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.Data.Smoke", "tests\OsbbRequests.Data.Smoke\OsbbRequests.Data.Smoke.csproj", "{9374275C-D117-4C3A-A48B-70E18456FF94}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.DataImport.Smoke", "tests\OsbbRequests.DataImport.Smoke\OsbbRequests.DataImport.Smoke.csproj", "{9374275C-D117-4C3A-A48B-70E18456FF94}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.Domain", "src\OsbbRequests.Domain\OsbbRequests.Domain.csproj", "{712B2629-DD80-409B-A51A-EBF54FF33600}"
 EndProject

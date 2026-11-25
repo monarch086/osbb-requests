@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services;
-using StoredRequest = OsbbRequests.Data.Storage.Request;
+using StoredRequest = OsbbRequests.DataImport.Storage.Request;
 
 namespace OsbbRequests.Postgres;
 

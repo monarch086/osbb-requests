@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace OsbbRequests.Data.Storage;
+namespace OsbbRequests.DataImport.Storage;
 
 public sealed class DataContext(DbContextOptions<DataContext> options) : DbContext(options)
 {

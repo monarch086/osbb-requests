@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 
-namespace OsbbRequests.Data;
+namespace OsbbRequests.DataImport;
 
 internal sealed class ComplexDirectory(DataContext db, long sourceId)
 {

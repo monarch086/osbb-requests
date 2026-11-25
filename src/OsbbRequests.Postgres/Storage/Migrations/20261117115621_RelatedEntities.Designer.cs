@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 
 #nullable disable
 
-namespace OsbbRequests.Data.Storage.Migrations
+namespace OsbbRequests.DataImport.Storage.Migrations
 {
     [DbContext(typeof(DataContext))]
     [Migration("20261117115621_RelatedEntities")]
@@ -25,7 +25,7 @@ namespace OsbbRequests.Data.Storage.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.Administrator", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.Administrator", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -42,7 +42,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("administrators", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.AdministratorEvent", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.AdministratorEvent", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -63,7 +63,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("administrator_events", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.ApiDailyStatistic", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ApiDailyStatistic", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -96,7 +96,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("api_daily_statistics", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.BroadcastMessage", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.BroadcastMessage", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -134,7 +134,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("broadcast_messages", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.ImportRun", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ImportRun", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -165,7 +165,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("import_runs", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.Notification", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.Notification", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -190,7 +190,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("notifications", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.Request", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.Request", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -223,7 +223,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("requests", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.RequestEvent", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.RequestEvent", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -252,7 +252,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("request_events", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.RequestKeyItem", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.RequestKeyItem", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -284,7 +284,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("request_key_items", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.Resident", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.Resident", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -304,7 +304,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("residents", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentConsent", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentConsent", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -326,7 +326,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("resident_consents", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentEvent", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentEvent", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -353,7 +353,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("resident_events", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentMembership", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentMembership", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -380,7 +380,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("resident_memberships", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.ResidentPhone", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentPhone", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");
@@ -401,7 +401,7 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.ToTable("resident_phones", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.Data.Storage.SourceRecord", b =>
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.SourceRecord", b =>
                 {
                     b.Property<string>("Source")
                         .HasColumnType("text");

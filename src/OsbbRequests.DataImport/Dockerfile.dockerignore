@@ -3,8 +3,8 @@
 !Directory.Build.props
 !NuGet.Config
 !src/
-!src/OsbbRequests.Data/
-!src/OsbbRequests.Data/**
+!src/OsbbRequests.DataImport/
+!src/OsbbRequests.DataImport/**
 !src/OsbbRequests.Shared/
 !src/OsbbRequests.Shared/**
 !src/OsbbRequests.Domain/

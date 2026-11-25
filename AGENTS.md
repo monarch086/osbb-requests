@@ -15,6 +15,7 @@
 - `src/OsbbRequests.Aws` - адаптери DynamoDB для Lambda.
 - `src/OsbbRequests.Cognito` - спільний адаптер ідентичності Cognito.
 - `src/OsbbRequests.Postgres` - моделі EF Core, міграції та локальне сховище адміністративних операцій.
+- `src/OsbbRequests.DataImport` - локальний CLI для міграцій PostgreSQL та імпорту з DynamoDB.
 - `src/OsbbRequests.Domain`, `src/OsbbRequests.Services` і `src/OsbbRequests.Shared` - моделі, бізнес-операції та допоміжний код.
 - `src/Frontend` - Angular SPA: авторизація, заявки, мешканці, адміністратори та діалоги.
 - `tests/OsbbRequests.Bot.Tests` - тести .NET, зокрема API та інфраструктури; `tests/admin` - Python-тести операторських скриптів.

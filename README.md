@@ -596,14 +596,14 @@ loginctl enable-linger "$USER"
 
 Локальна база містить персональні дані, включно з історичними записами й можливими старими дублями з `command-data`. Захистіть доступ до хоста та Docker volume; після видалення інформації в боті локальна копія оновлюється лише після повторного імпорту. Не додавайте пароль або дані до Git. Команда `docker compose --env-file .env.data.local -f compose.data.yml down` зупиняє стек, зберігаючи том.
 
-Нові міграції створюються через локальний EF Core tool: `dotnet tool restore`, потім `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.Data --output-dir Storage/Migrations`; команда `migrate` застосовує їх. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
+Нові міграції створюються через локальний EF Core tool: `dotnet tool restore`, потім `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.DataImport --output-dir Storage/Migrations`; команда `migrate` застосовує їх. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
 
 Перевірку імпорту синтетичними даними можна виконати на окремій тестовій базі:
 
 ```bash
 docker compose --env-file .env.data.local -f compose.data.yml exec -T postgres createdb -U osbb osbb_import_test
 set -a; source .env.data.local; set +a
-dotnet run --project tests/OsbbRequests.Data.Smoke
+dotnet run --project tests/OsbbRequests.DataImport.Smoke
 ```
 
 Тест не використовує AWS і перевіряє пов’язані проєкції, їхню міграцію, первинний та повторний імпорт, зміну, видалення й облік помилки. Тестова база окрема від `osbb`.

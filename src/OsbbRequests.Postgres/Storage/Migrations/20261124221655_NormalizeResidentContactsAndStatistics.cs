@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace OsbbRequests.Data.Storage.Migrations;
+namespace OsbbRequests.DataImport.Storage.Migrations;
 
 public partial class NormalizeResidentContactsAndStatistics : Migration
 {

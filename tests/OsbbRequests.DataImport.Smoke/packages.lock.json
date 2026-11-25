@@ -196,7 +196,7 @@
           "System.Security.Cryptography.Pkcs": "10.0.15"
         }
       },
-      "osbbrequests.data": {
+      "osbbrequests.dataimport": {
         "type": "Project",
         "dependencies": {
           "AWSSDK.DynamoDBv2": "[4.0.108, )",

@@ -1,6 +1,6 @@
 using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.Data.Storage;
+namespace OsbbRequests.DataImport.Storage;
 
 public sealed class Resident
 {

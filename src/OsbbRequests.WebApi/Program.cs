@@ -4,7 +4,7 @@ using Amazon.CognitoIdentityProvider;
 using Amazon.Runtime;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using OsbbRequests.Data.Storage;
+using OsbbRequests.DataImport.Storage;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
