@@ -369,6 +369,9 @@ namespace OsbbRequests.Data.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Visibility")
                         .IsRequired()
                         .HasColumnType("text");
@@ -595,12 +598,33 @@ namespace OsbbRequests.Data.Storage.Migrations
                     b.Property<string>("Key")
                         .HasColumnType("text");
 
+                    b.Property<string>("Actor")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrentKeySerialNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CurrentKeyType")
+                        .HasColumnType("text");
+
                     b.Property<string>("Data")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
                     b.Property<string>("EventKey")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long?>("KeyRequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("PreviousKeySerialNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PreviousKeyType")
                         .HasColumnType("text");
 
                     b.Property<string>("RegistrationId")

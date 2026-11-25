@@ -7,6 +7,7 @@ public sealed class Request
     public long SourceId { get; set; }
     public long OwnerId { get; set; }
     public long RequestId { get; set; }
+    public int Version { get; set; }
     public long ComplexId { get; set; }
     public RequestStatus Status { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

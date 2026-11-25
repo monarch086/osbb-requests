@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
@@ -46,7 +47,7 @@ if (statistic is null || statistic.Requests != 4 ||
     !await db.SourceRecords.AnyAsync(x => x.SourceId == sourceId && x.Table == "statistics" && x.Key == "API\u001f2026-01-01#GET /admin/me"))
     throw new Exception("Daily statistic or its DynamoDB key was not imported");
 var request = await db.Requests.SingleAsync(x => x.SourceId == sourceId);
-if (request.ComplexId != complexId || request.Status != RequestStatus.Completed || request.Visibility != RequestVisibility.Private ||
+if (request.ComplexId != complexId || request.Status != RequestStatus.Completed || request.Visibility != RequestVisibility.Private || request.Version != 3 ||
     request.Category != RequestCategories.KeyOrder || request.Description != "Тестове замовлення" ||
     request.Location != "" || request.PlannedDate != new DateOnly(2026, 1, 2) || request.AssignedTo != "admin" ||
     request.Priority != "High" || request.Resolution != "Готово" || request.Scope is not null ||
@@ -124,10 +125,16 @@ if (await db.RequestEvents.CountAsync(x => x.SourceId == sourceId) != 1) throw n
 dynamo.Serial = "new-serial";
 await Import();
 var key = await db.RequestKeyItems.SingleAsync(x => x.SourceId == sourceId);
-if (key.SerialNumber != "new-serial") throw new Exception("Key update failed");
+if (key.SerialNumber != "new-serial" || key.Type != "Перепустка") throw new Exception("Key update failed");
 request = await db.Requests.SingleAsync(x => x.SourceId == sourceId);
-if (request.Status != RequestStatus.InProgress || request.PlannedDate is not null || request.Resolution is not null)
+if (request.Status != RequestStatus.InProgress || request.PlannedDate is not null || request.Resolution is not null || request.Version != 4)
     throw new Exception("Request columns were not updated");
+var keyEdit = await db.ResidentEvents.SingleAsync(x => x.SourceId == sourceId && x.KeyRequestId == 1);
+if (keyEdit.RegistrationId != "ref" || keyEdit.Actor != "admin@example.test" ||
+    keyEdit.CreatedAt != DateTimeOffset.Parse("2026-01-03T00:00:00Z") ||
+    keyEdit.PreviousKeyType != "Магніт" || keyEdit.PreviousKeySerialNumber != "old-serial" ||
+    keyEdit.CurrentKeyType != "Перепустка" || keyEdit.CurrentKeySerialNumber != "new-serial")
+    throw new Exception("Key edit history was not projected");
 db.ResidentPhones.Add(new ResidentPhone { ResidentId = residentId, Phone = "+380671234568" });
 db.ResidentPhones.Add(new ResidentPhone { ResidentId = residentId, Phone = "+380671234569" });
 await db.SaveChangesAsync();
@@ -172,11 +179,21 @@ if ((await db.ResidentApartments.SingleAsync(x => x.ComplexId == complexId)).Res
     (await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId)).ResidentId != residentId)
     throw new Exception("Import did not link a newly available profile");
 
+dynamo.KeyRemoved = true;
+await Import();
+request = await db.Requests.SingleAsync(x => x.SourceId == sourceId);
+var keyDeletion = await db.ResidentEvents.SingleAsync(x => x.SourceId == sourceId && x.KeyRequestId == 1 && x.CurrentKeyType == null);
+if (request.Version != 5 || await db.RequestKeyItems.AnyAsync(x => x.SourceId == sourceId) ||
+    keyDeletion.PreviousKeyType != "Перепустка" || keyDeletion.PreviousKeySerialNumber != "new-serial" ||
+    keyDeletion.CurrentKeySerialNumber is not null)
+    throw new Exception("Key removal or its history was not projected");
+
 dynamo.SkipRequest = true;
 await Import();
 if (await db.Requests.AnyAsync(x => x.SourceId == sourceId) ||
     await db.RequestKeyItems.AnyAsync(x => x.SourceId == sourceId) ||
-    !await db.RequestEvents.AnyAsync(x => x.SourceId == sourceId && x.RequestId == 1))
+    !await db.RequestEvents.AnyAsync(x => x.SourceId == sourceId && x.RequestId == 1) ||
+    await db.ResidentEvents.CountAsync(x => x.SourceId == sourceId && x.KeyRequestId == 1) != 2)
     throw new Exception("Removing a request failed to preserve its independently imported history");
 
 dynamo.Empty = true;
@@ -223,7 +240,32 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
     public bool? ApartmentNotifications;
     public const string ApartmentKey = "COMPLEX#test#OWNER_APARTMENTS#42";
     public string Serial = "old-serial";
+    public bool KeyRemoved;
     private static Dictionary<string, AttributeValue> Item(string pk, string sk) => new() { ["pk"] = new(pk), ["sk"] = new(sk) };
+
+    private static Dictionary<string, AttributeValue> KeyHistoryItem(string timestamp, bool deleted)
+    {
+        var eventKey = $"EVENT#TYPE#{timestamp}";
+        var payload = JsonSerializer.Serialize(new
+        {
+            Actor = "admin@example.test",
+            CreatedAt = timestamp,
+            KeyChange = new
+            {
+                RequestId = 1,
+                Previous = deleted ? new { Type = "Перепустка", SerialNumber = "new-serial" } : new { Type = "Магніт", SerialNumber = "old-serial" },
+                Current = deleted ? null : new { Type = "Перепустка", SerialNumber = "new-serial" }
+            }
+        });
+        return new()
+        {
+            ["pk"] = new($"COMPLEX#test#RECORD#REGISTRATION#ref#{eventKey}"),
+            ["sourcePk"] = new("REGISTRATION#ref"),
+            ["sourceSk"] = new(eventKey),
+            ["recordData"] = new() { M = new() { ["payload"] = new(payload) } }
+        };
+    }
+
     private Dictionary<string, AttributeValue> OwnerApartmentItem()
     {
         var apartment = new OwnerApartment("apartment", "4Г", 12, DateTimeOffset.UnixEpoch.AddTicks(7));
@@ -278,6 +320,8 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
                   """;
             if (!SkipProfile) items.Add(new() { ["pk"] = new("COMPLEX#test#USER#42"), ["payload"] = new(profile) });
             items.Add(new() { ["pk"] = new("COMPLEX#test#RECORD#REGISTRATION#ref#EVENT#DECIDED"), ["sourcePk"] = new("REGISTRATION#ref"), ["sourceSk"] = new("EVENT#DECIDED"), ["recordData"] = new() { M = new() { ["actor"] = new("test") } } });
+            if (Serial != "old-serial") items.Add(KeyHistoryItem("2026-01-03T00:00:00Z", deleted: false));
+            if (KeyRemoved) items.Add(KeyHistoryItem("2026-01-04T00:00:00Z", deleted: true));
             var membership = Item("USER#42", "MEMBERSHIP");
             membership["buildingId"] = new("test");
             membership["active"] = new() { BOOL = !AccessRevoked };
@@ -292,10 +336,15 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
             var status = Serial == "old-serial"
                 ? "\"Status\":3,\"PlannedDate\":\"2026-01-02\",\"Resolution\":\"Готово\""
                 : "\"Status\":\"InProgress\"";
+            var keyItems = KeyRemoved ? "[]" : JsonSerializer.Serialize(new[]
+            {
+                new { Type = Serial == "old-serial" ? "Магніт" : "Перепустка", Phone = "+380671234567", SerialNumber = Serial }
+            });
+            request["version"] = new() { N = KeyRemoved ? "5" : Serial == "old-serial" ? "3" : "4" };
             request["payload"] = new($$"""
                 {"Id":1,"OwnerId":42,"BuildingId":"test",{{status}},"CreatedAt":"2026-01-01T02:00:00+02:00",
                  "Category":"Замовлення ключів","Location":"","Description":"Тестове замовлення","AssignedTo":"admin","Priority":"High",
-                 "KeyItems":[{"Type":"Магніт","Phone":"+380671234567","SerialNumber":"{{Serial}}"}]}
+                 "KeyItems":{{keyItems}}}
                 """);
             if (!SkipRequest) items.Add(request);
             items.Add(Item("REQUEST#1", "EVENT#CREATED"));

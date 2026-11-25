@@ -121,10 +121,21 @@ internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexe
         var data = item.GetValueOrDefault("recordData")?.M;
         if (sourcePk.StartsWith("REGISTRATION#", StringComparison.Ordinal) && sourceSk.StartsWith("EVENT#", StringComparison.Ordinal) && data is { Count: > 0 })
         {
-            var value = Document.FromAttributeMap(data).ToJson();
             var row = await db.ResidentEvents.FindAsync([sourceId, key], ct);
-            if (row is null) db.ResidentEvents.Add(new ResidentEvent { SourceId = sourceId, Key = key, RegistrationId = sourcePk[13..], EventKey = sourceSk, Data = value });
-            else row.Data = value;
+            var next = new ResidentEvent
+            {
+                SourceId = sourceId,
+                Key = key,
+                RegistrationId = sourcePk[13..],
+                EventKey = sourceSk,
+                Data = Document.FromAttributeMap(data).ToJson(),
+                Actor = data.GetValueOrDefault("actor")?.S,
+                CreatedAt = Date(data.GetValueOrDefault("createdAt")?.S)
+            };
+            if (sourceSk.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) && data.GetValueOrDefault("payload")?.S is { Length: > 0 } payload)
+                ProjectResidentHistory(next, payload);
+            if (row is null) db.ResidentEvents.Add(next);
+            else db.Entry(row).CurrentValues.SetValues(next);
         }
         if (sourcePk.StartsWith("USER#", StringComparison.Ordinal) && sourceSk == "MEMBERSHIP" && data is { Count: > 0 } && long.TryParse(sourcePk[5..], out var id))
         {
@@ -168,6 +179,22 @@ internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexe
               AND membership."TelegramUserId" = resident."TelegramUserId"
               AND membership."ResidentId" IS DISTINCT FROM resident."Id";
             """, ct);
+    }
+
+    private static void ProjectResidentHistory(ResidentEvent row, string payload)
+    {
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        row.Actor = String(root, "Actor") ?? row.Actor;
+        row.CreatedAt = Date(String(root, "CreatedAt")) ?? row.CreatedAt;
+        if (!root.TryGetProperty("KeyChange", out var keyChange) || keyChange.ValueKind != JsonValueKind.Object) return;
+        row.KeyRequestId = keyChange.GetProperty("RequestId").GetInt64();
+        var previous = keyChange.GetProperty("Previous");
+        row.PreviousKeyType = String(previous, "Type");
+        row.PreviousKeySerialNumber = String(previous, "SerialNumber");
+        if (!keyChange.TryGetProperty("Current", out var current) || current.ValueKind != JsonValueKind.Object) return;
+        row.CurrentKeyType = String(current, "Type");
+        row.CurrentKeySerialNumber = String(current, "SerialNumber");
     }
 
     public async Task RemoveAsync(long sourceId, string table, string key, string json, CancellationToken ct)

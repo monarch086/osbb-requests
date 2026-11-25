@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -246,6 +247,7 @@ public sealed class Importer(DataContext db, IAmazonDynamoDB dynamo, string stag
                 SourceId = sourceId,
                 OwnerId = value.OwnerId,
                 RequestId = value.Id,
+                Version = int.Parse(item.GetValueOrDefault("version")?.N ?? "0", CultureInfo.InvariantCulture),
                 ComplexId = await complexes.GetOrCreateIdAsync(value.BuildingId, ct),
                 CreatedAt = value.CreatedAt.ToUniversalTime(),
                 Status = value.Status,
