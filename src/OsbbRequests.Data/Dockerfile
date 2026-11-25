@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS build
+WORKDIR /src
+
+COPY global.json Directory.Build.props NuGet.Config ./
+COPY src/OsbbRequests.Data/OsbbRequests.Data.csproj src/OsbbRequests.Data/packages.lock.json ./src/OsbbRequests.Data/
+COPY src/OsbbRequests.Shared/OsbbRequests.Shared.csproj src/OsbbRequests.Shared/packages.lock.json ./src/OsbbRequests.Shared/
+RUN dotnet restore src/OsbbRequests.Data/OsbbRequests.Data.csproj --locked-mode
+
+COPY src/OsbbRequests.Data/ ./src/OsbbRequests.Data/
+COPY src/OsbbRequests.Shared/ ./src/OsbbRequests.Shared/
+RUN dotnet publish src/OsbbRequests.Data/OsbbRequests.Data.csproj --configuration Release --no-restore --output /app /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app/ ./
+USER app
+ENTRYPOINT ["dotnet", "OsbbRequests.Data.dll"]

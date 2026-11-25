@@ -511,7 +511,17 @@ docker compose --env-file .env.data.local -f compose.data.yml up -d
 
 Не перегенеровуйте пароль для вже ініціалізованого тому: PostgreSQL застосовує його під час першого створення бази. Для повторних запусків використовуйте наявний `.env.data.local`. Команди виконуються на хості; для AWS використовується стандартний ланцюг credentials SDK, а джерелу потрібні read-only дозволи `dynamodb:DescribeTable`, `dynamodb:Scan`, `dynamodb:GetItem` для чотирьох таблиць обраного stage. У стек також входить Adminer — вебінтерфейс PostgreSQL на [http://127.0.0.1:8081/?pgsql=postgres&db=osbb](http://127.0.0.1:8081/?pgsql=postgres&db=osbb). При вході виберіть PostgreSQL, сервер `postgres`, користувача `osbb` і базу `osbb`; пароль — значення `OSBB_POSTGRES_PASSWORD` із `.env.data.local`. Адреса сервера налаштована через Docker-мережу; пароль у конфігурацію Adminer не передається. За замовчуванням інтерфейс доступний лише на localhost; адресу та порт можна змінити через `OSBB_ADMINER_BIND` і `OSBB_ADMINER_PORT` у `.env.data.local`, після чого повторно виконати `docker compose --env-file .env.data.local -f compose.data.yml up -d`. Наприклад, `OSBB_ADMINER_BIND=192.168.0.41` відкриває доступ через цю мережеву адресу. HTTP не шифрує пароль і дані, тому використовуйте лише довірену мережу або захищений тунель. Adminer дає змогу змінювати дані, тому для перегляду надавайте доступ лише довіреним користувачам хоста.
 
-Імпорт запускається явно:
+Для ручного запуску через Compose зберіть і запустіть одноразовий контейнер `importer`:
+
+```bash
+OSBB_IMPORTER_UID="$(id -u)" OSBB_IMPORTER_GID="$(id -g)" \
+  docker compose --env-file .env.data.local -f compose.data.yml \
+  run --rm --build -T importer import --stage dev --region eu-central-1
+```
+
+Контейнер підключається до `postgres:5432` у мережі стека. Він запускається з UID і GID оператора, щоб читати приватні файли профілю AWS. Compose монтує `~/.aws` лише для читання. За потреби задайте `OSBB_AWS_DIRECTORY` із власним каталогом файлів AWS і `AWS_PROFILE` із назвою профілю. Сервіс `importer` належить до профілю `tools` і запускається явною командою `run`.
+
+Для ручного запуску з установленим SDK також доступна команда:
 
 ```bash
 ./scripts/osbb-data import --stage dev --region eu-central-1
@@ -532,7 +542,7 @@ docker compose --env-file .env.data.local -f compose.data.yml exec -T postgres p
 
 Резервна копія містить персональні та потенційно історичні дані. Каталог `backups/` виключено з Git; для іншого розташування оператор має забезпечити захист і виключення з Git самостійно. Копії автоматично не видаляються. Архів є узгодженим знімком однієї бази на час `pg_dump`, але якщо в цей час виконується імпорт, він може містити лише частину результатів імпорту.
 
-Для локального хоста передбачено `systemd` user timer: щонеділі о 04:00 за `Europe/Kyiv` він запускає `scripts/osbb-data-weekly`, який чекає готовності PostgreSQL, імпортує `dev` із `eu-central-1` і після успішного імпорту створює бекап. Помилка імпорту зупиняє завдання до створення бекапу; статус і повідомлення доступні через `systemctl --user status osbb-data-weekly.service` та `journalctl --user -u osbb-data-weekly.service`. Необхідні робочі AWS credentials у стандартному профілі користувача, доступ до Docker і checkout у `~/projects/osbb-requests`. Після перезавантаження user timer працює без активного входу за умови ввімкненого linger; `Persistent=true` запускає пропущене завдання після відновлення хоста, але не вмикає вимкнений комп’ютер.
+Щонеділі о 04:00 за `Europe/Kyiv` користувацький таймер `systemd` запускає `scripts/osbb-data-weekly`. Скрипт чекає готовності PostgreSQL, збирає Docker-образ із поточного коду й запускає одноразовий контейнер для імпорту `dev` із `eu-central-1`. Після успішного імпорту створюється бекап. Статус і повідомлення доступні через `systemctl --user status osbb-data-weekly.service` та `journalctl --user -u osbb-data-weekly.service`. Завданню потрібні доступ до Docker, робочий профіль AWS і checkout у `~/projects/osbb-requests`. Для налаштувань профілю й каталогу AWS планове завдання читає `.env.data.local`. Після перезавантаження таймер працює без активного входу за умови ввімкненого linger. Параметр `Persistent=true` запускає пропущене завдання після відновлення хоста.
 
 Для встановлення таймера на інший відповідно налаштований хост:
 

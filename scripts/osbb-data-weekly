@@ -17,6 +17,8 @@ if ! flock -n 9; then
   exit 1
 fi
 cd "$project_root"
-docker compose --env-file .env.data.local -f compose.data.yml up -d --wait --no-deps postgres
-./scripts/osbb-data import --stage dev --region eu-central-1
+export OSBB_IMPORTER_UID="$(id -u)" OSBB_IMPORTER_GID="$(id -g)"
+compose=(docker compose --env-file .env.data.local -f compose.data.yml)
+"${compose[@]}" up -d --wait --no-deps postgres
+"${compose[@]}" run --rm --build --no-deps -T importer import --stage dev --region eu-central-1
 ./scripts/osbb-data backup

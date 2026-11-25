@@ -1,0 +1,11 @@
+**
+!global.json
+!Directory.Build.props
+!NuGet.Config
+!src/
+!src/OsbbRequests.Data/
+!src/OsbbRequests.Data/**
+!src/OsbbRequests.Shared/
+!src/OsbbRequests.Shared/**
+**/bin/
+**/obj/
