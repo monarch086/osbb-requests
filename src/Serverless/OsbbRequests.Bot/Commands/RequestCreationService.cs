@@ -57,87 +57,120 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         if (current is null || !IsActive(current)) return null;
         if (current.ComplexId != complexId) throw new InvalidOperationException("Draft complex mismatch.");
         var owner = await OwnerAsync(command.UserId, ct);
-        if ((current.Category == RequestCategories.KeyOrder || current.Stage is RequestDraftStage.KeyType or RequestDraftStage.KeyQuantity or RequestDraftStage.KeyPhone or RequestDraftStage.KeyNext) && owner is null)
+        return await ContinueDraftAsync(command, current, owner, ct);
+    }
+
+    private async Task<CommandOutcome> ContinueDraftAsync(CommandEnvelope command, RequestDraft draft,
+        ResidentRegistration? owner, CancellationToken ct)
+    {
+        var keyStep = IsKeyStep(draft.Stage);
+        if ((keyStep || draft.Category == RequestCategories.KeyOrder) && owner is null)
             return new("Замовлення ключів доступне лише підтвердженим власникам. Скасувати: /cancel.");
-        if (command.Contact is not null) return Prompt(current, owner is not null);
+        if (command.Contact is not null) return Prompt(draft, owner is not null);
         var text = command.Text.Trim();
-        RequestDraft next;
-        switch (current.Stage)
+        return keyStep ? await ContinueKeyOrderAsync(command, draft, text, owner!, ct) :
+            ContinueRequest(command, draft, text, owner is not null);
+    }
+
+    private static bool IsKeyStep(RequestDraftStage stage) =>
+        stage is RequestDraftStage.KeyType or RequestDraftStage.KeyQuantity or RequestDraftStage.KeyPhone or RequestDraftStage.KeyNext;
+
+    private CommandOutcome ContinueRequest(CommandEnvelope command, RequestDraft draft, string text, bool owner) => draft.Stage switch
+    {
+        RequestDraftStage.InitialCategory or RequestDraftStage.Category => SelectCategory(draft, text, owner),
+        RequestDraftStage.Scope or RequestDraftStage.Entrance or RequestDraftStage.Floor => SelectLocation(draft, text, owner),
+        _ => CompleteDescription(command, draft, text)
+    };
+
+    private CommandOutcome CompleteDescription(CommandEnvelope command, RequestDraft draft, string text) =>
+        text.Length is < 10 or > 2000 ? Prompt(draft) : Finish(command, draft, draft.Version, text);
+
+    private Task<CommandOutcome> ContinueKeyOrderAsync(CommandEnvelope command, RequestDraft draft, string text,
+        ResidentRegistration owner, CancellationToken ct) => draft.Stage switch
         {
-            case RequestDraftStage.InitialCategory:
-                if (text.Equals(RequestCategories.KeyOrder, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (owner is null) return Prompt(current);
-                    next = current with { Category = RequestCategories.KeyOrder, Stage = RequestDraftStage.KeyType };
-                }
-                else
-                {
-                    if (!ValidCategory(text)) return Prompt(current, owner is not null);
-                    next = current with { Category = CanonicalCategory(text), Stage = RequestDraftStage.Scope };
-                }
-                break;
-            case RequestDraftStage.Scope:
-                if (!TryScope(text, out var scope, out var building)) return Prompt(current);
-                next = current with
-                {
-                    Scope = scope,
-                    BuildingNumber = building,
-                    Entrance = building == "4Б" ? 1 : null,
-                    Stage = scope == RequestScope.Complex ? (current.Category is null ? RequestDraftStage.Category : RequestDraftStage.Description) : building == "4Б" ? RequestDraftStage.Floor : RequestDraftStage.Entrance
-                };
-                break;
-            case RequestDraftStage.Entrance:
-                if (!TryEntrance(text, out var entrance)) return Prompt(current);
-                next = current with { Entrance = entrance, Stage = RequestDraftStage.Floor };
-                break;
-            case RequestDraftStage.Floor:
-                if (!TryFloor(text, out var floor)) return Prompt(current);
-                next = current with { Floor = floor, Stage = current.Category is null ? RequestDraftStage.Category : RequestDraftStage.Description };
-                break;
-            case RequestDraftStage.Category:
-                if (text.Equals(RequestCategories.KeyOrder, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (owner is null) return Prompt(current, false);
-                    next = current with { Category = RequestCategories.KeyOrder, Stage = RequestDraftStage.KeyType };
-                }
-                else
-                {
-                    if (!ValidCategory(text)) return Prompt(current, owner is not null);
-                    next = current with { Category = CanonicalCategory(text), Stage = RequestDraftStage.Description };
-                }
-                break;
-            case RequestDraftStage.KeyType:
-                var keyType = text.ToLowerInvariant() switch { "магніт" => "Магніт", "перепустка" => "Перепустка", _ => null };
-                if (keyType is null) return Prompt(current, true);
-                next = current with { KeyType = keyType, Stage = RequestDraftStage.KeyPhone };
-                break;
-            case RequestDraftStage.KeyQuantity: // Existing unfinished orders resume at the new phone step.
-            case RequestDraftStage.KeyPhone:
-                var keyboard = KeyPhoneKeyboard(current);
-                if (keyboard == ReplyKeyboard.KeyFinish && text.Equals(FinishKeyOrderButton, StringComparison.OrdinalIgnoreCase))
-                    return FinishKeyOrder(command, current, owner!);
-                if (!ResidentPhoneIndex.TryNormalize(text, out var phone))
-                    return new("Введіть коректний номер телефону, наприклад 0671234567 або +380671234567. Скасувати: /cancel.", Keyboard: keyboard);
-                if (current.KeyItems?.Any(item => ResidentPhoneIndex.TryNormalize(item.Phone, out var existing) && existing == phone) == true)
-                    return new("Цей номер уже додано до заявки. Введіть інший номер, завершіть створення заявки або скасуйте її.", Keyboard: ReplyKeyboard.KeyFinish);
-                if (!await repository.ResidentPhoneExistsAsync(complexId, phone!, ct))
-                    return new("Мешканця з таким номером телефону не знайдено. Введіть номер ще раз або скасуйте створення заявки.", Keyboard: keyboard);
-                var items = (current.KeyItems ?? []).Append(new KeyOrderItem(current.KeyType!, phone!)).ToArray();
-                next = current with { KeyItems = items, Stage = RequestDraftStage.KeyNext };
-                break;
-            case RequestDraftStage.KeyNext:
-                if (text.Equals(FinishKeyOrderButton, StringComparison.OrdinalIgnoreCase))
-                    return FinishKeyOrder(command, current, owner!);
-                if (!text.Equals("Додати ще один ключ", StringComparison.OrdinalIgnoreCase) || (current.KeyItems?.Count ?? 0) >= 30)
-                    return Prompt(current, true);
-                next = current with { KeyType = null, Stage = RequestDraftStage.KeyType };
-                break;
-            default:
-                if (text.Length is < 10 or > 2000) return Prompt(current);
-                return Finish(command, current, current.Version, text);
-        }
+            RequestDraftStage.KeyType => Task.FromResult(SelectKeyType(draft, text)),
+            RequestDraftStage.KeyNext => Task.FromResult(SelectNextKey(command, draft, text, owner)),
+            // Existing unfinished orders resume at the new phone step.
+            _ => EnterKeyPhoneAsync(command, draft, text, owner, ct)
+        };
+
+    private static CommandOutcome SelectCategory(RequestDraft draft, string text, bool owner)
+    {
+        if (text.Equals(RequestCategories.KeyOrder, StringComparison.OrdinalIgnoreCase))
+            return owner ? Advance(draft, draft with { Category = RequestCategories.KeyOrder, Stage = RequestDraftStage.KeyType }, owner)
+                : Prompt(draft);
+        if (!ValidCategory(text)) return Prompt(draft, owner);
+        return Advance(draft, draft with
+        {
+            Category = CanonicalCategory(text),
+            Stage = draft.Stage == RequestDraftStage.InitialCategory ? RequestDraftStage.Scope : RequestDraftStage.Description
+        }, owner);
+    }
+
+    private static CommandOutcome SelectLocation(RequestDraft draft, string text, bool owner) => draft.Stage switch
+    {
+        RequestDraftStage.Scope => SelectScope(draft, text, owner),
+        RequestDraftStage.Entrance when TryEntrance(text, out var entrance) =>
+            Advance(draft, draft with { Entrance = entrance, Stage = RequestDraftStage.Floor }, owner),
+        RequestDraftStage.Floor when TryFloor(text, out var floor) =>
+            Advance(draft, draft with { Floor = floor, Stage = AfterLocation(draft) }, owner),
+        _ => Prompt(draft)
+    };
+
+    private static CommandOutcome SelectScope(RequestDraft draft, string text, bool owner)
+    {
+        if (!TryScope(text, out var scope, out var building)) return Prompt(draft);
+        return Advance(draft, draft with
+        {
+            Scope = scope,
+            BuildingNumber = building,
+            Entrance = building == "4Б" ? 1 : null,
+            Stage = scope == RequestScope.Complex ? AfterLocation(draft) : building == "4Б" ? RequestDraftStage.Floor : RequestDraftStage.Entrance
+        }, owner);
+    }
+
+    private static RequestDraftStage AfterLocation(RequestDraft draft) =>
+        draft.Category is null ? RequestDraftStage.Category : RequestDraftStage.Description;
+
+    private static CommandOutcome SelectKeyType(RequestDraft draft, string text)
+    {
+        var keyType = text.ToLowerInvariant() switch { "магніт" => "Магніт", "перепустка" => "Перепустка", _ => null };
+        return keyType is null ? Prompt(draft, true) :
+            Advance(draft, draft with { KeyType = keyType, Stage = RequestDraftStage.KeyPhone }, true);
+    }
+
+    private async Task<CommandOutcome> EnterKeyPhoneAsync(CommandEnvelope command, RequestDraft draft, string text,
+        ResidentRegistration owner, CancellationToken ct)
+    {
+        var keyboard = KeyPhoneKeyboard(draft);
+        if (keyboard == ReplyKeyboard.KeyFinish && text.Equals(FinishKeyOrderButton, StringComparison.OrdinalIgnoreCase))
+            return FinishKeyOrder(command, draft, owner);
+        if (!ResidentPhoneIndex.TryNormalize(text, out var phone))
+            return new("Введіть коректний номер телефону, наприклад 0671234567 або +380671234567. Скасувати: /cancel.", Keyboard: keyboard);
+        if (AlreadyAdded(draft, phone!))
+            return new("Цей номер уже додано до заявки. Введіть інший номер, завершіть створення заявки або скасуйте її.", Keyboard: ReplyKeyboard.KeyFinish);
+        if (!await repository.ResidentPhoneExistsAsync(complexId, phone!, ct))
+            return new("Мешканця з таким номером телефону не знайдено. Введіть номер ще раз або скасуйте створення заявки.", Keyboard: keyboard);
+        var items = (draft.KeyItems ?? []).Append(new KeyOrderItem(draft.KeyType!, phone!)).ToArray();
+        return Advance(draft, draft with { KeyItems = items, Stage = RequestDraftStage.KeyNext }, true);
+    }
+
+    private static bool AlreadyAdded(RequestDraft draft, string phone) =>
+        draft.KeyItems?.Any(item => ResidentPhoneIndex.TryNormalize(item.Phone, out var existing) && existing == phone) == true;
+
+    private CommandOutcome SelectNextKey(CommandEnvelope command, RequestDraft draft, string text, ResidentRegistration owner)
+    {
+        if (text.Equals(FinishKeyOrderButton, StringComparison.OrdinalIgnoreCase))
+            return FinishKeyOrder(command, draft, owner);
+        if (!text.Equals("Додати ще один ключ", StringComparison.OrdinalIgnoreCase) || (draft.KeyItems?.Count ?? 0) >= 30)
+            return Prompt(draft, true);
+        return Advance(draft, draft with { KeyType = null, Stage = RequestDraftStage.KeyType }, true);
+    }
+
+    private static CommandOutcome Advance(RequestDraft current, RequestDraft next, bool owner)
+    {
         next = next with { Version = current.Version + 1 };
-        return Prompt(next, owner is not null) with { Draft = new(next, current.Version) };
+        return Prompt(next, owner) with { Draft = new(next, current.Version) };
     }
 
     public async Task<CommandOutcome?> CancelAsync(long user, CancellationToken ct)

@@ -387,7 +387,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var audit = Key("REQUEST#" + next.Id.ToString(CultureInfo.InvariantCulture), "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
         audit["actor"] = S(actor.Email); audit["createdAt"] = S(now); audit["status"] = S(next.Status.ToString());
         audit["previousStatus"] = S(current.Request.Status.ToString()); audit["resolution"] = S(comment ?? "");
-        audit["changes"] = S(JsonSerializer.Serialize(new { next.AssignedTo, next.Priority, next.PlannedDate, next.Visibility, next.Scope, next.BuildingNumber, next.Floor, next.Entrance, KeySerialNumbersChanged = !Enumerable.SequenceEqual(current.Request.KeyItems?.Select(k => k.SerialNumber) ?? [], next.KeyItems?.Select(k => k.SerialNumber) ?? []) }));
+        audit["changes"] = S(RequestAudit.SerializeChanges(current.Request, next));
         var writes = new List<TransactWriteItem> { ActorCheck(actor), new() { Update = new() {
             TableName = dataTable, Key = Key("USER#" + next.OwnerId.ToString(CultureInfo.InvariantCulture), RequestKey(next.Id)),
             UpdateExpression = "SET #payload = :payload, #v = :next, requestStatus = :status, requestTarget = :target, requestFloor = :floor, requestPriorityCreatedAt = :priorityOrder",

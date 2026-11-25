@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services;
 using Xunit;
 using BroadcastMessage = OsbbRequests.Domain.Admin.BroadcastMessage;
 
@@ -182,7 +183,20 @@ public sealed partial class AdminAuthenticationTests
         await using var db = await TestDatabase.CreateAsync();
         using var factory = CreateHostWithPostgres(db);
         using var client = AuthenticatedClient(factory, super: true);
-        var change = new { status = "Completed", visibility = "Public", priority = "High", scope = "Complex", version = 2, resolution = "Виконано" };
+        var change = new
+        {
+            status = "Completed",
+            visibility = "Public",
+            priority = "High",
+            scope = "Building",
+            buildingNumber = "4Б",
+            floor = 5,
+            entrance = 1,
+            assignedTo = "test-user",
+            plannedDate = "2026-12-01",
+            version = 2,
+            resolution = "Виконано"
+        };
 
         using var saved = await client.PatchAsJsonAsync("/admin/requests/42/6", change);
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
@@ -194,10 +208,104 @@ public sealed partial class AdminAuthenticationTests
         var entry = Assert.Single(history!.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal("Completed", entry.GetProperty("status").GetString());
         Assert.Equal("Виконано", entry.GetProperty("resolution").GetString());
+        using var changes = JsonDocument.Parse(entry.GetProperty("changes").GetString()!);
+        var fields = changes.RootElement;
+        Assert.Equal("High", fields.GetProperty("Priority").GetString());
+        Assert.Equal("test-user", fields.GetProperty("AssignedTo").GetString());
+        Assert.Equal("2026-12-01", fields.GetProperty("PlannedDate").GetString());
+        Assert.Equal("4Б", fields.GetProperty("BuildingNumber").GetString());
+        Assert.Equal(1, fields.GetProperty("Entrance").GetInt32());
+        Assert.Equal(5, fields.GetProperty("Floor").GetInt32());
+        Assert.False(fields.GetProperty("KeySerialNumbersChanged").GetBoolean());
 
         using var stale = await client.PatchAsJsonAsync("/admin/requests/42/6", change);
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         Assert.Equal(1, await db.Readout.RequestEvents.CountAsync());
+    }
+
+    [PostgresFact]
+    public async Task NotificationSettingsPersistWithAuditAndRejectStaleVersions()
+    {
+        await using var db = await TestDatabase.CreateAsync();
+        using var factory = CreateHostWithPostgres(db, useStoredAccounts: true);
+        using var client = AuthenticatedClient(factory, super: true);
+        const string path = "/admin/administrators/test-user/notifications";
+        var change = new NotificationSettingsChange(" 12345 ", true, false, false, 9, true, true);
+
+        using var saved = await client.PatchAsJsonAsync(path, change);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        using var stale = await client.PatchAsJsonAsync(path, change with { TelegramChatId = "54321" });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+
+        var settings = await db.Readout.AdministratorNotificationSettings.SingleAsync();
+        Assert.Equal("12345", settings.TelegramChatId);
+        Assert.True(settings.NewResidents);
+        Assert.False(settings.NewRequests);
+        Assert.False(settings.NewAdministrators);
+        Assert.True(settings.NewKeyOrders);
+        Assert.True(settings.NewApartmentRegistrations);
+        Assert.Equal(10, (await db.Readout.Administrators.SingleAsync()).Version);
+        var audit = await db.Readout.AdministratorEvents.SingleAsync();
+        Assert.Equal("test-user", audit.AdministratorId);
+        using var data = JsonDocument.Parse(audit.Data);
+        Assert.Equal("AdminNotificationSettingsChanged", data.RootElement.GetProperty("action").GetString());
+        Assert.Equal("admin@example.invalid", data.RootElement.GetProperty("actor").GetString());
+    }
+
+    [PostgresFact]
+    public async Task ResidentDataEditsPersistWithHistoryAndRejectStaleVersions()
+    {
+        await using var db = await TestDatabase.CreateAsync();
+        (await db.Readout.SourceRecords.SingleAsync()).Data = "{}";
+        var permissions = new OsbbRequests.Data.Storage.AdministratorPermission
+        {
+            SourceId = 1,
+            UserId = "test-user",
+            RegisteredResidents = true
+        };
+        db.Readout.AdministratorPermissions.Add(permissions);
+        db.Readout.Residents.Add(new()
+        {
+            ComplexId = 1,
+            TelegramUserId = 42,
+            RegistrationId = Reference,
+            FirstName = "Іван",
+            LastName = "Коваль",
+            Version = 2,
+            Stage = RegistrationStage.Approved,
+            ResidentType = ResidentType.FamilyMember
+        });
+        await db.Readout.SaveChangesAsync();
+        using var factory = CreateHostWithPostgres(db, useStoredAccounts: true);
+        using var client = AuthenticatedClient(factory, super: false);
+        var change = new ResidentDataChangeRequest(" Олена ", " Шевченко ", "Tenant", 2);
+        var path = $"/admin/registrations/{Reference}/data";
+
+        using var denied = await client.PatchAsJsonAsync(path, change);
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        Assert.False(await db.Readout.ResidentEvents.AnyAsync());
+        permissions.PendingResidents = true;
+        await db.Readout.SaveChangesAsync();
+        db.Readout.ChangeTracker.Clear();
+
+        using var saved = await client.PatchAsJsonAsync(path, change);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        using var stale = await client.PatchAsJsonAsync(path, change with { FirstName = "Софія" });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+
+        var resident = await db.Readout.Residents.SingleAsync();
+        Assert.Equal(RegistrationStage.Approved, resident.Stage);
+        Assert.Equal(3, resident.Version);
+        Assert.Equal("Олена", resident.FirstName);
+        Assert.Equal("Шевченко", resident.LastName);
+        Assert.Equal(ResidentType.Tenant, resident.ResidentType);
+        var history = await client.GetFromJsonAsync<Page<ResidentTypeChange>>($"/admin/registrations/{Reference}/history");
+        var entry = Assert.Single(history!.Items);
+        Assert.Equal("FamilyMember", entry.PreviousType);
+        Assert.Equal("Tenant", entry.NewType);
+        Assert.Equal("admin@example.invalid", entry.Actor);
+        Assert.True(entry.FirstNameChanged);
+        Assert.True(entry.LastNameChanged);
     }
 
     [PostgresFact]
@@ -260,6 +368,10 @@ public sealed partial class AdminAuthenticationTests
         Assert.Equal(1, residents!.RootElement.GetProperty("total").GetInt32());
         var membership = await db.Readout.ResidentMemberships.SingleAsync();
         Assert.True(membership.Active);
+        var recordedApproval = await client.GetFromJsonAsync<RegistrationApproval>($"/admin/registrations/{Reference}/approval");
+        Assert.Equal("admin@example.invalid", recordedApproval?.Actor);
+        Assert.NotNull(recordedApproval?.CreatedAt);
+        Assert.False(recordedApproval!.Automatic);
 
         var keys = await client.GetFromJsonAsync<ResidentKeyPage>("/admin/residents/keys");
         Assert.Equal("Магніт", Assert.Single(Assert.Single(keys!.Items).Keys).Type);
@@ -288,11 +400,16 @@ public sealed partial class AdminAuthenticationTests
         return json!.RootElement.GetProperty("error").GetString();
     }
 
-    private WebApplicationFactory<Program> CreateHostWithPostgres(TestDatabase db) =>
+    private WebApplicationFactory<Program> CreateHostWithPostgres(TestDatabase db, bool useStoredAccounts = false) =>
         CreateHost().WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<IDbContextFactory<DataContext>>();
             services.AddSingleton<IDbContextFactory<DataContext>>(db);
+            if (useStoredAccounts)
+            {
+                services.RemoveAll<IAdministratorAccounts>();
+                services.AddScoped<IAdministratorAccounts>(services => services.GetRequiredService<OsbbRequests.Postgres.PostgresAdminStore>());
+            }
         }));
 
     private HttpClient AuthenticatedClient(WebApplicationFactory<Program> factory, bool super)

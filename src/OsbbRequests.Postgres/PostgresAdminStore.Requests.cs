@@ -137,7 +137,8 @@ public sealed partial class PostgresAdminStore
                 createdAt = now,
                 previousStatus = current.Request.Status.ToString(),
                 status = next.Status.ToString(),
-                resolution = comment
+                resolution = comment,
+                changes = RequestAudit.SerializeChanges(current.Request, next)
             });
             Enqueue(db, area, ResidentNotification.Create(current.Request, next, row.Version, now, comment));
         }, ct);
