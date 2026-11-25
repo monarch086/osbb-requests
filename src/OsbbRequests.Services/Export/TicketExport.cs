@@ -5,7 +5,7 @@ using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Services.Export;
 
-public sealed class TicketExport(IAdminStore store)
+public sealed class TicketExport(IRequestStore store)
 {
     private const int MaxFileBytes = 4 * 1024 * 1024;
     private static readonly TimeZoneInfo Kyiv = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");

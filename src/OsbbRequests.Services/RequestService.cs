@@ -6,8 +6,17 @@ using OsbbRequests.Services.Export;
 
 namespace OsbbRequests.Services;
 
-public sealed partial class AdminService
+public sealed class RequestService(IRequestStore store, IAdministratorDirectory administrators)
 {
+    public async Task<Page<Assignee>> ListAssigneesAsync(AdminUser actor, string? cursor, CancellationToken ct)
+    {
+        AdminAccess.RequireActive(actor);
+        if (!actor.EffectivePermissions.ComplexRequests && !actor.EffectivePermissions.KeyOrders)
+            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для роботи із заявками.");
+        var page = await administrators.ListAdminsAsync(cursor, ct);
+        return new(page.Items.Where(admin => admin.IsActive).Select(admin => new Assignee(admin.UserId, admin.Email)).ToArray(), page.Cursor);
+    }
+
     public Task<AdminRequestPage> ListRequestsAsync(AdminUser actor, RequestSearch search, string? cursor,
         string? page, string? includeCounts, CancellationToken ct)
     {
@@ -24,7 +33,7 @@ public sealed partial class AdminService
 
     public async Task<ManagedRequest> GetManagedRequestAsync(AdminUser actor, long ownerId, long requestId, CancellationToken ct)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         var current = await store.GetRequestAsync(ownerId, requestId, ct) ??
             throw new AdminOperationException(AdminFailure.NotFound, "Заявку не знайдено.");
         RequireRequestAccess(actor, current);
@@ -69,7 +78,7 @@ public sealed partial class AdminService
         if ((change.Scope is not null && scope is null) || !ComplexLayout.IsValidRequest(current.Request.Category, scope, change.BuildingNumber, change.Floor, change.Entrance))
             throw new AdminOperationException(AdminFailure.InvalidInput, "Оберіть будинок 4Б, 4В, 4Г або 4Д або прибудинкову територію. Для будинку оберіть поверх 1–25 або «Парадне»; під’їзд - 1, 2 або «Не зазначено» (для 4Б лише 1 або «Не зазначено»).");
         var date = Date(change.PlannedDate);
-        if (!string.IsNullOrEmpty(change.AssignedTo) && (await store.GetAdminAsync(change.AssignedTo, ct))?.IsActive != true)
+        if (!string.IsNullOrEmpty(change.AssignedTo) && (await administrators.GetAdminAsync(change.AssignedTo, ct))?.IsActive != true)
             throw new AdminOperationException(AdminFailure.InvalidInput, "Оберіть активного адміністратора.");
         var keyItems = current.Request.KeyItems;
         if (change.KeySerialNumbers is not null)
@@ -98,14 +107,14 @@ public sealed partial class AdminService
 
     private static void RequireRequestAccess(AdminUser actor, ManagedRequest current)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         if (current.Request.Category == RequestCategories.KeyOrder ? !actor.EffectivePermissions.KeyOrders : !actor.EffectivePermissions.ComplexRequests)
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для роботи із заявкою.");
     }
 
     private static RequestFilters ValidateRequestSearch(AdminUser actor, RequestSearch search)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         var statuses = string.IsNullOrEmpty(search.Status) ? [] : search.Status.Split(',').Distinct(StringComparer.Ordinal).ToArray();
         if (search.Status?.Length > 150 || statuses.Any(value => !Enum.GetNames<RequestStatus>().Contains(value, StringComparer.Ordinal)))
             throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректний статус.");

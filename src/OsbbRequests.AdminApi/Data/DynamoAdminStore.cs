@@ -11,7 +11,7 @@ using OsbbRequests.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
-public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null, bool compactResidentDirectory = false, bool compactResidentNameDirectory = false) : IAdminStore
+public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null, bool compactResidentDirectory = false, bool compactResidentNameDirectory = false) : IAdministratorStore, IRequestStore, IResidentStore, IMessageStore
 {
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(int value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };

@@ -6,7 +6,8 @@ using OsbbRequests.Services;
 
 namespace OsbbRequests.AdminApi;
 
-public sealed partial class ApiHandler(AdminService service)
+public sealed partial class ApiHandler(PermissionService permissions, ResidentService residents, RequestService requests,
+    MessageService messages, StatisticsService statistics)
 {
     private const int MaxBodyLength = 10000;
     private static readonly IReadOnlyDictionary<string, string> EmptyQuery = new Dictionary<string, string>();
@@ -46,45 +47,45 @@ public sealed partial class ApiHandler(AdminService service)
         {
             var authorization = request.Headers?.FirstOrDefault(p => p.Key.Equals("authorization", StringComparison.OrdinalIgnoreCase)).Value;
             var token = authorization?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true ? authorization[7..] : null;
-            return Reply(200, await service.GetOrRegisterAdminAsync(userId, token, ct));
+            return Reply(200, await permissions.GetOrRegisterAdminAsync(userId, token, ct));
         }
 
-        var actor = await service.GetActiveAdminAsync(userId, ct);
+        var actor = await permissions.GetActiveAdminAsync(userId, ct);
         var query = request.QueryStringParameters?.ToDictionary(p => p.Key, p => p.Value) ?? EmptyQuery;
         var cursor = query.GetValueOrDefault("cursor");
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (method == "GET" && path == "/admin/statistics")
-            return Reply(200, await service.GetStatisticsAsync(actor, query.GetValueOrDefault("days"), ct));
+            return Reply(200, await statistics.GetStatisticsAsync(actor, query.GetValueOrDefault("days"), ct));
         if (path == "/admin/messages")
         {
-            AdminService.RequireMessagesAccess(actor);
-            if (method == "GET") return Reply(200, await service.ListMessagesAsync(actor, cursor, ct));
-            if (method == "POST") return Reply(200, await service.SendMessageAsync(actor, Body<MessageChange>(request), ct));
+            MessageService.RequireMessagesAccess(actor);
+            if (method == "GET") return Reply(200, await messages.ListMessagesAsync(actor, cursor, ct));
+            if (method == "POST") return Reply(200, await messages.SendMessageAsync(actor, Body<MessageChange>(request), ct));
         }
         if (method == "PATCH" && segments is ["admin", "administrators", var permissionTarget, "permissions"])
         {
-            AdminService.RequirePermissionsEdit(actor);
-            await service.SetPermissionsAsync(actor, permissionTarget, Body<PermissionsChange>(request), ct);
+            PermissionService.RequirePermissionsEdit(actor);
+            await permissions.SetPermissionsAsync(actor, permissionTarget, Body<PermissionsChange>(request), ct);
             return Ok();
         }
         if (method == "PATCH" && segments is ["admin", "administrators", var targetId, "notifications"])
         {
-            AdminService.RequireNotificationEdit(actor, targetId);
-            await service.SetNotificationSettingsAsync(actor, targetId, Body<NotificationSettingsChange>(request), ct);
+            PermissionService.RequireNotificationEdit(actor, targetId);
+            await permissions.SetNotificationSettingsAsync(actor, targetId, Body<NotificationSettingsChange>(request), ct);
             return Ok();
         }
         if (path == "/admin/administrators" || segments is ["admin", "administrators", _])
         {
-            AdminService.RequireAdministratorManagement(actor);
-            if (method == "GET" && path == "/admin/administrators") return Reply(200, await service.ListAdminsAsync(actor, cursor, ct));
+            PermissionService.RequireAdministratorManagement(actor);
+            if (method == "GET" && path == "/admin/administrators") return Reply(200, await permissions.ListAdminsAsync(actor, cursor, ct));
             if (method == "PATCH" && segments.Length == 3)
             {
-                await service.SetAccessAsync(actor, segments[2], Body<AccessChange>(request), ct);
+                await permissions.SetAccessAsync(actor, segments[2], Body<AccessChange>(request), ct);
                 return Ok();
             }
         }
         if (method == "GET" && path == "/admin/assignees")
-            return Reply(200, await service.ListAssigneesAsync(actor, cursor, ct));
+            return Reply(200, await requests.ListAssigneesAsync(actor, cursor, ct));
         if (segments is ["admin", "residents" or "registrations" or "apartment-reviews", ..])
             return await HandleResidentsAsync(request, actor, method, path, segments, query, ct);
         if (segments is ["admin", "requests", ..])

@@ -4,7 +4,7 @@ using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Services.Export;
 
-public sealed class ResidentExport(IAdminStore store)
+public sealed class ResidentExport(IResidentStore store)
 {
     private static readonly TimeZoneInfo Kyiv = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");
 

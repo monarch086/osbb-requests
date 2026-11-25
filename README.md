@@ -119,7 +119,7 @@ GitHub Actions запускає restore, build, тести, перевірку �
 
 ## Вебпанель адміністраторів
 
-`OsbbRequests.AdminApi` обробляє адміністративні маршрути API Gateway та формує HTTP-відповіді. Він викликає типізовані операції `OsbbRequests.Services`, які виконують перевірки доступу, бізнес-валідацію та формують Excel. Спільні моделі й DTO містить `OsbbRequests.Domain`.
+`OsbbRequests.AdminApi` обробляє адміністративні маршрути API Gateway та формує HTTP-відповіді. Він викликає сервіси `ResidentService`, `RequestService`, `MessageService`, `PermissionService` і `StatisticsService` із `OsbbRequests.Services`. Вони перевіряють доступ, застосовують бізнес-правила та формують Excel. Спільні моделі й DTO містить `OsbbRequests.Domain`.
 
 Angular-застосунок у `src/Frontend` побудований за прикладом `~/projects/PingLight/src/Frontend`: Cognito для входу, підтвердження email, відновлення пароля, localStorage для сесії (refresh-токен до 7 днів, access- та ID-токени по 15 хвилин) та сторінки робочого простору. Оформлення використовує Bootstrap 5 (форми, сітка, кнопки, картки, повідомлення й діалоги), а випадаючі списки - `@ng-select/ng-select` 21 із пошуком у категоріях і відповідальних. Зелено-оливкову палітру Bootstrap (кнопки, посилання, навігацію та фокус полів) перевизначено в `src/Frontend/src/_theme.scss`; кольори ng-select узгоджено з нею у `styles.scss`. Bootstrap і тема ng-select включені до локальної збірки; CDN і Bootstrap JavaScript не потрібні. Це SPA; приватні дані завантажуються лише з авторизованого API. Статичні файли зберігаються у приватному S3 і доступні через CloudFront HTTPS.
 

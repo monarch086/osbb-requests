@@ -34,7 +34,8 @@ public sealed class Function
         var store = new DynamoAdminStore(new MeteredDynamoDb(), Config("ADMINISTRATORS_TABLE"),
             Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting(), Config("RESIDENTS_TABLE"), Environment.GetEnvironmentVariable("COMPACT_RESIDENT_DIRECTORY") == "true",
             Environment.GetEnvironmentVariable("COMPACT_RESIDENT_NAME_DIRECTORY") == "true");
-        handler = new ApiHandler(new AdminService(store, new CognitoIdentity(new AmazonCognitoIdentityProviderClient()), statistics));
+        handler = new ApiHandler(new PermissionService(store, new CognitoIdentity(new AmazonCognitoIdentityProviderClient())),
+            new ResidentService(store), new RequestService(store, store), new MessageService(store), new StatisticsService(statistics));
         notifier = TelegramServiceNotifier.FromEnvironment(Http);
     }
     public Function(ApiHandler handler, IServiceNotifier? notifier = null, IStatisticsStore? statistics = null)

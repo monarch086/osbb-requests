@@ -5,11 +5,11 @@ using OsbbRequests.Services.Export;
 
 namespace OsbbRequests.Services;
 
-public sealed partial class AdminService
+public sealed class ResidentService(IResidentStore store)
 {
     public Task<ResidentKeyPage> ListResidentsWithKeysAsync(AdminUser actor, string? page, CancellationToken ct)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         if (!actor.EffectivePermissions.KeyOrders)
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду замовлень ключів.");
         if (!int.TryParse(page ?? "1", out var number) || number < 1 || number > 1000000)
@@ -19,7 +19,7 @@ public sealed partial class AdminService
 
     public static void RequireKeyEdit(AdminUser actor)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         if (!actor.EffectivePermissions.KeyOrders)
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для редагування ключів.");
     }
@@ -32,7 +32,7 @@ public sealed partial class AdminService
 
     public static void RequireResidentDirectoryAccess(AdminUser actor, bool pending)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         if (pending ? !actor.EffectivePermissions.PendingResidents : !actor.EffectivePermissions.RegisteredResidents)
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду мешканців.");
     }
@@ -69,7 +69,7 @@ public sealed partial class AdminService
 
     public static void RequireRegistrationReview(AdminUser actor)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         if (!actor.EffectivePermissions.PendingResidents)
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перевірки реєстрацій.");
     }
@@ -109,7 +109,7 @@ public sealed partial class AdminService
 
     public static void RequireApartmentReview(AdminUser actor)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         if (!actor.EffectivePermissions.PendingResidents)
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перевірки квартир.");
     }
@@ -157,7 +157,7 @@ public sealed partial class AdminService
 
     public async Task<Page<ResidentTypeChange>> GetRegistrationHistoryAsync(AdminUser actor, string reference, string? cursor, CancellationToken ct)
     {
-        RequireActive(actor);
+        AdminAccess.RequireActive(actor);
         if (!actor.EffectivePermissions.PendingResidents && !actor.EffectivePermissions.RegisteredResidents)
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду історії.");
         var registration = await GetRegistrationAsync(reference, ct);

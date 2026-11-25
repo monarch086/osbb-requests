@@ -60,13 +60,30 @@ public sealed class AdminApiTests
             body = body is null ? null : JsonSerializer.Serialize(body),
             requestContext = new { http = new { method }, authorizer = user is null ? null : new { jwt = new { claims = new Dictionary<string, string> { ["sub"] = user, ["token_use"] = tokenUse } } } }
         }), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-    private static ApiHandler Handler(FakeStore store) => new(new AdminService(store, new FakeIdentity()));
+    private static ApiHandler Handler(FakeStore store, IStatisticsStore? statistics = null) => new(
+        new PermissionService(store, new FakeIdentity()), new ResidentService(store),
+        new RequestService(store, store), new MessageService(store), new StatisticsService(statistics));
+
+    [Fact]
+    public async Task AssigneesComeFromTheInjectedAdministratorDirectory()
+    {
+        var requests = new FakeStore();
+        var administrators = new FakeStore();
+        administrators.Users.Clear();
+        administrators.Users.Add(Regular.UserId, Regular);
+        administrators.Users.Add("inactive", Regular with { UserId = "inactive", IsActive = false });
+        var service = new RequestService(requests, administrators);
+
+        var page = await service.ListAssigneesAsync(Regular, null, default);
+
+        Assert.Equal(new Assignee(Regular.UserId, Regular.Email), Assert.Single(page.Items));
+    }
 
     [Fact]
     public async Task SharedExportReturnsWorkbookBytesAndUsesDomainPermissions()
     {
         var store = new FakeStore();
-        var service = new AdminService(store, new FakeIdentity());
+        var service = new RequestService(store, store);
         var search = new RequestSearch(Section: "complex");
         var inactive = Regular with { IsActive = false };
         var restricted = Regular with { Permissions = new(false, true, false, false, false) };
@@ -113,7 +130,7 @@ public sealed class AdminApiTests
     public async Task StatisticsRequiresActiveSuperAdminAndRecognizedPeriod()
     {
         var stats = new FakeStatistics();
-        var handler = new ApiHandler(new AdminService(new FakeStore(), new FakeIdentity(), stats));
+        var handler = Handler(new FakeStore(), stats);
         Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics"), default))).Status);
         Assert.Equal(403, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics", user: "target"), default))).Status);
         Assert.Equal(401, (await Assert.ThrowsAsync<ApiError>(() => handler.HandleAsync(Request("/admin/statistics", user: null), default))).Status);
@@ -1109,7 +1126,7 @@ public sealed class AdminApiTests
         public Task<IReadOnlyList<DailyStatistic>> ReadAsync(int days, CancellationToken ct) { Days = days; return Task.FromResult<IReadOnlyList<DailyStatistic>>([]); }
         public Task RecordAsync(string endpoint, double read, double write, long durationMs, CancellationToken ct) => FailWrites ? Task.FromException(new InvalidOperationException()) : Task.CompletedTask;
     }
-    private sealed class FakeStore : IAdminStore
+    private sealed class FakeStore : IAdministratorStore, IRequestStore, IResidentStore, IMessageStore
     {
         public RegistrationStage HistoryStage = RegistrationStage.Pending;
         public int TypeChanges;
