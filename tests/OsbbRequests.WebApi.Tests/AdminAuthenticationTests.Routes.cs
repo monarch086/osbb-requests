@@ -117,6 +117,37 @@ public sealed partial class AdminAuthenticationTests
         Assert.Equal(1, accounts.Reads);
         if (expected == HttpStatusCode.Forbidden)
             Assert.Equal("Недостатньо прав для зміни сповіщень.", await ReadErrorAsync(response));
+        else
+        {
+            Assert.Equal("Некоректні дані запиту.", await ReadErrorAsync(response));
+            Assert.True(response.Headers.CacheControl?.NoStore);
+        }
+    }
+
+    [Fact]
+    public async Task JsonActionsRejectUnsupportedMediaTypes()
+    {
+        using var factory = CreateHost();
+        using var client = AuthenticatedClient(factory, super: true);
+        using var body = new StringContent("{}", Encoding.UTF8, "text/plain");
+
+        using var response = await client.PostAsync("/admin/messages", body);
+
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task JsonActionsRejectOversizedBodiesOnKestrel()
+    {
+        using var factory = CreateHost().WithWebHostBuilder(builder => builder.UseSetting("urls", "http://127.0.0.1:0"));
+        factory.UseKestrel(0);
+        using var client = AuthenticatedClient(factory, super: true);
+        using var body = JsonContent.Create(new { id = Guid.NewGuid(), text = new string('x', 32_000) });
+
+        using var response = await client.PostAsync("/admin/messages", body);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
     }
 
     [PostgresFact]
@@ -132,6 +163,10 @@ public sealed partial class AdminAuthenticationTests
         Assert.Equal(2, page!.RootElement.GetProperty("pageNumber").GetInt32());
         Assert.Equal(JsonValueKind.Null, page.RootElement.GetProperty("counts").ValueKind);
         Assert.Single(page.RootElement.GetProperty("items").EnumerateArray());
+
+        using var noMatches = await client.GetFromJsonAsync<JsonDocument>(
+            "/admin/requests?section=complex&status=New,InProgress&search=not-found&includeCounts=false");
+        Assert.Empty(noMatches!.RootElement.GetProperty("items").EnumerateArray());
 
         using var export = await client.GetAsync("/admin/requests/export?section=complex");
         Assert.Equal(HttpStatusCode.OK, export.StatusCode);

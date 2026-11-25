@@ -10,8 +10,8 @@ public sealed class ApartmentReviewsController(ResidentService residents) : Admi
 {
     [HttpGet]
     [RequireAdminAccess(AdminPermission.ReviewApartments)]
-    public async Task<Page<ApartmentReviewEntry>> List(CancellationToken ct) =>
-        await residents.ListApartmentReviewsAsync(Actor, Query("cursor"), ct);
+    public async Task<Page<ApartmentReviewEntry>> List([FromQuery] string? cursor, CancellationToken ct) =>
+        await residents.ListApartmentReviewsAsync(Actor, cursor, ct);
 
     [HttpGet("count")]
     [RequireAdminAccess(AdminPermission.ReviewApartments)]
@@ -20,11 +20,10 @@ public sealed class ApartmentReviewsController(ResidentService residents) : Admi
 
     [HttpPost("{owner}/{apartment}")]
     [RequireAdminAccess(AdminPermission.ReviewApartments)]
-    public async Task<IActionResult> Decide(string owner, string apartment, CancellationToken ct)
+    public async Task<IActionResult> Decide([FromRoute] string owner, [FromRoute] string apartment,
+        [FromBody] ApartmentReviewDecision change, CancellationToken ct)
     {
-        ResidentService.ValidateRegistrationReference(owner);
-        ResidentService.ValidateRegistrationReference(apartment);
-        await residents.DecideApartmentAsync(Actor, owner, apartment, await ReadBodyAsync<ApartmentReviewDecision>(ct), ct);
+        await residents.DecideApartmentAsync(Actor, owner, apartment, change, ct);
         return Saved();
     }
 }

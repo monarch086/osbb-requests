@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using OsbbRequests.Data.Storage;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OsbbRequests.Cognito;
 using OsbbRequests.Postgres;
@@ -14,7 +15,14 @@ using OsbbRequests.WebApi.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCognitoAuthentication();
-builder.Services.AddControllers().AddJsonOptions(options =>
+builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        context.HttpContext.Response.Headers.CacheControl = "no-store";
+        return new BadRequestObjectResult(new { error = "Некоректні дані запиту." });
+    };
+}).AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -64,6 +72,12 @@ app.UseExceptionHandler(new ExceptionHandlerOptions
     {
         var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
         context.Response.Headers.CacheControl = "no-store";
+        if (error is BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge })
+        {
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            await context.Response.WriteAsJsonAsync(new { error = "Тіло запиту завелике." });
+            return;
+        }
         if (error is AdminOperationException operation)
         {
             context.Response.StatusCode = operation.Failure switch

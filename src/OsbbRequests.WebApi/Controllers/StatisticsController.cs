@@ -10,6 +10,6 @@ public sealed class StatisticsController(StatisticsService statistics) : AdminCo
 {
     [HttpGet]
     [RequireAdminAccess(AdminPermission.Statistics)]
-    public async Task<StatisticsReport> Get(CancellationToken ct) =>
-        await statistics.GetStatisticsAsync(Actor, Query("days"), ct);
+    public async Task<StatisticsReport> Get([FromQuery] string? days, CancellationToken ct) =>
+        await statistics.GetStatisticsAsync(Actor, days, ct);
 }

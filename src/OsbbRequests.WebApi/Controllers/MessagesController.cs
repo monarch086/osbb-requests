@@ -10,13 +10,11 @@ public sealed class MessagesController(MessageService messages) : AdminControlle
 {
     [HttpGet]
     [RequireAdminAccess(AdminPermission.Messages)]
-    public async Task<Page<BroadcastMessage>> List(CancellationToken ct) =>
-        await messages.ListMessagesAsync(Actor, Query("cursor"), ct);
+    public async Task<Page<BroadcastMessage>> List([FromQuery] string? cursor, CancellationToken ct) =>
+        await messages.ListMessagesAsync(Actor, cursor, ct);
 
     [HttpPost]
     [RequireAdminAccess(AdminPermission.Messages)]
-    public async Task<BroadcastMessage> Send(CancellationToken ct)
-    {
-        return await messages.SendMessageAsync(Actor, await ReadBodyAsync<MessageChange>(ct), ct);
-    }
+    public async Task<BroadcastMessage> Send([FromBody] MessageChange change, CancellationToken ct) =>
+        await messages.SendMessageAsync(Actor, change, ct);
 }
