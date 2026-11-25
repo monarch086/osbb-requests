@@ -1,10 +1,10 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using Xunit;
@@ -52,8 +52,8 @@ public sealed class ResidentDirectoryPagingTests
         Assert.Equal(1, page.Total);
         Assert.Equal(new ResidentCounts(1, 0, 1, 0, 0), page.Counts);
         Assert.Equal(1, Assert.Single(page.Items).UserId);
-        await Assert.ThrowsAsync<ApiError>(() => store.ListResidentDirectoryAsync(false, 0, null, null, null, null, default));
-        await Assert.ThrowsAsync<ApiError>(() => store.ListResidentDirectoryAsync(false, 1, "other", null, null, null, default));
+        await Assert.ThrowsAsync<AdminOperationException>(() => store.ListResidentDirectoryAsync(false, 0, null, null, null, null, default));
+        await Assert.ThrowsAsync<AdminOperationException>(() => store.ListResidentDirectoryAsync(false, 1, "other", null, null, null, default));
     }
 
     [Fact]

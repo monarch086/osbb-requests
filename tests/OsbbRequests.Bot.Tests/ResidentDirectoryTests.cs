@@ -1,11 +1,11 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Text;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using Xunit;
@@ -72,15 +72,15 @@ public sealed class ResidentDirectoryTests
     }
 
     [Theory]
-    [InlineData(RegistrationStage.Approved, 4, "building", 409)]
-    [InlineData(RegistrationStage.Pending, 3, "building", 409)]
-    [InlineData(RegistrationStage.Pending, 4, "other", 404)]
-    public async Task InvalidApprovalDoesNotQueueNotification(RegistrationStage stage, int version, string complex, int status)
+    [InlineData(RegistrationStage.Approved, 4, "building", AdminFailure.Conflict)]
+    [InlineData(RegistrationStage.Pending, 3, "building", AdminFailure.Conflict)]
+    [InlineData(RegistrationStage.Pending, 4, "other", AdminFailure.NotFound)]
+    public async Task InvalidApprovalDoesNotQueueNotification(RegistrationStage stage, int version, string complex, AdminFailure failure)
     {
         using var db = new RecordingDynamo { Snapshot = Item(Registration with { Stage = stage, Version = version, BuildingId = complex }) };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "building")
             .DecideAsync(Actor, Registration.Id, new(true, null, 4), default));
-        Assert.Equal(status, error.Status);
+        Assert.Equal(failure, error.Failure);
         Assert.Null(db.Transaction);
     }
 
@@ -88,9 +88,9 @@ public sealed class ResidentDirectoryTests
     public async Task ApprovalConflictHasNoSeparateNotificationWrite()
     {
         using var db = new RecordingDynamo { Snapshot = Item(Registration), Conflict = true };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "building")
             .DecideAsync(Actor, Registration.Id, new(true, null, 4), default));
-        Assert.Equal(409, error.Status);
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
         Assert.Equal(1, db.TransactionCalls);
         Assert.Single(db.Transaction!.TransactItems, w => w.Put?.Item.GetValueOrDefault("pk")?.S == "NOTIFICATIONS#building");
     }
@@ -234,24 +234,24 @@ public sealed class ResidentDirectoryTests
     {
         using var db = new RecordingDynamo { Snapshot = Item(Registration), Conflict = true };
         var store = new DynamoAdminStore(db, "admins", "data", "building", residentsTable: "residents");
-        var error = await Assert.ThrowsAsync<ApiError>(() => store.UpdateResidentDataAsync(Actor, Registration.Id, new("Марія", "Нова", "Owner", 4), default));
-        Assert.Equal(409, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => store.UpdateResidentDataAsync(Actor, Registration.Id, new("Марія", "Нова", "Owner", 4), default));
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
         Assert.Equal(1, db.TransactionCalls);
         Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal));
         Assert.DoesNotContain(db.Transaction.TransactItems, w => w.Update?.TableName == "data");
     }
 
     [Theory]
-    [InlineData("", "Тестова", "Owner", 4, RegistrationStage.Pending, 400)]
-    [InlineData("Ім'я1", "Тестова", "Owner", 4, RegistrationStage.Pending, 400)]
-    [InlineData("Олена", "Тестова", "FamilyMember", 4, RegistrationStage.Pending, 400)]
-    [InlineData("Олена", "Тестова", "Owner", 3, RegistrationStage.Approved, 409)]
-    [InlineData("Олена", "Тестова", "Owner", 4, RegistrationStage.Deleted, 409)]
-    public async Task InvalidResidentDataChangeDoesNotWrite(string first, string last, string type, int version, RegistrationStage stage, int status)
+    [InlineData("", "Тестова", "Owner", 4, RegistrationStage.Pending, AdminFailure.InvalidInput)]
+    [InlineData("Ім'я1", "Тестова", "Owner", 4, RegistrationStage.Pending, AdminFailure.InvalidInput)]
+    [InlineData("Олена", "Тестова", "FamilyMember", 4, RegistrationStage.Pending, AdminFailure.InvalidInput)]
+    [InlineData("Олена", "Тестова", "Owner", 3, RegistrationStage.Approved, AdminFailure.Conflict)]
+    [InlineData("Олена", "Тестова", "Owner", 4, RegistrationStage.Deleted, AdminFailure.Conflict)]
+    public async Task InvalidResidentDataChangeDoesNotWrite(string first, string last, string type, int version, RegistrationStage stage, AdminFailure failure)
     {
         using var db = new RecordingDynamo { Snapshot = Item(Registration with { Stage = stage }) };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building").UpdateResidentDataAsync(Actor, Registration.Id, new(first, last, type, version), default));
-        Assert.Equal(status, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "building").UpdateResidentDataAsync(Actor, Registration.Id, new(first, last, type, version), default));
+        Assert.Equal(failure, error.Failure);
         Assert.Null(db.Transaction);
     }
 
@@ -260,25 +260,25 @@ public sealed class ResidentDirectoryTests
     {
         var actor = Actor with { Permissions = new PagePermissions(true, true, true, false, false) };
         using var forbidden = new RecordingDynamo { Snapshot = Item(Registration with { Stage = RegistrationStage.Approved }) };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(forbidden, "admins", "data", "building").UpdateResidentDataAsync(actor, Registration.Id, new("Олена", "Нова", "Owner", 4), default));
-        Assert.Equal(403, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(forbidden, "admins", "data", "building").UpdateResidentDataAsync(actor, Registration.Id, new("Олена", "Нова", "Owner", 4), default));
+        Assert.Equal(AdminFailure.Forbidden, error.Failure);
         Assert.Null(forbidden.Transaction);
         using var conflict = new RecordingDynamo { Snapshot = Item(Registration), Conflict = true };
-        error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(conflict, "admins", "data", "building").UpdateResidentDataAsync(Actor, Registration.Id, new("Олена", "Нова", "Owner", 4), default));
-        Assert.Equal(409, error.Status);
+        error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(conflict, "admins", "data", "building").UpdateResidentDataAsync(Actor, Registration.Id, new("Олена", "Нова", "Owner", 4), default));
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
     }
 
     [Theory]
-    [InlineData("Wrong", 4, RegistrationStage.Pending, "building", 400)]
-    [InlineData("Owner", 3, RegistrationStage.Pending, "building", 409)]
-    [InlineData("Owner", 4, RegistrationStage.Approved, "building", 409)]
-    [InlineData("Owner", 4, RegistrationStage.Pending, "other", 404)]
-    public async Task InvalidTypeChangeDoesNotWrite(string type, int version, RegistrationStage stage, string complex, int status)
+    [InlineData("Wrong", 4, RegistrationStage.Pending, "building", AdminFailure.InvalidInput)]
+    [InlineData("Owner", 3, RegistrationStage.Pending, "building", AdminFailure.Conflict)]
+    [InlineData("Owner", 4, RegistrationStage.Approved, "building", AdminFailure.Conflict)]
+    [InlineData("Owner", 4, RegistrationStage.Pending, "other", AdminFailure.NotFound)]
+    public async Task InvalidTypeChangeDoesNotWrite(string type, int version, RegistrationStage stage, string complex, AdminFailure failure)
     {
         using var db = new RecordingDynamo { Snapshot = Item(Registration with { Stage = stage, BuildingId = complex }) };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "building")
             .ChangeResidentTypeAsync(Actor, Registration.Id, new(type, version), default));
-        Assert.Equal(status, error.Status);
+        Assert.Equal(failure, error.Failure);
         Assert.Null(db.Transaction);
     }
 
@@ -292,7 +292,7 @@ public sealed class ResidentDirectoryTests
         Assert.Equal("REGISTRATION#" + Registration.Id, db.Query.ExpressionAttributeValues[":pk"].S);
         Assert.Equal("EVENT#TYPE#", db.Query.ExpressionAttributeValues[":prefix"].S);
         var cursor = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new Dictionary<string, string> { ["pk"] = "REGISTRATION#other", ["sk"] = "EVENT#TYPE#x" })));
-        await Assert.ThrowsAsync<ApiError>(() => store.RegistrationHistoryAsync(Registration.Id, cursor, default));
+        await Assert.ThrowsAsync<AdminOperationException>(() => store.RegistrationHistoryAsync(Registration.Id, cursor, default));
     }
 
     [Fact]
@@ -300,14 +300,14 @@ public sealed class ResidentDirectoryTests
     {
         using var forbidden = new RecordingDynamo { Snapshot = Item(Registration) };
         var actor = Actor with { Permissions = new PagePermissions(true, true, true, false, false) };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(forbidden, "admins", "data", "building")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(forbidden, "admins", "data", "building")
             .ChangeResidentTypeAsync(actor, Registration.Id, new("Employee", 4), default));
-        Assert.Equal(403, error.Status);
+        Assert.Equal(AdminFailure.Forbidden, error.Failure);
         Assert.Null(forbidden.Transaction);
         using var concurrent = new RecordingDynamo { Snapshot = Item(Registration), Conflict = true };
-        error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(concurrent, "admins", "data", "building")
+        error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(concurrent, "admins", "data", "building")
             .ChangeResidentTypeAsync(Actor, Registration.Id, new("Employee", 4), default));
-        Assert.Equal(409, error.Status);
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
         Assert.Equal(1, concurrent.TransactionCalls);
     }
 
@@ -348,9 +348,9 @@ public sealed class ResidentDirectoryTests
     public async Task ForeignBuildingAndOtherListCursorsAreRejected(string building, string sk)
     {
         using var db = new RecordingDynamo();
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "building")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "building")
             .ListResidentsAsync(Cursor(building, sk), default));
-        Assert.Equal(400, error.Status);
+        Assert.Equal(AdminFailure.InvalidInput, error.Failure);
         Assert.Null(db.Query);
     }
 

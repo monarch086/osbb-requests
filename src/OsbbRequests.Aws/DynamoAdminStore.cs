@@ -1,4 +1,3 @@
-using OsbbRequests.Aws;
 using OsbbRequests.Services;
 using OsbbRequests.Shared.Residents;
 using System.Globalization;
@@ -10,7 +9,7 @@ using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null, bool compactResidentDirectory = false, bool compactResidentNameDirectory = false) : IAdministratorAccounts, IAdministratorStore, IRequestStore, IResidentStore, IMessageStore
 {
@@ -47,7 +46,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             return keys.ToDictionary(p => p.Key, p => S(p.Value));
         }
         catch (Exception e) when (e is FormatException or JsonException or NullReferenceException)
-        { throw new ApiError(400, "Некоректна сторінка."); }
+        { throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка."); }
     }
     private static string? Encode(Dictionary<string, AttributeValue>? key) => key is { Count: > 0 }
         ? Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(key.ToDictionary(p => p.Key, p => p.Value.S)))) : null;
@@ -83,15 +82,15 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     public async Task SetNotificationSettingsAsync(AdminUser actor, AdminUser target, NotificationSettingsChange change, CancellationToken ct)
     {
         if (!actor.IsActive || (actor.UserId != target.UserId && !actor.IsSuperAdmin))
-            throw new ApiError(403, "Недостатньо прав для зміни сповіщень.");
+            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для зміни сповіщень.");
         var chat = change.TelegramChatId?.Trim();
         if (string.IsNullOrEmpty(chat)) chat = null;
         var keyOrders = change.NotifyNewKeyOrders ?? target.NotifyNewKeyOrders;
         var apartmentRegistrations = change.NotifyNewApartmentRegistrations ?? target.NotifyNewApartmentRegistrations;
         var settings = new AdministratorNotificationSettings(chat, change.NotifyNewResidents, change.NotifyNewRequests, change.NotifyNewAdministrators, keyOrders, apartmentRegistrations);
-        if (chat is not null && (chat.Length > 20 || settings.ChatId is null)) throw new ApiError(400, "Вкажіть коректний Telegram Chat Id.");
+        if (chat is not null && (chat.Length > 20 || settings.ChatId is null)) throw new AdminOperationException(AdminFailure.InvalidInput, "Вкажіть коректний Telegram Chat Id.");
         if (settings.ChatId is null && (change.NotifyNewResidents || change.NotifyNewRequests || keyOrders || apartmentRegistrations || change.NotifyNewAdministrators))
-            throw new ApiError(400, "Для сповіщень вкажіть Telegram Chat Id.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Для сповіщень вкажіть Telegram Chat Id.");
         chat = settings.ChatId?.ToString(CultureInfo.InvariantCulture);
         var now = DateTimeOffset.UtcNow.ToString("O");
         var update = new Update
@@ -126,7 +125,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
 
     public async Task SetAccessAsync(AdminUser actor, AdminUser target, AccessChange change, CancellationToken ct)
     {
-        if (target.IsSuperAdmin || target.UserId == actor.UserId) throw new ApiError(403, "Цей обліковий запис керується через AWS.");
+        if (target.IsSuperAdmin || target.UserId == actor.UserId) throw new AdminOperationException(AdminFailure.Forbidden, "Цей обліковий запис керується через AWS.");
         var now = DateTimeOffset.UtcNow.ToString("O");
         var audit = Key("ADMIN#" + target.UserId, "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
         audit["actor"] = S(actor.Email); audit["action"] = S(change.IsActive ? "AdminAccessGranted" : "AdminAccessRevoked");
@@ -147,8 +146,8 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     public async Task SetPermissionsAsync(AdminUser actor, AdminUser target, PermissionsChange change, CancellationToken ct)
     {
         if (!actor.IsActive || !actor.IsSuperAdmin || target.IsSuperAdmin || target.UserId == actor.UserId)
-            throw new ApiError(403, "Недостатньо прав для зміни доступів.");
-        if (change.Permissions is null) throw new ApiError(400, "Вкажіть доступи.");
+            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для зміни доступів.");
+        if (change.Permissions is null) throw new AdminOperationException(AdminFailure.InvalidInput, "Вкажіть доступи.");
         var now = DateTimeOffset.UtcNow.ToString("O");
         var audit = Key("ADMIN#" + target.UserId, "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
         audit["actor"] = S(actor.Email); audit["action"] = S("AdminPermissionsChanged"); audit["createdAt"] = S(now);
@@ -173,7 +172,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var pk = "BUILDING#" + building;
         var start = Decode(cursor, "pk", pk);
         if (start is not null && start.GetValueOrDefault("sk")?.S?.StartsWith("REGISTRATION#", StringComparison.Ordinal) != true)
-            throw new ApiError(400, "Некоректна сторінка.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         var result = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,
@@ -230,7 +229,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var pk = "BUILDING#" + building;
         var start = Decode(cursor, "pk", pk);
         if (start is not null && start.GetValueOrDefault("sk")?.S?.StartsWith("RESIDENT#", StringComparison.Ordinal) != true)
-            throw new ApiError(400, "Некоректна сторінка.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         var result = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,
@@ -248,13 +247,13 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
 
     public async Task DecideAsync(AdminUser actor, string reference, RegistrationDecision decision, CancellationToken ct)
     {
-        var snapshot = await GetResidentRecordAsync("REGISTRATION#" + reference, "META", ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
+        var snapshot = await GetResidentRecordAsync("REGISTRATION#" + reference, "META", ct) ?? throw new AdminOperationException(AdminFailure.NotFound, "Реєстрацію не знайдено.");
         var registration = Payload<ResidentRegistration>(snapshot);
-        if (registration.BuildingId != building) throw new ApiError(404, "Реєстрацію не знайдено.");
+        if (registration.BuildingId != building) throw new AdminOperationException(AdminFailure.NotFound, "Реєстрацію не знайдено.");
         if (registration.Stage != RegistrationStage.Pending || registration.Version != decision.Version)
-            throw new ApiError(409, "Рішення вже змінено. Оновіть список.");
-        if (!decision.Approved && string.IsNullOrWhiteSpace(decision.Reason)) throw new ApiError(400, "Вкажіть причину відхилення.");
-        if (decision.Reason?.Length > 500) throw new ApiError(400, "Пояснення: до 500 символів.");
+            throw new AdminOperationException(AdminFailure.Conflict, "Рішення вже змінено. Оновіть список.");
+        if (!decision.Approved && string.IsNullOrWhiteSpace(decision.Reason)) throw new AdminOperationException(AdminFailure.InvalidInput, "Вкажіть причину відхилення.");
+        if (decision.Reason?.Length > 500) throw new AdminOperationException(AdminFailure.InvalidInput, "Пояснення: до 500 символів.");
         var now = DateTimeOffset.UtcNow;
         var next = registration with
         {
@@ -304,7 +303,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             writes.Add(ResidentMirrorWrite(next, registration.Version));
             writes.Add(RelatedResidentPut(registrationMeta, building, registration.Version));
             var userKey = Key(user, "REGISTRATION");
-            var originalUser = await GetResidentRecordAsync(userKey["pk"].S, userKey["sk"].S, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var originalUser = await GetResidentRecordAsync(userKey["pk"].S, userKey["sk"].S, ct) ?? throw new AdminOperationException(AdminFailure.Conflict, "Профіль змінено. Оновіть список.");
             var userProfile = new Dictionary<string, AttributeValue>(originalUser)
             { ["pk"] = userKey["pk"], ["sk"] = userKey["sk"], ["payload"] = registrationMeta["payload"], ["version"] = registrationMeta["version"] };
             writes.Add(RelatedResidentPut(userProfile, building, registration.Version));
@@ -368,7 +367,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     }
     public async Task<RequestAuthor?> GetRequestAuthorAsync(MaintenanceRequest request, CancellationToken ct)
     {
-        if (request.BuildingId != building) throw new ApiError(404, "Заявку не знайдено.");
+        if (request.BuildingId != building) throw new AdminOperationException(AdminFailure.NotFound, "Заявку не знайдено.");
         var profile = await GetResidentRecordAsync("USER#" + request.OwnerId.ToString(CultureInfo.InvariantCulture), "REGISTRATION", ct);
         if (profile is null) return null;
         var resident = Payload<ResidentRegistration>(profile);
@@ -382,7 +381,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     private async Task SaveRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct,
         string? comment = null, IReadOnlyList<TransactWriteItem>? residentWrites = null)
     {
-        if (!ComplexLayout.IsValidRequest(next.Category, next.Scope, next.BuildingNumber, next.Floor, next.Entrance)) throw new ApiError(400, "Некоректна прив’язка заявки.");
+        if (!ComplexLayout.IsValidRequest(next.Category, next.Scope, next.BuildingNumber, next.Floor, next.Entrance)) throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна прив’язка заявки.");
         var timestamp = DateTimeOffset.UtcNow;
         var now = timestamp.ToString("O");
         var audit = Key("REQUEST#" + next.Id.ToString(CultureInfo.InvariantCulture), "EVENT#" + now + "#" + Guid.NewGuid().ToString("N"));
@@ -412,7 +411,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
 
     public async Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct)
     {
-        if (request.BuildingId != building) throw new ApiError(404, "Заявку не знайдено.");
+        if (request.BuildingId != building) throw new AdminOperationException(AdminFailure.NotFound, "Заявку не знайдено.");
         var response = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,
@@ -455,6 +454,6 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
     private async Task Transact(List<TransactWriteItem> writes, CancellationToken ct)
     {
         try { await db.TransactWriteItemsAsync(new() { TransactItems = writes }, ct); }
-        catch (TransactionCanceledException) { throw new ApiError(409, "Дані або права доступу змінилися. Оновіть сторінку."); }
+        catch (TransactionCanceledException) { throw new AdminOperationException(AdminFailure.Conflict, "Дані або права доступу змінилися. Оновіть сторінку."); }
     }
 }

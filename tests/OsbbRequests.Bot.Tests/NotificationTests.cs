@@ -1,11 +1,11 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Net;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Bot;
 using OsbbRequests.Bot.Models;
@@ -216,9 +216,9 @@ public sealed class NotificationTests
     {
         using var db = new RecordingDynamo { Conflict = true };
         var old = Request();
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .UpdateRequestAsync(Admin, new(old, 4), old with { Status = RequestStatus.InProgress }, default));
-        Assert.Equal(409, error.Status);
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
         Assert.Equal(1, db.TransactionCalls);
         Assert.Equal(4, db.Transaction!.TransactItems.Count);
     }

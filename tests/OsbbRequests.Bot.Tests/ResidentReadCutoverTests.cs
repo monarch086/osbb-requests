@@ -1,4 +1,4 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
@@ -7,7 +7,7 @@ using Amazon.Runtime;
 using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Notifications;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
@@ -263,8 +263,8 @@ public sealed class ResidentReadCutoverTests
         });
 
         db.Transaction = null;
-        var conflict = await Assert.ThrowsAsync<ApiError>(() => store.UpdateResidentKeyAsync(actor, 99, 1, 0, change with { Version = 3 }, default));
-        Assert.Equal(409, conflict.Status);
+        var conflict = await Assert.ThrowsAsync<AdminOperationException>(() => store.UpdateResidentKeyAsync(actor, 99, 1, 0, change with { Version = 3 }, default));
+        Assert.Equal(AdminFailure.Conflict, conflict.Failure);
         Assert.Null(db.Transaction);
     }
 

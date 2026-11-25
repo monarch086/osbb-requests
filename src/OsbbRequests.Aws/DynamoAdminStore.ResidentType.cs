@@ -6,7 +6,7 @@ using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore
 {
@@ -49,7 +49,7 @@ public sealed partial class DynamoAdminStore
 
     public Task UpdateResidentDataAsync(AdminUser actor, string reference, ResidentDataChangeRequest change, CancellationToken ct)
     {
-        if (!ValidName(change.FirstName) || !ValidName(change.LastName)) throw new ApiError(400, "Вкажіть коректні ім’я та прізвище.");
+        if (!ValidName(change.FirstName) || !ValidName(change.LastName)) throw new AdminOperationException(AdminFailure.InvalidInput, "Вкажіть коректні ім’я та прізвище.");
         return ApplyResidentChangeAsync(actor, reference, change.ResidentType, change.Version, change.FirstName.Trim(), change.LastName.Trim(), false, ct);
     }
 
@@ -63,17 +63,17 @@ public sealed partial class DynamoAdminStore
 
     private async Task ApplyResidentChangeAsync(AdminUser actor, string reference, string residentType, int version, string? firstName, string? lastName, bool pendingOnly, CancellationToken ct)
     {
-        if (!actor.IsActive || !actor.EffectivePermissions.PendingResidents) throw new ApiError(403, "Недостатньо прав для перевірки реєстрацій.");
-        if (!Enum.GetNames<ResidentType>().Contains(residentType, StringComparer.Ordinal)) throw new ApiError(400, "Оберіть коректний тип мешканця.");
-        var snapshot = await GetResidentRecordAsync("REGISTRATION#" + reference, "META", ct) ?? throw new ApiError(404, "Реєстрацію не знайдено.");
+        if (!actor.IsActive || !actor.EffectivePermissions.PendingResidents) throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перевірки реєстрацій.");
+        if (!Enum.GetNames<ResidentType>().Contains(residentType, StringComparer.Ordinal)) throw new AdminOperationException(AdminFailure.InvalidInput, "Оберіть коректний тип мешканця.");
+        var snapshot = await GetResidentRecordAsync("REGISTRATION#" + reference, "META", ct) ?? throw new AdminOperationException(AdminFailure.NotFound, "Реєстрацію не знайдено.");
         var current = Payload<ResidentRegistration>(snapshot);
-        if (current.Id != reference || current.BuildingId != building) throw new ApiError(404, "Реєстрацію не знайдено.");
+        if (current.Id != reference || current.BuildingId != building) throw new AdminOperationException(AdminFailure.NotFound, "Реєстрацію не знайдено.");
         if ((current.Stage != RegistrationStage.Pending && (pendingOnly || current.Stage != RegistrationStage.Approved || current.PersonalDataDeleted)) || current.Version != version)
-            throw new ApiError(409, "Дані мешканця змінено. Оновіть список.");
+            throw new AdminOperationException(AdminFailure.Conflict, "Дані мешканця змінено. Оновіть список.");
         var type = Enum.Parse<ResidentType>(residentType);
         firstName ??= current.FirstName;
         lastName ??= current.LastName;
-        if (current.ResidentType == type && current.FirstName == firstName && current.LastName == lastName) throw new ApiError(400, "Дані не змінено.");
+        if (current.ResidentType == type && current.FirstName == firstName && current.LastName == lastName) throw new AdminOperationException(AdminFailure.InvalidInput, "Дані не змінено.");
         var next = current with { FirstName = firstName, LastName = lastName, ResidentType = type, Version = current.Version + 1, TypeChangeCount = checked(current.TypeChangeCount + 1) };
         var now = DateTimeOffset.UtcNow;
         var audit = Key("REGISTRATION#" + reference, "EVENT#TYPE#" + now.ToString("O", CultureInfo.InvariantCulture) + "#" + Guid.NewGuid().ToString("N"));
@@ -114,8 +114,8 @@ public sealed partial class DynamoAdminStore
             writes.Add(RelatedResidentPut(registrationMeta, building, current.Version));
             var userKey = Key("USER#" + current.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION");
             var directoryKey = Key("BUILDING#" + building, listKey);
-            var originalUser = await GetResidentRecordAsync(userKey["pk"].S, userKey["sk"].S, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
-            var originalDirectory = await GetResidentRecordAsync(directoryKey["pk"].S, directoryKey["sk"].S, ct) ?? throw new ApiError(409, "Профіль змінено. Оновіть список.");
+            var originalUser = await GetResidentRecordAsync(userKey["pk"].S, userKey["sk"].S, ct) ?? throw new AdminOperationException(AdminFailure.Conflict, "Профіль змінено. Оновіть список.");
+            var originalDirectory = await GetResidentRecordAsync(directoryKey["pk"].S, directoryKey["sk"].S, ct) ?? throw new AdminOperationException(AdminFailure.Conflict, "Профіль змінено. Оновіть список.");
             var userProfile = new Dictionary<string, AttributeValue>(originalUser)
             { ["pk"] = userKey["pk"], ["sk"] = userKey["sk"], ["payload"] = registrationMeta["payload"], ["version"] = registrationMeta["version"] };
             var directoryEntry = new Dictionary<string, AttributeValue>(originalDirectory)
@@ -137,7 +137,7 @@ public sealed partial class DynamoAdminStore
             if (startKey is not null && (startKey.Count != 3 ||
                 startKey.GetValueOrDefault("recordOrder")?.S?.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) != true ||
                 startKey.GetValueOrDefault("pk")?.S != ResidentRecordKey.Create(building, pk, startKey["recordOrder"].S).Key))
-                throw new ApiError(400, "Некоректна сторінка.");
+                throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
             const string groupField = ResidentRecordKey.IndexGroupAttribute;
             if (startKey is not null)
             {
@@ -161,7 +161,7 @@ public sealed partial class DynamoAdminStore
         }
         var start = Decode(cursor, "pk", pk);
         if (start is not null && (start.Count != 2 || start.GetValueOrDefault("sk")?.S?.StartsWith("EVENT#TYPE#", StringComparison.Ordinal) != true))
-            throw new ApiError(400, "Некоректна сторінка.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         var result = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,

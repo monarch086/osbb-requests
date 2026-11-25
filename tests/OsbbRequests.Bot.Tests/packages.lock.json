@@ -206,7 +206,8 @@
         "dependencies": {
           "AWSSDK.CognitoIdentityProvider": "[4.0.100, )",
           "AWSSDK.DynamoDBv2": "[4.0.108, )",
-          "OsbbRequests.Services": "[1.0.0, )"
+          "OsbbRequests.Services": "[1.0.0, )",
+          "OsbbRequests.Shared": "[1.0.0, )"
         }
       },
       "osbbrequests.bot": {

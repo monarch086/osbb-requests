@@ -17,22 +17,40 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins("http://localhost:4201", "http://127.0.0.1:4201")
-    .WithMethods("GET").WithHeaders("authorization", "content-type")));
+    .WithMethods("GET", "POST", "PATCH").WithHeaders("authorization", "content-type")));
 
 builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(services =>
     new AmazonCognitoIdentityProviderClient(CognitoRegion(services)));
 builder.Services.AddSingleton<IAmazonDynamoDB>(services => new AmazonDynamoDBClient(CognitoRegion(services)));
 builder.Services.AddSingleton<IIdentityProvider, CognitoIdentity>();
-builder.Services.AddSingleton<IAdministratorAccounts>(services => new DynamoAdminAccounts(
+builder.Services.AddSingleton(services => new DynamoAdminStore(
     services.GetRequiredService<IAmazonDynamoDB>(),
     builder.Configuration["DynamoDb:AdministratorsTable"] ?? "osbb-requests-dev-administrators",
     builder.Configuration["DynamoDb:CommandDataTable"] ?? "osbb-requests-dev-command-data",
-    builder.Configuration["DynamoDb:ComplexId"] ?? "osbb-requests-dev"));
+    builder.Configuration["DynamoDb:ComplexId"] ?? "osbb-requests-dev",
+    prioritizeRequests: builder.Configuration.GetValue("DynamoDb:PrioritizeRequests", true),
+    residentsTable: builder.Configuration["DynamoDb:ResidentsTable"] ?? "osbb-requests-dev-residents",
+    compactResidentDirectory: builder.Configuration.GetValue("DynamoDb:CompactResidentDirectory", true),
+    compactResidentNameDirectory: builder.Configuration.GetValue("DynamoDb:CompactResidentNameDirectory", true)));
+builder.Services.AddSingleton<IAdministratorAccounts>(services => services.GetRequiredService<DynamoAdminStore>());
+builder.Services.AddSingleton<IAdministratorStore>(services => services.GetRequiredService<DynamoAdminStore>());
+builder.Services.AddSingleton<IAdministratorDirectory>(services => services.GetRequiredService<IAdministratorStore>());
+builder.Services.AddSingleton<IRequestStore>(services => services.GetRequiredService<DynamoAdminStore>());
+builder.Services.AddSingleton<IResidentStore>(services => services.GetRequiredService<DynamoAdminStore>());
+builder.Services.AddSingleton<IMessageStore>(services => services.GetRequiredService<DynamoAdminStore>());
+builder.Services.AddSingleton<IStatisticsStore>(services => new DynamoStatisticsStore(services.GetRequiredService<IAmazonDynamoDB>(),
+    builder.Configuration["DynamoDb:StatisticsTable"] ?? "osbb-requests-dev-statistics"));
 builder.Services.AddSingleton<AdminAccountService>();
+builder.Services.AddSingleton<PermissionService>();
+builder.Services.AddSingleton<RequestService>();
+builder.Services.AddSingleton<ResidentService>();
+builder.Services.AddSingleton<MessageService>();
+builder.Services.AddSingleton<StatisticsService>();
 
 var app = builder.Build();
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {
+    AllowStatusCode404Response = true,
     SuppressDiagnosticsCallback = _ => true,
     ExceptionHandler = async context =>
     {

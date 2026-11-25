@@ -8,16 +8,17 @@ source .env.data.local
 set +a
 
 outputs="$(aws cloudformation describe-stacks --stack-name osbb-requests-dev --region eu-central-1 \
-  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId' || OutputKey=='UserPoolClientId' || OutputKey=='AdministratorsTableName' || OutputKey=='CommandDataTableName']" --output json --no-cli-pager)"
+  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId' || OutputKey=='UserPoolClientId' || OutputKey=='AdministratorsTableName' || OutputKey=='CommandDataTableName' || OutputKey=='ResidentsTableName']" --output json --no-cli-pager)"
 config="$(python3 -c '
 import json, sys
 outputs = {row["OutputKey"]: row["OutputValue"] for row in json.load(sys.stdin)}
-for key in ("UserPoolId", "UserPoolClientId", "AdministratorsTableName", "CommandDataTableName"):
+for key in ("UserPoolId", "UserPoolClientId", "AdministratorsTableName", "CommandDataTableName", "ResidentsTableName"):
     print(outputs[key])
 ' <<< "$outputs")"
 mapfile -t values <<< "$config"
 export OSBB_COGNITO_USER_POOL_ID="${values[0]}" OSBB_COGNITO_CLIENT_ID="${values[1]}"
 export OSBB_ADMINISTRATORS_TABLE="${values[2]}" OSBB_COMMAND_DATA_TABLE="${values[3]}"
+export OSBB_RESIDENTS_TABLE="${values[4]}"
 export OSBB_WEB_API_UID="$(id -u)" OSBB_WEB_API_GID="$(id -g)"
 
 exec docker compose --env-file .env.data.local -f compose.data.yml up -d --build web-api

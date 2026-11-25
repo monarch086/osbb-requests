@@ -9,9 +9,7 @@ public sealed class ResidentService(IResidentStore store)
 {
     public Task<ResidentKeyPage> ListResidentsWithKeysAsync(AdminUser actor, string? page, CancellationToken ct)
     {
-        AdminAccess.RequireActive(actor);
-        if (!actor.EffectivePermissions.KeyOrders)
-            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду замовлень ключів.");
+        RequireKeyRead(actor);
         if (!int.TryParse(page ?? "1", out var number) || number < 1 || number > 1000000)
             throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         return store.ListResidentsWithKeysAsync(number, ct);
@@ -157,9 +155,7 @@ public sealed class ResidentService(IResidentStore store)
 
     public async Task<Page<ResidentTypeChange>> GetRegistrationHistoryAsync(AdminUser actor, string reference, string? cursor, CancellationToken ct)
     {
-        AdminAccess.RequireActive(actor);
-        if (!actor.EffectivePermissions.PendingResidents && !actor.EffectivePermissions.RegisteredResidents)
-            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду історії.");
+        RequireRegistrationHistoryAccess(actor);
         var registration = await GetRegistrationAsync(reference, ct);
         if (registration.Stage == RegistrationStage.Pending ? !actor.EffectivePermissions.PendingResidents :
             registration.Stage == RegistrationStage.Approved ? !actor.EffectivePermissions.RegisteredResidents : true)
@@ -188,4 +184,18 @@ public sealed class ResidentService(IResidentStore store)
     private static RegisteredResident ToRegisteredResident(ResidentRegistration resident) => new(resident.Id, resident.FirstName, resident.LastName,
         resident.Phone, resident.ApprovedAt ?? resident.UpdatedAt, resident.UserId.ToString(CultureInfo.InvariantCulture), resident.BuildingNumber,
         resident.ApartmentNumber, resident.PersonalDataDeleted, resident.Email, resident.ConsentAt, resident.ResidentType, resident.TypeChangeCount, resident.Version);
+
+    public static void RequireKeyRead(AdminUser actor)
+    {
+        AdminAccess.RequireActive(actor);
+        if (!actor.EffectivePermissions.KeyOrders)
+            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду замовлень ключів.");
+    }
+
+    public static void RequireRegistrationHistoryAccess(AdminUser actor)
+    {
+        AdminAccess.RequireActive(actor);
+        if (!actor.EffectivePermissions.PendingResidents && !actor.EffectivePermissions.RegisteredResidents)
+            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду історії.");
+    }
 }

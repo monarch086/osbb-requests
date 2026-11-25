@@ -1,10 +1,10 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Globalization;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using Xunit;
 
@@ -31,7 +31,7 @@ public sealed class CompactResidentDirectoryTests
             Assert.Equal("COMPLEX#complex#APPROVED#BUILDING#4Б", query.ExpressionAttributeValues[":group"].S);
         });
         Assert.Equal(first.NextCursor, next.StartCursor);
-        await Assert.ThrowsAsync<ApiError>(() => store.ListCompactResidentsAsync(2, "4В", null, "asc", first.NextCursor, default));
+        await Assert.ThrowsAsync<AdminOperationException>(() => store.ListCompactResidentsAsync(2, "4В", null, "asc", first.NextCursor, default));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class CompactResidentDirectoryTests
         Assert.Equal(25, second.Items.Count);
         Assert.All(db.Queries, query => Assert.Equal("ResidentDirectoryByNameDescending", query.IndexName));
         Assert.NotNull(db.Queries[1].ExclusiveStartKey["listNameOrderDescending"].B);
-        await Assert.ThrowsAsync<ApiError>(() => store.ListCompactResidentsAsync(2, null, null, "desc", first.NextCursor, default));
+        await Assert.ThrowsAsync<AdminOperationException>(() => store.ListCompactResidentsAsync(2, null, null, "desc", first.NextCursor, default));
     }
 
     private sealed class DirectoryDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)

@@ -5,7 +5,6 @@ using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using OsbbRequests.Aws;
-using OsbbRequests.AdminApi.Data;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Shared.Telegram;
 using OsbbRequests.AdminApi.Statistics;
@@ -30,7 +29,7 @@ public sealed class Function
     };
     public Function()
     {
-        statistics = new StatisticsStore(new AmazonDynamoDBClient(), Config("STATISTICS_TABLE"));
+        statistics = new DynamoStatisticsStore(new AmazonDynamoDBClient(), Config("STATISTICS_TABLE"));
         var store = new DynamoAdminStore(new MeteredDynamoDb(), Config("ADMINISTRATORS_TABLE"),
             Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting(), Config("RESIDENTS_TABLE"), Environment.GetEnvironmentVariable("COMPACT_RESIDENT_DIRECTORY") == "true",
             Environment.GetEnvironmentVariable("COMPACT_RESIDENT_NAME_DIRECTORY") == "true");

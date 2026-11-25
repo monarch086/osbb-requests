@@ -5,7 +5,7 @@ using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore
 {
@@ -61,7 +61,7 @@ public sealed partial class DynamoAdminStore
         const string field = ResidentRecordKey.IndexGroupAttribute;
         var start = Decode(cursor, field, group);
         if (start is not null && (start.Count != 3 || !TryReviewOwner(start, out _)))
-            throw new ApiError(400, "Некоректна сторінка.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         var page = await db.QueryAsync(new QueryRequest
         {
             TableName = table,
@@ -90,15 +90,15 @@ public sealed partial class DynamoAdminStore
     public async Task DecideApartmentAsync(AdminUser actor, string registrationId, string apartmentId, bool approved, CancellationToken ct)
     {
         if (!actor.IsActive || !actor.EffectivePermissions.PendingResidents)
-            throw new ApiError(403, "Недостатньо прав для перевірки квартир.");
+            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перевірки квартир.");
         var table = residentsTable ?? throw new InvalidOperationException("Missing residents table.");
         var profile = await GetCurrentRegisteredResidentAsync(registrationId, ct);
         if (profile is null || !OwnerApartments.CanManage(profile))
-            throw new ApiError(404, "Профіль власника недоступний.");
+            throw new AdminOperationException(AdminFailure.NotFound, "Профіль власника недоступний.");
         var record = await GetOwnerApartmentRecordAsync(profile.UserId, ct);
         var item = record?.RegistrationId == profile.Id ? record.Items.SingleOrDefault(value => value.Id == apartmentId) : null;
-        if (record is null || item is null) throw new ApiError(404, "Квартиру не знайдено.");
-        if (item.Status != ApartmentReviewStatus.Pending) throw new ApiError(409, "Рішення щодо цієї квартири вже ухвалено.");
+        if (record is null || item is null) throw new AdminOperationException(AdminFailure.NotFound, "Квартиру не знайдено.");
+        if (item.Status != ApartmentReviewStatus.Pending) throw new AdminOperationException(AdminFailure.Conflict, "Рішення щодо цієї квартири вже ухвалено.");
         var now = DateTimeOffset.UtcNow;
         var reviewed = item with { Status = approved ? ApartmentReviewStatus.Approved : ApartmentReviewStatus.Rejected, ReviewedAt = now, ReviewedBy = actor.Email };
         var next = record with { Version = record.Version + 1, Items = record.Items.Select(value => value.Id == apartmentId ? reviewed : value).ToList() };

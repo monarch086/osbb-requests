@@ -4,7 +4,7 @@ using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore
 {
@@ -13,7 +13,7 @@ public sealed partial class DynamoAdminStore
         var partition = "MESSAGES#" + building;
         var start = Decode(cursor, "pk", partition);
         if (start is not null && (start.Count != 2 || start.GetValueOrDefault("sk")?.S?.StartsWith("MESSAGE#", StringComparison.Ordinal) != true))
-            throw new ApiError(400, "Некоректна сторінка.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         var page = await db.QueryAsync(new QueryRequest
         {
             TableName = dataTable,
@@ -29,9 +29,9 @@ public sealed partial class DynamoAdminStore
 
     public async Task<BroadcastMessage> SendMessageAsync(AdminUser actor, MessageChange change, CancellationToken ct)
     {
-        if (!actor.IsActive || !actor.EffectivePermissions.Messages) throw new ApiError(403, "Недостатньо прав для розсилки.");
+        if (!actor.IsActive || !actor.EffectivePermissions.Messages) throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для розсилки.");
         if (!Guid.TryParseExact(change.Id, "D", out var id) || string.IsNullOrWhiteSpace(change.Text) || change.Text.Length > 4096)
-            throw new ApiError(400, "Вкажіть текст повідомлення від 1 до 4096 символів і коректний ідентифікатор.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Вкажіть текст повідомлення від 1 до 4096 символів і коректний ідентифікатор.");
         var messageId = id.ToString("D");
         var key = Key("MESSAGES#" + building, "ID#" + messageId);
         async Task<BroadcastMessage?> Existing()
@@ -40,7 +40,7 @@ public sealed partial class DynamoAdminStore
             if (item is null) return null;
             var previous = Payload<BroadcastMessage>(item);
             if (previous.CreatedById != actor.UserId || previous.Text != change.Text.Trim())
-                throw new ApiError(409, "Цей ідентифікатор вже використаний для іншого повідомлення.");
+                throw new AdminOperationException(AdminFailure.Conflict, "Цей ідентифікатор вже використаний для іншого повідомлення.");
             return previous;
         }
         if (await Existing() is { } existing) return existing;
@@ -56,7 +56,7 @@ public sealed partial class DynamoAdminStore
             // The immutable history is also the audit: identity and timestamp are assigned by the server.
             await Transact([ActorCheck(actor), Put(dataTable, identity), Put(dataTable, history), NotificationWrite(notification)], ct);
         }
-        catch (ApiError error) when (error.Status == 409)
+        catch (AdminOperationException error) when (error.Failure == AdminFailure.Conflict)
         {
             if (await Existing() is { } concurrent) return concurrent;
             throw;

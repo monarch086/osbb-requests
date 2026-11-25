@@ -1,3 +1,4 @@
+using OsbbRequests.Aws;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
@@ -13,7 +14,7 @@ public sealed class StatisticsTests
     public async Task RecordingUsesAtomicAddAndKeepsRequestDataOutOfTheKey()
     {
         using var db = new StatisticsDynamo();
-        var store = new StatisticsStore(db, "statistics");
+        var store = new DynamoStatisticsStore(db, "statistics");
         await store.RecordAsync("GET /admin/requests", 2.5, 1, 300, default);
         var update = Assert.IsType<UpdateItemRequest>(db.Update);
         Assert.Equal("statistics", update.TableName);

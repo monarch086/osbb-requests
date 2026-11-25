@@ -7,13 +7,13 @@ using OsbbRequests.Domain.Admin;
 using OsbbRequests.Shared.Residents;
 using OsbbRequests.Domain;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore
 {
     public async Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct)
     {
-        if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
+        if (page < 1 || page > 1000000) throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         const int pageSize = 25;
         var keys = new List<(long RequestId, long OwnerId, int Index, string Phone)>();
         var filters = new RequestFilters([nameof(RequestStatus.Completed)], null, null, null, null, Section: "keys");
@@ -63,21 +63,21 @@ public sealed partial class DynamoAdminStore
 
     public async Task UpdateResidentKeyAsync(AdminUser actor, long ownerId, long requestId, int index, ResidentKeyUpdate change, CancellationToken ct)
     {
-        if (!actor.IsActive || !actor.EffectivePermissions.KeyOrders) throw new ApiError(403, "Недостатньо прав для редагування ключів.");
+        if (!actor.IsActive || !actor.EffectivePermissions.KeyOrders) throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для редагування ключів.");
         if (change.Version is null || change.Version < 0 ||
             (change.Remove ? change.Type is not null || change.SerialNumber is not null : change.Type is not ("Магніт" or "Перепустка")) ||
-            change.SerialNumber is { Length: > 25 }) throw new ApiError(400, "Оберіть тип ключа та вкажіть серійний номер до 25 символів за наявності.");
-        var current = await GetRequestAsync(ownerId, requestId, ct) ?? throw new ApiError(404, "Заявку не знайдено.");
+            change.SerialNumber is { Length: > 25 }) throw new AdminOperationException(AdminFailure.InvalidInput, "Оберіть тип ключа та вкажіть серійний номер до 25 символів за наявності.");
+        var current = await GetRequestAsync(ownerId, requestId, ct) ?? throw new AdminOperationException(AdminFailure.NotFound, "Заявку не знайдено.");
         if (current.Version != change.Version || current.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || index < 0 || index >= items.Count)
-            throw new ApiError(409, "Замовлення або ключ змінено. Оновіть список.");
+            throw new AdminOperationException(AdminFailure.Conflict, "Замовлення або ключ змінено. Оновіть список.");
         var previous = items[index];
         var updated = change.Remove ? null : previous with { Type = change.Type!, SerialNumber = string.IsNullOrWhiteSpace(change.SerialNumber) ? null : change.SerialNumber.Trim() };
-        if (updated == previous) throw new ApiError(400, "Дані ключа не змінено.");
+        if (updated == previous) throw new AdminOperationException(AdminFailure.InvalidInput, "Дані ключа не змінено.");
 
         var profiles = (await FindKeyProfilesAsync([previous.Phone], ct))[0].DistinctBy(profile => profile.UserId).ToArray();
-        if (profiles.Length == 0) throw new ApiError(409, "Профіль мешканця для цього ключа не знайдено.");
+        if (profiles.Length == 0) throw new AdminOperationException(AdminFailure.Conflict, "Профіль мешканця для цього ключа не знайдено.");
         // The request update, author check and request audit use three of the 100 transaction actions.
-        if (profiles.Length > 48) throw new ApiError(409, "Цей номер пов’язано із завеликою кількістю профілів.");
+        if (profiles.Length > 48) throw new AdminOperationException(AdminFailure.Conflict, "Цей номер пов’язано із завеликою кількістю профілів.");
         var now = DateTimeOffset.UtcNow;
         var details = new ResidentKeyChange(requestId, new(previous.Type, previous.SerialNumber), updated is null ? null : new(updated.Type, updated.SerialNumber));
         var payload = S(JsonSerializer.Serialize(new ResidentTypeChange(null, null, actor.Email, now, KeyChange: details)));

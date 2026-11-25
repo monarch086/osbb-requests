@@ -1,10 +1,10 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.Domain.Models;
@@ -47,9 +47,9 @@ public sealed class MessageBroadcastTests
     public async Task StoreRejectsInactiveOrRegularAdministrators(bool active, bool super)
     {
         using var db = new FakeDynamo();
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .SendMessageAsync(Super with { IsActive = active, IsSuperAdmin = super }, new(Id, "Текст"), default));
-        Assert.Equal(403, error.Status);
+        Assert.Equal(AdminFailure.Forbidden, error.Failure);
         Assert.Null(db.Transaction);
     }
 
@@ -73,9 +73,9 @@ public sealed class MessageBroadcastTests
     public async Task InvalidMessageCannotBeQueued(string id, string? text)
     {
         using var db = new FakeDynamo();
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .SendMessageAsync(Super, new(id, text!), default));
-        Assert.Equal(400, error.Status);
+        Assert.Equal(AdminFailure.InvalidInput, error.Failure);
         Assert.Null(db.Transaction);
     }
 
@@ -85,8 +85,8 @@ public sealed class MessageBroadcastTests
         using var db = new FakeDynamo();
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         await store.SendMessageAsync(Super, new(Id, new string('я', 4096)), default);
-        var error = await Assert.ThrowsAsync<ApiError>(() => store.SendMessageAsync(Super, new(Id, new string('я', 4097)), default));
-        Assert.Equal(400, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => store.SendMessageAsync(Super, new(Id, new string('я', 4097)), default));
+        Assert.Equal(AdminFailure.InvalidInput, error.Failure);
     }
 
     [Fact]
@@ -98,8 +98,8 @@ public sealed class MessageBroadcastTests
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         Assert.Equal(existing, await store.SendMessageAsync(Super, new(Id, "Текст"), default));
         Assert.Null(db.Transaction);
-        var error = await Assert.ThrowsAsync<ApiError>(() => store.SendMessageAsync(Super, new(Id, "Інше повідомлення"), default));
-        Assert.Equal(409, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => store.SendMessageAsync(Super, new(Id, "Інше повідомлення"), default));
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public sealed class MessageBroadcastTests
     public async Task RevokedSuperRoleDuringTransactionDoesNotLeaveHistoryOrOutbox()
     {
         using var db = new FakeDynamo { Conflict = true };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex").SendMessageAsync(Super, new(Id, "Текст"), default));
-        Assert.Equal(409, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex").SendMessageAsync(Super, new(Id, "Текст"), default));
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
         Assert.Contains("IsSuperAdmin", db.Transaction!.TransactItems[0].ConditionCheck.ConditionExpression);
     }
 
@@ -139,8 +139,8 @@ public sealed class MessageBroadcastTests
         Assert.Equal("MESSAGES#complex", db.Query.ExpressionAttributeValues[":pk"].S);
         await store.ListMessagesAsync(first.Cursor, default);
         Assert.Equal(db.Page.LastEvaluatedKey["sk"].S, db.Query.ExclusiveStartKey["sk"].S);
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "other").ListMessagesAsync(first.Cursor, default));
-        Assert.Equal(400, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "other").ListMessagesAsync(first.Cursor, default));
+        Assert.Equal(AdminFailure.InvalidInput, error.Failure);
     }
 
     [Fact]

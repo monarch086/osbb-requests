@@ -10,9 +10,7 @@ public sealed class RequestService(IRequestStore store, IAdministratorDirectory 
 {
     public async Task<Page<Assignee>> ListAssigneesAsync(AdminUser actor, string? cursor, CancellationToken ct)
     {
-        AdminAccess.RequireActive(actor);
-        if (!actor.EffectivePermissions.ComplexRequests && !actor.EffectivePermissions.KeyOrders)
-            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для роботи із заявками.");
+        RequireAssigneesAccess(actor);
         var page = await administrators.ListAdminsAsync(cursor, ct);
         return new(page.Items.Where(admin => admin.IsActive).Select(admin => new Assignee(admin.UserId, admin.Email)).ToArray(), page.Cursor);
     }
@@ -148,5 +146,12 @@ public sealed class RequestService(IRequestStore store, IAdministratorDirectory 
         if (string.IsNullOrEmpty(value)) return null;
         if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна дата.");
         return value;
+    }
+
+    public static void RequireAssigneesAccess(AdminUser actor)
+    {
+        AdminAccess.RequireActive(actor);
+        if (!actor.EffectivePermissions.ComplexRequests && !actor.EffectivePermissions.KeyOrders)
+            throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для роботи із заявками.");
     }
 }

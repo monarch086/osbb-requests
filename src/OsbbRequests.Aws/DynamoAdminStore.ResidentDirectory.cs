@@ -4,14 +4,14 @@ using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore
 {
     public async Task<ResidentDirectoryPage> ListResidentDirectoryAsync(bool pending, int page, string? buildingNumber,
         string? residentType, string? sort, string? direction, CancellationToken ct)
     {
-        if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
+        if (page < 1 || page > 1000000) throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         var (items, counts) = await LoadResidentDirectoryAsync(pending, buildingNumber, residentType, sort, direction, ct);
         const int pageSize = 25;
         var actualPage = Math.Min(page, Math.Max(1, (items.Count + pageSize - 1) / pageSize));
@@ -63,7 +63,7 @@ public sealed partial class DynamoAdminStore
                 }
                 if (!string.IsNullOrEmpty(residentType) && resident.ResidentType.ToString() != residentType) continue;
                 items.Add(resident);
-                if (items.Count > 1_048_575) throw new ApiError(413, "Забагато мешканців. Звузьте фільтри та спробуйте ще раз.");
+                if (items.Count > 1_048_575) throw new AdminOperationException(AdminFailure.TooLarge, "Забагато мешканців. Звузьте фільтри та спробуйте ще раз.");
             }
             cursor = response.LastEvaluatedKey;
         } while (cursor is { Count: > 0 });
@@ -86,6 +86,6 @@ public sealed partial class DynamoAdminStore
         if ((buildingNumber is not (null or "" or "Unspecified" or "4Б" or "4В" or "4Г" or "4Д")) ||
             (residentType is not (null or "" or "Owner" or "FamilyMember" or "Tenant" or "Employee")) ||
             (sort is not (null or "" or "registeredAt" or "lastName")) || (direction is not (null or "" or "asc" or "desc")))
-            throw new ApiError(400, "Некоректні параметри списку мешканців.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректні параметри списку мешканців.");
     }
 }

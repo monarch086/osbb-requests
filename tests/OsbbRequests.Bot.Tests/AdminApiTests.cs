@@ -4,7 +4,7 @@ using System.IO.Compression;
 using System.Xml.Linq;
 using Amazon.Lambda.APIGatewayEvents;
 using OsbbRequests.AdminApi;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;

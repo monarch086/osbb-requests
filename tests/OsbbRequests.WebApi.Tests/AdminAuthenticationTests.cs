@@ -23,7 +23,7 @@ using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;
 
-public sealed class AdminAuthenticationTests : IDisposable
+public sealed partial class AdminAuthenticationTests : IDisposable
 {
     private const string Pool = "eu-central-1_TestPool";
     private const string Client = "testclient";

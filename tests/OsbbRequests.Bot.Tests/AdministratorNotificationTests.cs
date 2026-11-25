@@ -1,10 +1,10 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.Domain;
@@ -164,9 +164,9 @@ public sealed class AdministratorNotificationTests
     public async Task InvalidChatCannotEnableNotifications(string? chat)
     {
         using var db = new NotificationDynamo();
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .SetNotificationSettingsAsync(Super, Regular, Settings(chat), default));
-        Assert.Equal(400, error.Status);
+        Assert.Equal(AdminFailure.InvalidInput, error.Failure);
         Assert.Null(db.Transaction);
     }
 
@@ -184,9 +184,9 @@ public sealed class AdministratorNotificationTests
     public async Task InactiveOrNonSuperActorCannotEditOthersSettings(bool active, bool super)
     {
         using var db = new NotificationDynamo();
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .SetNotificationSettingsAsync(Super with { IsActive = active, IsSuperAdmin = super }, Regular, Settings(), default));
-        Assert.Equal(403, error.Status);
+        Assert.Equal(AdminFailure.Forbidden, error.Failure);
         Assert.Null(db.Transaction);
     }
 
@@ -194,9 +194,9 @@ public sealed class AdministratorNotificationTests
     public async Task SettingsConflictIsReportedWithoutIndependentWrites()
     {
         using var db = new NotificationDynamo { Conflict = true };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .SetNotificationSettingsAsync(Super, Regular, Settings(), default));
-        Assert.Equal(409, error.Status);
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
         Assert.Equal(1, db.Transactions);
     }
 
@@ -333,7 +333,7 @@ public sealed class AdministratorNotificationTests
         using var db = new NotificationDynamo();
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         var change = new NotificationSettingsChange(null, false, false, false, 2, NotifyNewApartmentRegistrations: true);
-        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => store.SetNotificationSettingsAsync(Super, Regular, change, default))).Status);
+        Assert.Equal(AdminFailure.InvalidInput, (await Assert.ThrowsAsync<AdminOperationException>(() => store.SetNotificationSettingsAsync(Super, Regular, change, default))).Failure);
         await store.SetNotificationSettingsAsync(Super, Regular, change with { TelegramChatId = "123" }, default);
         var update = Assert.Single(db.Transaction!.TransactItems, w => w.Update is not null).Update;
         Assert.True(update.ExpressionAttributeValues[":apartments"].BOOL);
@@ -346,7 +346,7 @@ public sealed class AdministratorNotificationTests
         using var db = new NotificationDynamo();
         var store = new DynamoAdminStore(db, "admins", "data", "complex");
         var change = new NotificationSettingsChange(null, false, false, false, 2, true);
-        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => store.SetNotificationSettingsAsync(Super, Regular, change, default))).Status);
+        Assert.Equal(AdminFailure.InvalidInput, (await Assert.ThrowsAsync<AdminOperationException>(() => store.SetNotificationSettingsAsync(Super, Regular, change, default))).Failure);
         await store.SetNotificationSettingsAsync(Super, Regular, change with { TelegramChatId = "123" }, default);
         var update = Assert.Single(db.Transaction!.TransactItems, w => w.Update is not null).Update;
         Assert.True(update.ExpressionAttributeValues[":keys"].BOOL);

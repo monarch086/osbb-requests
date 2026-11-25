@@ -8,7 +8,7 @@
 - `src/Serverless/OsbbRequests.Bot` - webhook, обробка команд із SQS, реєстрація мешканців і Telegram-клієнт.
 - `src/Serverless/OsbbRequests.AdminApi` - Cognito-автентифікація, адміністративні операції та доступ до DynamoDB.
 - `src/OsbbRequests.WebApi` - локальний ASP.NET Core API в Docker.
-- `src/OsbbRequests.Aws` - спільні адаптери Cognito й DynamoDB для акаунтів адміністраторів.
+- `src/OsbbRequests.Aws` - спільні адаптери Cognito й DynamoDB для адміністративних операцій.
 - `src/OsbbRequests.Domain`, `src/OsbbRequests.Services` і `src/OsbbRequests.Shared` - моделі, бізнес-операції та допоміжний код.
 - `src/Frontend` - Angular SPA: авторизація, заявки, мешканці, адміністратори та діалоги.
 - `tests/OsbbRequests.Bot.Tests` - тести .NET, зокрема API та інфраструктури; `tests/admin` - Python-тести операторських скриптів.

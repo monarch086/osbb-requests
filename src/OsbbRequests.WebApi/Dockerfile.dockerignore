@@ -11,5 +11,7 @@
 !src/OsbbRequests.Services/**
 !src/OsbbRequests.Domain/
 !src/OsbbRequests.Domain/**
+!src/OsbbRequests.Shared/
+!src/OsbbRequests.Shared/**
 **/bin/
 **/obj/

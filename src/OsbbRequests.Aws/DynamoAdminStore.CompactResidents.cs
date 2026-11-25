@@ -6,7 +6,7 @@ using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore
 {
@@ -17,7 +17,7 @@ public sealed partial class DynamoAdminStore
         string? direction, string? cursor, CancellationToken ct, bool byName = false)
     {
         if (!compactResidentDirectory || byName && !compactResidentNameDirectory) return null;
-        if (page is < 1 or > 1_000_000) throw new ApiError(400, "Некоректна сторінка.");
+        if (page is < 1 or > 1_000_000) throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         ValidateResidentFilters(buildingNumber, residentType, "registeredAt", direction);
         var table = residentsTable ?? throw new InvalidOperationException("Residents table is not configured.");
 
@@ -149,7 +149,7 @@ public sealed partial class DynamoAdminStore
         }
         catch (Exception ex) when (ex is FormatException or JsonException)
         {
-            throw new ApiError(400, "Некоректна сторінка. Оновіть список мешканців.");
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка. Оновіть список мешканців.");
         }
     }
     private static bool ValidResidentOrder(string? order, bool byName)

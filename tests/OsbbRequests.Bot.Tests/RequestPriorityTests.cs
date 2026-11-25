@@ -1,11 +1,11 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Globalization;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
@@ -217,14 +217,14 @@ public sealed class RequestPriorityTests
     {
         using var db = new PriorityDynamo(Enumerable.Range(1, 30).Select(id => Ticket(id, "Urgent")).ToList());
         var page = await new DynamoAdminStore(db, "admins", "data", "complex").ListRequestsAsync(new(null, null, null, null, null), null, default);
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "other")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "other")
             .ListRequestsAsync(new(null, null, null, null, null), page.Cursor, default));
-        Assert.Equal(400, error.Status);
+        Assert.Equal(AdminFailure.InvalidInput, error.Failure);
         var json = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(page.Cursor!)))!;
         json["Priority"] = JsonSerializer.SerializeToElement(2);
         var forged = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(json)));
-        Assert.Equal(400, (await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
-            .ListRequestsAsync(new(null, null, null, null, null), forged, default))).Status);
+        Assert.Equal(AdminFailure.InvalidInput, (await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+            .ListRequestsAsync(new(null, null, null, null, null), forged, default))).Failure);
     }
 
     [Fact]

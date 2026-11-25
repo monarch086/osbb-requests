@@ -1,10 +1,10 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
@@ -93,8 +93,8 @@ public sealed class OwnerApartmentStoreTests
     {
         using var db = new ApartmentDynamo(Apartment with { Status = ApartmentReviewStatus.Approved });
         var store = new DynamoAdminStore(db, "admins", "commands", "complex", residentsTable: "residents");
-        var error = await Assert.ThrowsAsync<ApiError>(() => store.DecideApartmentAsync(Reviewer, Owner.Id, Apartment.Id, false, default));
-        Assert.Equal(409, error.Status);
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => store.DecideApartmentAsync(Reviewer, Owner.Id, Apartment.Id, false, default));
+        Assert.Equal(AdminFailure.Conflict, error.Failure);
         Assert.Null(db.Transaction);
     }
 

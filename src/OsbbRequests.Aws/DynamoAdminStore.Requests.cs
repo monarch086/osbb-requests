@@ -7,7 +7,7 @@ using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.AdminApi.Data;
+namespace OsbbRequests.Aws;
 
 public sealed partial class DynamoAdminStore
 {
@@ -27,7 +27,7 @@ public sealed partial class DynamoAdminStore
             return cursor;
         }
         catch (Exception error) when (error is FormatException or JsonException)
-        { throw new ApiError(400, "Некоректна сторінка. Оновіть список заявок."); }
+        { throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка. Оновіть список заявок."); }
     }
     private static string RequestPageCursor(RequestCursor value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value)));
 
@@ -63,7 +63,7 @@ public sealed partial class DynamoAdminStore
 
     public async Task<AdminRequestPage> ListRequestsWithStatisticsAsync(RequestFilters filters, string? cursor, int pageNumber, CancellationToken ct, bool includeCounts = true)
     {
-        if (pageNumber < 1 || pageNumber > 1000000) throw new ApiError(400, "Некоректна сторінка.");
+        if (pageNumber < 1 || pageNumber > 1000000) throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректна сторінка.");
         var items = new List<ManagedRequest>();
         var next = cursor;
         do

@@ -1,10 +1,10 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using Xunit;
@@ -117,9 +117,9 @@ public sealed class RequestHistoryTests
     public async Task ForeignComplexRequestIsRejectedBeforeReadingHistoryOrProfile()
     {
         using var db = new HistoryDynamo();
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .HistoryAsync(Request with { BuildingId = "other" }, default));
-        Assert.Equal(404, error.Status);
+        Assert.Equal(AdminFailure.NotFound, error.Failure);
         Assert.Null(db.Query);
         Assert.Null(db.Get);
     }
@@ -159,9 +159,9 @@ public sealed class RequestHistoryTests
     public async Task RequestAuthorRejectsForeignRequestBeforeReadingProfile()
     {
         using var db = new HistoryDynamo { Resident = Resident };
-        var error = await Assert.ThrowsAsync<ApiError>(() => new DynamoAdminStore(db, "admins", "data", "complex")
+        var error = await Assert.ThrowsAsync<AdminOperationException>(() => new DynamoAdminStore(db, "admins", "data", "complex")
             .GetRequestAuthorAsync(Request with { BuildingId = "other" }, default));
-        Assert.Equal(404, error.Status);
+        Assert.Equal(AdminFailure.NotFound, error.Failure);
         Assert.Null(db.Get);
     }
 

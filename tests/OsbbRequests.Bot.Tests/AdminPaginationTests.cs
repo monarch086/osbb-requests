@@ -1,11 +1,11 @@
-using OsbbRequests.AdminApi;
+using OsbbRequests.Services;
 using System.Globalization;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.AdminApi.Data;
+using OsbbRequests.Aws;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using Xunit;
@@ -94,7 +94,7 @@ public sealed class AdminPaginationTests
         using var db = new PagedDynamo("residents");
         var store = new DynamoAdminStore(db, "admins", "data", "complex", prioritizeRequests: false);
         var directory = await store.ListResidentsAsync(null, default);
-        await Assert.ThrowsAsync<ApiError>(() => store.ListRegistrationsAsync(directory.Cursor, default));
+        await Assert.ThrowsAsync<AdminOperationException>(() => store.ListRegistrationsAsync(directory.Cursor, default));
         Assert.Equal(1, db.QueryCount);
     }
 
