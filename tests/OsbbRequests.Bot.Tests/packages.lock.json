@@ -193,13 +193,20 @@
       "osbbrequests.adminapi": {
         "type": "Project",
         "dependencies": {
-          "AWSSDK.CognitoIdentityProvider": "[4.0.100, )",
           "AWSSDK.DynamoDBv2": "[4.0.108, )",
           "Amazon.Lambda.APIGatewayEvents": "[3.0.1, )",
           "Amazon.Lambda.Core": "[3.3.0, )",
           "Amazon.Lambda.Serialization.SystemTextJson": "[3.0.1, )",
-          "OsbbRequests.Services": "[1.0.0, )",
+          "OsbbRequests.Aws": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )"
+        }
+      },
+      "osbbrequests.aws": {
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.CognitoIdentityProvider": "[4.0.100, )",
+          "AWSSDK.DynamoDBv2": "[4.0.108, )",
+          "OsbbRequests.Services": "[1.0.0, )"
         }
       },
       "osbbrequests.bot": {

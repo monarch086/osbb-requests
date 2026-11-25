@@ -61,7 +61,7 @@ public sealed class AdminApiTests
             requestContext = new { http = new { method }, authorizer = user is null ? null : new { jwt = new { claims = new Dictionary<string, string> { ["sub"] = user, ["token_use"] = tokenUse } } } }
         }), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
     private static ApiHandler Handler(FakeStore store, IStatisticsStore? statistics = null) => new(
-        new PermissionService(store, new FakeIdentity()), new ResidentService(store),
+        new AdminAccountService(store, new FakeIdentity()), new PermissionService(store), new ResidentService(store),
         new RequestService(store, store), new MessageService(store), new StatisticsService(statistics));
 
     [Fact]
@@ -1126,7 +1126,7 @@ public sealed class AdminApiTests
         public Task<IReadOnlyList<DailyStatistic>> ReadAsync(int days, CancellationToken ct) { Days = days; return Task.FromResult<IReadOnlyList<DailyStatistic>>([]); }
         public Task RecordAsync(string endpoint, double read, double write, long durationMs, CancellationToken ct) => FailWrites ? Task.FromException(new InvalidOperationException()) : Task.CompletedTask;
     }
-    private sealed class FakeStore : IAdministratorStore, IRequestStore, IResidentStore, IMessageStore
+    private sealed class FakeStore : IAdministratorAccounts, IAdministratorStore, IRequestStore, IResidentStore, IMessageStore
     {
         public RegistrationStage HistoryStage = RegistrationStage.Pending;
         public int TypeChanges;

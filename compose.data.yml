@@ -51,5 +51,30 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+  web-api:
+    image: osbb-requests-web-api:local
+    build:
+      context: .
+      dockerfile: src/OsbbRequests.WebApi/Dockerfile
+    profiles: [web-api]
+    user: '${OSBB_WEB_API_UID:-1000}:${OSBB_WEB_API_GID:-1000}'
+    environment:
+      HOME: /app
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+      ASPNETCORE_HTTP_PORTS: '8080'
+      Cognito__UserPoolId: ${OSBB_COGNITO_USER_POOL_ID:-}
+      Cognito__ClientId: ${OSBB_COGNITO_CLIENT_ID:-}
+      DynamoDb__AdministratorsTable: ${OSBB_ADMINISTRATORS_TABLE:-osbb-requests-dev-administrators}
+      DynamoDb__CommandDataTable: ${OSBB_COMMAND_DATA_TABLE:-osbb-requests-dev-command-data}
+      DynamoDb__ComplexId: ${OSBB_COMPLEX_ID:-osbb-requests-dev}
+    ports:
+      - '127.0.0.1:${OSBB_WEB_API_PORT:-8082}:8080'
+    volumes:
+      - type: bind
+        source: ${OSBB_AWS_DIRECTORY:-${HOME}/.aws}
+        target: /app/.aws
+        read_only: true
+        bind:
+          create_host_path: false
 volumes:
   osbb_postgres_data:

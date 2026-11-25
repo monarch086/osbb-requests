@@ -6,7 +6,7 @@ using OsbbRequests.Services;
 
 namespace OsbbRequests.AdminApi;
 
-public sealed partial class ApiHandler(PermissionService permissions, ResidentService residents, RequestService requests,
+public sealed partial class ApiHandler(AdminAccountService accounts, PermissionService permissions, ResidentService residents, RequestService requests,
     MessageService messages, StatisticsService statistics)
 {
     private const int MaxBodyLength = 10000;
@@ -47,10 +47,10 @@ public sealed partial class ApiHandler(PermissionService permissions, ResidentSe
         {
             var authorization = request.Headers?.FirstOrDefault(p => p.Key.Equals("authorization", StringComparison.OrdinalIgnoreCase)).Value;
             var token = authorization?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true ? authorization[7..] : null;
-            return Reply(200, await permissions.GetOrRegisterAdminAsync(userId, token, ct));
+            return Reply(200, await accounts.GetOrRegisterAdminAsync(userId, token, ct));
         }
 
-        var actor = await permissions.GetActiveAdminAsync(userId, ct);
+        var actor = await accounts.GetActiveAdminAsync(userId, ct);
         var query = request.QueryStringParameters?.ToDictionary(p => p.Key, p => p.Value) ?? EmptyQuery;
         var cursor = query.GetValueOrDefault("cursor");
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);

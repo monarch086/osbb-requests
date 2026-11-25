@@ -1,0 +1,15 @@
+**
+!global.json
+!Directory.Build.props
+!NuGet.Config
+!src/
+!src/OsbbRequests.WebApi/
+!src/OsbbRequests.WebApi/**
+!src/OsbbRequests.Aws/
+!src/OsbbRequests.Aws/**
+!src/OsbbRequests.Services/
+!src/OsbbRequests.Services/**
+!src/OsbbRequests.Domain/
+!src/OsbbRequests.Domain/**
+**/bin/
+**/obj/

@@ -2,23 +2,8 @@ using OsbbRequests.Domain.Admin;
 
 namespace OsbbRequests.Services;
 
-public sealed class PermissionService(IAdministratorStore store, IIdentityProvider identityProvider)
+public sealed class PermissionService(IAdministratorStore store)
 {
-    public async Task<AdminUser> GetOrRegisterAdminAsync(string userId, string? bearerToken, CancellationToken ct)
-    {
-        var actor = await store.GetAdminAsync(userId, ct);
-        if (actor is not null) return actor;
-        if (bearerToken is null) throw new AdminOperationException(AdminFailure.Unauthenticated, "Потрібно увійти.");
-        var identity = await identityProvider.GetAsync(bearerToken, userId, ct);
-        return await store.RegisterAccountAsync(identity, ct);
-    }
-
-    public async Task<AdminUser> GetActiveAdminAsync(string userId, CancellationToken ct)
-    {
-        var actor = await store.GetAdminAsync(userId, ct);
-        return AdminAccess.RequireActive(actor);
-    }
-
     public static void RequirePermissionsEdit(AdminUser actor)
     {
         AdminAccess.RequireActive(actor);

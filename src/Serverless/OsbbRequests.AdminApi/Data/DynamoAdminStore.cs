@@ -1,3 +1,4 @@
+using OsbbRequests.Aws;
 using OsbbRequests.Services;
 using OsbbRequests.Shared.Residents;
 using System.Globalization;
@@ -11,24 +12,15 @@ using OsbbRequests.Domain;
 
 namespace OsbbRequests.AdminApi.Data;
 
-public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null, bool compactResidentDirectory = false, bool compactResidentNameDirectory = false) : IAdministratorStore, IRequestStore, IResidentStore, IMessageStore
+public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTable, string dataTable, string building, bool prioritizeRequests = true, string? residentsTable = null, bool compactResidentDirectory = false, bool compactResidentNameDirectory = false) : IAdministratorAccounts, IAdministratorStore, IRequestStore, IResidentStore, IMessageStore
 {
+    private readonly DynamoAdminAccounts accounts = new(db, adminsTable, dataTable, building);
+
     private static AttributeValue S(string value) => new(value);
     private static AttributeValue N(int value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
     private static Dictionary<string, AttributeValue> Key(string pk, string sk) => new() { ["pk"] = S(pk), ["sk"] = S(sk) };
     private static Dictionary<string, AttributeValue> AdminKey(string id) => new() { ["UserId"] = S(id) };
     private static string RequestKey(long id) => "REQUEST#" + id.ToString("D20", CultureInfo.InvariantCulture);
-    private static AdminUser Admin(Dictionary<string, AttributeValue> item) => new(item["UserId"].S,
-        item["Email"].S, item.GetValueOrDefault("DisplayName")?.S ?? item["Email"].S,
-        item.GetValueOrDefault("IsActive")?.BOOL == true, item.GetValueOrDefault("IsSuperAdmin")?.BOOL == true,
-        int.Parse(item.GetValueOrDefault("Version")?.N ?? "0", CultureInfo.InvariantCulture),
-        item.GetValueOrDefault("TelegramChatId")?.S, item.GetValueOrDefault("NotifyNewResidents")?.BOOL == true,
-        item.GetValueOrDefault("NotifyNewRequests")?.BOOL == true, item.GetValueOrDefault("NotifyNewAdministrators")?.BOOL == true,
-        new PagePermissions(item.GetValueOrDefault("AccessComplexRequests")?.BOOL ?? true,
-            item.GetValueOrDefault("AccessKeyOrders")?.BOOL ?? true, item.GetValueOrDefault("AccessRegisteredResidents")?.BOOL ?? true,
-            item.GetValueOrDefault("AccessPendingResidents")?.BOOL ?? true, item.GetValueOrDefault("AccessMessages")?.BOOL ?? false),
-        item.GetValueOrDefault("NotifyNewKeyOrders")?.BOOL ?? item.GetValueOrDefault("NotifyNewRequests")?.BOOL ?? false,
-        item.GetValueOrDefault("NotifyNewApartmentRegistrations")?.BOOL ?? item.GetValueOrDefault("NotifyNewResidents")?.BOOL ?? false);
     private static T Payload<T>(Dictionary<string, AttributeValue> item) => JsonSerializer.Deserialize<T>(item["payload"].S)
         ?? throw new InvalidOperationException("Invalid stored payload.");
     private static ManagedRequest Managed(Dictionary<string, AttributeValue> item) => new(Payload<MaintenanceRequest>(item),
@@ -39,44 +31,9 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         var response = await db.GetItemAsync(new GetItemRequest { TableName = table, Key = key, ConsistentRead = true }, ct);
         return response.Item is { Count: > 0 } ? response.Item : null;
     }
-    public async Task<AdminUser?> GetAdminAsync(string userId, CancellationToken ct) =>
-        await Get(adminsTable, AdminKey(userId), ct) is { } item ? Admin(item) : null;
+    public Task<AdminUser?> GetAdminAsync(string userId, CancellationToken ct) => accounts.GetAdminAsync(userId, ct);
 
-    public async Task<AdminUser> RegisterAccountAsync(Identity identity, CancellationToken ct)
-    {
-        try
-        {
-            // IsSuperAdmin is intentionally absent. The Lambda IAM role cannot write that attribute.
-            var now = DateTimeOffset.UtcNow;
-            var account = new Update
-            {
-                TableName = adminsTable,
-                Key = AdminKey(identity.UserId),
-                UpdateExpression = "SET Email = :email, DisplayName = :name, IsActive = :inactive, Directory = :directory, CreatedAt = :now, #v = :version",
-                ConditionExpression = "attribute_not_exists(UserId)",
-                ExpressionAttributeNames = new() { ["#v"] = "Version" },
-                ExpressionAttributeValues = new()
-                {
-                    [":email"] = S(identity.Email),
-                    [":name"] = S(identity.DisplayName),
-                    [":inactive"] = new() { BOOL = false },
-                    [":directory"] = S("ADMINS"),
-                    [":now"] = S(now.ToString("O")),
-                    [":version"] = N(1)
-                }
-            };
-            await db.TransactWriteItemsAsync(new TransactWriteItemsRequest
-            {
-                TransactItems = [new() { Update = account }, NotificationWrite(AdministratorNotifications.NewAdministrator(identity.UserId, identity.Email, building, now))]
-            }, ct);
-        }
-        catch (TransactionCanceledException)
-        {
-            if (await GetAdminAsync(identity.UserId, ct) is { } existing) return existing;
-            throw;
-        }
-        return await GetAdminAsync(identity.UserId, ct) ?? throw new InvalidOperationException("Account creation failed.");
-    }
+    public Task<AdminUser> RegisterAccountAsync(Identity identity, CancellationToken ct) => accounts.RegisterAccountAsync(identity, ct);
 
     // Cursors contain keys only, never user payload. Validate ownership/scope when using a cursor.
     private static Dictionary<string, AttributeValue>? Decode(string? cursor, string partitionName, string partition)
@@ -106,7 +63,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
             Limit = 25,
             ExclusiveStartKey = Decode(cursor, "Directory", "ADMINS")
         }, ct);
-        return new Page<AdminUser>((response.Items ?? []).Select(Admin).ToList(), Encode(response.LastEvaluatedKey));
+        return new Page<AdminUser>((response.Items ?? []).Select(DynamoAdminAccounts.ReadAdmin).ToList(), Encode(response.LastEvaluatedKey));
     }
 
     private TransactWriteItem ActorCheck(AdminUser actor, bool super = false) => new()
@@ -450,15 +407,9 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         if (residentWrites is not null) writes.AddRange(residentWrites);
         await Transact(writes, ct);
     }
-    private TransactWriteItem NotificationWrite(ResidentNotification notification)
-    {
-        var item = Key(ResidentNotification.Partition(building), ResidentNotification.DueKey(notification.CreatedAt, notification.Id));
-        item["payload"] = S(JsonSerializer.Serialize(notification));
-        item["attempts"] = N(0);
-        var write = Put(dataTable, item);
-        write.Put.ConditionExpression = "attribute_not_exists(pk)";
-        return write;
-    }
+    private TransactWriteItem NotificationWrite(ResidentNotification notification) =>
+        DynamoNotificationWrite.Create(dataTable, building, notification);
+
     public async Task<IReadOnlyList<Dictionary<string, string>>> HistoryAsync(MaintenanceRequest request, CancellationToken ct)
     {
         if (request.BuildingId != building) throw new ApiError(404, "Заявку не знайдено.");

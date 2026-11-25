@@ -4,7 +4,7 @@ using Amazon.DynamoDBv2;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
-using OsbbRequests.AdminApi.Auth;
+using OsbbRequests.Aws;
 using OsbbRequests.AdminApi.Data;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Shared.Telegram;
@@ -34,7 +34,7 @@ public sealed class Function
         var store = new DynamoAdminStore(new MeteredDynamoDb(), Config("ADMINISTRATORS_TABLE"),
             Config("COMMAND_DATA_TABLE"), Config("BUILDING_ID"), PrioritySorting(), Config("RESIDENTS_TABLE"), Environment.GetEnvironmentVariable("COMPACT_RESIDENT_DIRECTORY") == "true",
             Environment.GetEnvironmentVariable("COMPACT_RESIDENT_NAME_DIRECTORY") == "true");
-        handler = new ApiHandler(new PermissionService(store, new CognitoIdentity(new AmazonCognitoIdentityProviderClient())),
+        handler = new ApiHandler(new AdminAccountService(store, new CognitoIdentity(new AmazonCognitoIdentityProviderClient())), new PermissionService(store),
             new ResidentService(store), new RequestService(store, store), new MessageService(store), new StatisticsService(statistics));
         notifier = TelegramServiceNotifier.FromEnvironment(Http);
     }

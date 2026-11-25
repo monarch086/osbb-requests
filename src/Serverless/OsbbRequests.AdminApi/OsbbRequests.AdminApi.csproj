@@ -4,12 +4,11 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../OsbbRequests.Services/OsbbRequests.Services.csproj" />
+    <ProjectReference Include="../../OsbbRequests.Aws/OsbbRequests.Aws.csproj" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" />
     <ProjectReference Include="../../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="3.0.1" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.108" />
-    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="4.0.100" />
     <PackageReference Include="Amazon.Lambda.Core" Version="3.3.0" />
     <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="3.0.1" />
   </ItemGroup>
