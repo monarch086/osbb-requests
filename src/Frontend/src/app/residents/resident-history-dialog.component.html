@@ -44,6 +44,20 @@
                   {{ typeLabel(change.newType) }}
                 </div>
               }
+              @if (change.keyChange; as key) {
+                <div class="fw-semibold">
+                  {{ key.current ? 'Ключ відредаговано' : 'Ключ видалено' }} · заявка №{{
+                    key.requestId
+                  }}
+                </div>
+                <div>
+                  {{ key.previous.type }} ·
+                  {{ key.previous.serialNumber || 'Без серійного номера' }}
+                  @if (key.current; as current) {
+                    → {{ current.type }} · {{ current.serialNumber || 'Без серійного номера' }}
+                  }
+                </div>
+              }
               <div class="small text-body-secondary">
                 {{ date(change.createdAt) }} · {{ change.actor }}
               </div>

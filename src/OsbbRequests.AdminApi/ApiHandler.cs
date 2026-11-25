@@ -105,6 +105,16 @@ public sealed class ApiHandler(IAdminStore store, IIdentityProvider identityProv
                 throw new ApiError(400, "Некоректна сторінка.");
             return Reply(200, await store.ListResidentsWithKeysAsync(number, ct));
         }
+        if (method == "PATCH" && segments is ["admin", "residents", "keys", var keyOwner, var keyRequest, var keyPosition])
+        {
+            if (!actor.EffectivePermissions.KeyOrders) throw new ApiError(403, "Недостатньо прав для редагування ключів.");
+            if (!long.TryParse(keyOwner, NumberStyles.None, CultureInfo.InvariantCulture, out var ownerId) || ownerId <= 0 ||
+                !long.TryParse(keyRequest, NumberStyles.None, CultureInfo.InvariantCulture, out var requestId) || requestId < 0 ||
+                !int.TryParse(keyPosition, NumberStyles.None, CultureInfo.InvariantCulture, out var position))
+                throw new ApiError(400, "Некоректний ключ.");
+            await store.UpdateResidentKeyAsync(actor, ownerId, requestId, position, Body<ResidentKeyUpdate>(request), ct);
+            return Reply(200, new { ok = true });
+        }
         if (method == "GET" && (path == "/admin/residents/export" || path == "/admin/registrations/export"))
         {
             var pending = path == "/admin/registrations/export";

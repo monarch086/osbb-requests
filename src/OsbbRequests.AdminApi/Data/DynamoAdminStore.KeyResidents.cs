@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Shared.Models;
 using OsbbRequests.AdminApi.Models;
@@ -12,7 +13,8 @@ public sealed partial class DynamoAdminStore
     public async Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct)
     {
         if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
-        var keys = new List<(long RequestId, long OwnerId, int Index)>();
+        const int pageSize = 25;
+        var keys = new List<(long RequestId, long OwnerId, int Index, string Phone)>();
         var filters = new RequestFilters([nameof(RequestStatus.Completed)], null, null, null, null, Section: "keys");
         var seen = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = null;
@@ -23,45 +25,114 @@ public sealed partial class DynamoAdminStore
             {
                 var request = candidate.Request;
                 if (request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items }) continue;
-                for (var index = 0; index < items.Count; index++) keys.Add((request.Id, request.OwnerId, index));
+                for (var index = 0; index < items.Count; index++)
+                    keys.Add((request.Id, request.OwnerId, index, KeyDirectoryPhone(items[index].Phone)));
             }
             cursor = batch.Cursor;
             if (cursor is not null && !seen.Add(cursor)) throw new InvalidOperationException("Repeated request cursor.");
         } while (cursor is not null);
-        if (keys.Count == 0) return new([], 1, 25, 0);
-        var actual = Math.Min(page, Math.Max(1, (keys.Count + 24) / 25));
-        var selected = keys.OrderByDescending(key => key.RequestId).ThenBy(key => key.OwnerId).ThenBy(key => key.Index)
-            .Skip((actual - 1) * 25).Take(25).ToArray();
+        var groups = keys.OrderByDescending(key => key.RequestId).ThenBy(key => key.OwnerId).ThenBy(key => key.Index)
+            .GroupBy(key => key.Phone, StringComparer.Ordinal).ToArray();
+        if (groups.Length == 0) return new([], 1, pageSize, 0);
+        var actual = Math.Min(page, (groups.Length - 1) / pageSize + 1);
+        var selected = groups.Skip((actual - 1) * pageSize).Take(pageSize);
         var requests = new Dictionary<(long OwnerId, long RequestId), ManagedRequest?>();
-        var current = new List<(long RequestId, int Index, KeyOrderItem Item)>();
-        foreach (var key in selected)
+        var current = new List<(string Phone, IReadOnlyList<ResidentKey> Keys)>();
+        foreach (var group in selected)
         {
-            var identity = (key.OwnerId, key.RequestId);
-            if (!requests.TryGetValue(identity, out var latest))
-                requests[identity] = latest = await GetRequestAsync(key.OwnerId, key.RequestId, ct);
-            if (latest?.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || key.Index >= items.Count) continue;
-            current.Add((key.RequestId, key.Index, items[key.Index]));
+            var currentKeys = new List<ResidentKey>();
+            foreach (var key in group)
+            {
+                var identity = (key.OwnerId, key.RequestId);
+                if (!requests.TryGetValue(identity, out var latest))
+                    requests[identity] = latest = await GetRequestAsync(key.OwnerId, key.RequestId, ct);
+                if (latest?.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || key.Index >= items.Count) continue;
+                var item = items[key.Index];
+                if (KeyDirectoryPhone(item.Phone) != group.Key) continue;
+                currentKeys.Add(new(item.Type, item.SerialNumber, key.RequestId, key.Index, key.OwnerId, latest.Version));
+            }
+            if (currentKeys.Count > 0) current.Add((group.Key, currentKeys));
         }
-        var residents = await GetKeyResidentsAsync(new MaintenanceRequest(0, 0, building, RequestCategories.KeyOrder,
-            "", "", DateTimeOffset.UnixEpoch, KeyItems: current.Select(key => key.Item).ToArray()), ct);
-        var rows = current.Select((key, index) => new ResidentKeyEntry(
-            residents[index].Count == 0 ? "Мешканця не знайдено" : string.Join(", ", residents[index].Select(resident => resident.Name)), key.Item.Phone,
-            key.Item.SerialNumber, key.RequestId, key.Index)).ToArray();
-        return new(rows, actual, 25, keys.Count);
+        var residents = await FindKeyResidentsAsync(current.Select(group => group.Phone), ct);
+        var rows = current.Select((group, index) => new ResidentKeyEntry(group.Phone, residents[index], group.Keys)).ToArray();
+        return new(rows, actual, pageSize, groups.Length);
     }
 
-    public async Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct)
+    private static string KeyDirectoryPhone(string phone) => ResidentPhoneIndex.TryNormalize(phone, out var normalized) ? normalized! : phone;
+
+    public async Task UpdateResidentKeyAsync(AdminUser actor, long ownerId, long requestId, int index, ResidentKeyUpdate change, CancellationToken ct)
     {
-        if (request.BuildingId != building || request.Category != RequestCategories.KeyOrder || residentsTable is null)
-            throw new InvalidOperationException("Invalid key order.");
-        var cache = new Dictionary<string, IReadOnlyList<KeyResident>>(StringComparer.Ordinal);
-        var results = new List<IReadOnlyList<KeyResident>>();
-        foreach (var item in request.KeyItems ?? [])
+        if (!actor.IsActive || !actor.EffectivePermissions.KeyOrders) throw new ApiError(403, "Недостатньо прав для редагування ключів.");
+        if (change.Version is null || change.Version < 0 ||
+            (change.Remove ? change.Type is not null || change.SerialNumber is not null : change.Type is not ("Магніт" or "Перепустка")) ||
+            change.SerialNumber is { Length: > 25 }) throw new ApiError(400, "Оберіть тип ключа та вкажіть серійний номер до 25 символів за наявності.");
+        var current = await GetRequestAsync(ownerId, requestId, ct) ?? throw new ApiError(404, "Заявку не знайдено.");
+        if (current.Version != change.Version || current.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || index < 0 || index >= items.Count)
+            throw new ApiError(409, "Замовлення або ключ змінено. Оновіть список.");
+        var previous = items[index];
+        var updated = change.Remove ? null : previous with { Type = change.Type!, SerialNumber = string.IsNullOrWhiteSpace(change.SerialNumber) ? null : change.SerialNumber.Trim() };
+        if (updated == previous) throw new ApiError(400, "Дані ключа не змінено.");
+
+        var profiles = (await FindKeyProfilesAsync([previous.Phone], ct))[0].DistinctBy(profile => profile.UserId).ToArray();
+        if (profiles.Length == 0) throw new ApiError(409, "Профіль мешканця для цього ключа не знайдено.");
+        // The request update, author check and request audit use three of the 100 transaction actions.
+        if (profiles.Length > 48) throw new ApiError(409, "Цей номер пов’язано із завеликою кількістю профілів.");
+        var now = DateTimeOffset.UtcNow;
+        var details = new ResidentKeyChange(requestId, new(previous.Type, previous.SerialNumber), updated is null ? null : new(updated.Type, updated.SerialNumber));
+        var payload = S(JsonSerializer.Serialize(new ResidentTypeChange(null, null, actor.Email, now, KeyChange: details)));
+        var writes = new List<TransactWriteItem>();
+        foreach (var profile in profiles)
         {
-            if (!ResidentPhoneIndex.TryNormalize(item.Phone, out var phone)) { results.Add([]); continue; }
+            var profileKey = ResidentRecordKey.Create(building, "USER#" + profile.UserId.ToString(CultureInfo.InvariantCulture), "REGISTRATION");
+            writes.Add(new()
+            {
+                ConditionCheck = new()
+                {
+                    TableName = residentsTable!,
+                    Key = new() { ["pk"] = S(profileKey.Key) },
+                    ConditionExpression = "#v = :version",
+                    ExpressionAttributeNames = new() { ["#v"] = "version" },
+                    ExpressionAttributeValues = new() { [":version"] = N(profile.Version) }
+                }
+            });
+            var audit = Key("REGISTRATION#" + profile.Id, "EVENT#TYPE#" + now.ToString("O", CultureInfo.InvariantCulture) + "#" + Guid.NewGuid().ToString("N"));
+            audit["payload"] = payload;
+            writes.Add(RelatedResidentPut(audit, building, immutable: true));
+        }
+
+        var remaining = items.ToList();
+        if (updated is null) remaining.RemoveAt(index);
+        else remaining[index] = updated;
+        var next = current.Request with { KeyItems = remaining, KeyQuantity = remaining.Count };
+        await SaveRequestAsync(actor, current, next, ct, residentWrites: writes);
+    }
+
+    public Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct)
+    {
+        if (request.BuildingId != building || request.Category != RequestCategories.KeyOrder)
+            throw new InvalidOperationException("Invalid key order.");
+        return FindKeyResidentsAsync((request.KeyItems ?? []).Select(item => item.Phone), ct);
+    }
+
+    private async Task<IReadOnlyList<IReadOnlyList<KeyResident>>> FindKeyResidentsAsync(IEnumerable<string> phones, CancellationToken ct)
+    {
+        var groups = await FindKeyProfilesAsync(phones, ct);
+        return groups.Select(group => (IReadOnlyList<KeyResident>)group.Select(profile => new KeyResident(
+            string.Join(" ", new[] { profile.FirstName, profile.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim(),
+            profile.BuildingNumber, profile.ApartmentNumber)).Where(resident => resident.Name.Length > 0).ToArray()).ToArray();
+    }
+
+    private async Task<IReadOnlyList<IReadOnlyList<ResidentRegistration>>> FindKeyProfilesAsync(IEnumerable<string> phones, CancellationToken ct)
+    {
+        if (residentsTable is null) throw new InvalidOperationException("Invalid key order.");
+        var cache = new Dictionary<string, IReadOnlyList<ResidentRegistration>>(StringComparer.Ordinal);
+        var results = new List<IReadOnlyList<ResidentRegistration>>();
+        foreach (var value in phones)
+        {
+            if (!ResidentPhoneIndex.TryNormalize(value, out var phone)) { results.Add([]); continue; }
             if (!cache.TryGetValue(phone!, out var names))
             {
-                var matches = new List<KeyResident>();
+                var matches = new List<ResidentRegistration>();
                 var lookup = ResidentPhoneIndex.LookupKey(building, phone!);
                 Dictionary<string, AttributeValue>? cursor = null;
                 do
@@ -86,8 +157,7 @@ public sealed partial class DynamoAdminStore
                         var resident = Payload<ResidentRegistration>(source);
                         if (resident.UserId != id || resident.BuildingId != building || resident.Stage != RegistrationStage.Approved || resident.PersonalDataDeleted ||
                             !ResidentPhoneIndex.TryNormalize(resident.Phone, out var currentPhone) || currentPhone != phone) continue;
-                        var name = string.Join(" ", new[] { resident.FirstName, resident.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
-                        if (name.Length > 0) matches.Add(new(name, resident.BuildingNumber, resident.ApartmentNumber));
+                        matches.Add(resident);
                     }
                     cursor = page.LastEvaluatedKey;
                 } while (cursor is { Count: > 0 });

@@ -28,7 +28,10 @@ public sealed record RegistrationDecision(bool Approved, string? Reason, int Ver
 public sealed record RegistrationApproval(string Actor, DateTimeOffset? CreatedAt, bool Automatic);
 public sealed record ResidentTypeChangeRequest(string ResidentType, int Version);
 public sealed record ResidentDataChangeRequest(string FirstName, string LastName, string ResidentType, int Version);
-public sealed record ResidentTypeChange(string PreviousType, string NewType, string Actor, DateTimeOffset CreatedAt, bool FirstNameChanged = false, bool LastNameChanged = false);
+public sealed record ResidentTypeChange(string? PreviousType, string? NewType, string Actor, DateTimeOffset CreatedAt, bool FirstNameChanged = false, bool LastNameChanged = false, ResidentKeyChange? KeyChange = null);
+public sealed record ResidentKeyChange(long RequestId, ResidentKeyDetails Previous, ResidentKeyDetails? Current);
+public sealed record ResidentKeyDetails(string Type, string? SerialNumber);
+public sealed record ResidentKeyUpdate(int? Version, bool Remove = false, string? Type = null, string? SerialNumber = null);
 public sealed record RequestChange(string Status, string Visibility, string? Resolution, string? AssignedTo,
     string Priority, string? PlannedDate, int Version, string? Scope = null, string? BuildingNumber = null, int? Floor = null, int? Entrance = null, IReadOnlyList<string?>? KeySerialNumbers = null);
 public sealed record RequestAuthor(string? FirstName, string? LastName, string? BuildingNumber, string? ApartmentNumber, bool PersonalDataDeleted = false, string? Phone = null);
@@ -36,7 +39,8 @@ public sealed record KeyResident(string Name, string? BuildingNumber, string? Ap
 public sealed record ManagedRequest(MaintenanceRequest Request, int Version, RequestAuthor? Author = null,
     [property: Obsolete("Use KeyResidents; retained temporarily for older frontend versions.")] IReadOnlyList<IReadOnlyList<string>>? KeyResidentNames = null,
     IReadOnlyList<IReadOnlyList<KeyResident>>? KeyResidents = null);
-public sealed record ResidentKeyEntry(string Name, string Phone, string? SerialNumber, long RequestId, int KeyIndex);
+public sealed record ResidentKeyEntry(string Phone, IReadOnlyList<KeyResident> Residents, IReadOnlyList<ResidentKey> Keys);
+public sealed record ResidentKey(string Type, string? SerialNumber, long RequestId, int KeyIndex, long OwnerId, int Version);
 public sealed record ResidentKeyPage(IReadOnlyList<ResidentKeyEntry> Items, int PageNumber, int PageSize, int Total);
 public sealed record RequestCounts(int Total, int NewCount, int ProgressCount);
 public sealed record AdminRequestPage(IReadOnlyList<ManagedRequest> Items, string? Cursor, int PageNumber, int PageSize, RequestCounts? Counts);

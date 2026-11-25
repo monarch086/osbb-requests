@@ -114,7 +114,7 @@
                 Редагувати дані
               </button>
             }
-            @if (person.typeChangeCount) {
+            @if (resident || person.typeChangeCount) {
               <button
                 type="button"
                 class="btn btn-outline-secondary"

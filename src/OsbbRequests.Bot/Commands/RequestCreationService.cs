@@ -3,11 +3,13 @@ using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.Bot.Commands;
 
 public sealed class RequestCreationService(ICommandRepository repository, string complexId, TimeProvider clock)
 {
+    private const string FinishKeyOrderButton = "Завершити створення заявки";
     public const string Categories = "Електрика МЗК, Сантехніка МЗК, Ліфти, Прибирання МЗК, Інше";
     public const string Usage = "Створити заявку для ЖК «Зелений острів 2»: /new.\n" +
         "Бот запитає категорію, будинок або прибудинкову територію, під’їзд та поверх (для будинку) і опис. Скасувати: /cancel.\n\n" +
@@ -111,16 +113,20 @@ public sealed class RequestCreationService(ICommandRepository repository, string
                 break;
             case RequestDraftStage.KeyQuantity: // Existing unfinished orders resume at the new phone step.
             case RequestDraftStage.KeyPhone:
-                var phoneInput = text.StartsWith('0') ? "+38" + text : text;
-                if (!RegistrationService.TryPhone(phoneInput, out var phone))
-                    return new("Введіть коректний номер телефону, наприклад 0671234567 або +380671234567. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Cancel);
-                if (!await repository.ResidentPhoneExistsAsync(complexId, phone, ct))
-                    return new("Мешканця з таким номером телефону не знайдено. Введіть номер ще раз або скасуйте створення заявки.", Keyboard: ReplyKeyboard.Cancel);
-                var items = (current.KeyItems ?? []).Append(new KeyOrderItem(current.KeyType!, phone)).ToArray();
+                var keyboard = KeyPhoneKeyboard(current);
+                if (keyboard == ReplyKeyboard.KeyFinish && text.Equals(FinishKeyOrderButton, StringComparison.OrdinalIgnoreCase))
+                    return FinishKeyOrder(command, current, owner!);
+                if (!ResidentPhoneIndex.TryNormalize(text, out var phone))
+                    return new("Введіть коректний номер телефону, наприклад 0671234567 або +380671234567. Скасувати: /cancel.", Keyboard: keyboard);
+                if (current.KeyItems?.Any(item => ResidentPhoneIndex.TryNormalize(item.Phone, out var existing) && existing == phone) == true)
+                    return new("Цей номер уже додано до заявки. Введіть інший номер, завершіть створення заявки або скасуйте її.", Keyboard: ReplyKeyboard.KeyFinish);
+                if (!await repository.ResidentPhoneExistsAsync(complexId, phone!, ct))
+                    return new("Мешканця з таким номером телефону не знайдено. Введіть номер ще раз або скасуйте створення заявки.", Keyboard: keyboard);
+                var items = (current.KeyItems ?? []).Append(new KeyOrderItem(current.KeyType!, phone!)).ToArray();
                 next = current with { KeyItems = items, Stage = RequestDraftStage.KeyNext };
                 break;
             case RequestDraftStage.KeyNext:
-                if (text.Equals("Завершити створення заявки", StringComparison.OrdinalIgnoreCase))
+                if (text.Equals(FinishKeyOrderButton, StringComparison.OrdinalIgnoreCase))
                     return FinishKeyOrder(command, current, owner!);
                 if (!text.Equals("Додати ще один ключ", StringComparison.OrdinalIgnoreCase) || (current.KeyItems?.Count ?? 0) >= 30)
                     return Prompt(current, true);
@@ -153,8 +159,15 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     {
         var items = draft.KeyItems;
         if (draft.Category != RequestCategories.KeyOrder || items is null || items.Count is < 1 or > 30 ||
-            items.Any(item => item.Type is not ("Магніт" or "Перепустка") || !RegistrationService.TryPhone(item.Phone, out _)))
+            items.Any(item => item.Type is not ("Магніт" or "Перепустка") || !ResidentPhoneIndex.TryNormalize(item.Phone, out _)))
             throw new InvalidOperationException("Incomplete key order.");
+        var unique = items.DistinctBy(item => ResidentPhoneIndex.Normalize(item.Phone), StringComparer.Ordinal).ToArray();
+        if (unique.Length != items.Count)
+        {
+            var cleaned = draft with { KeyItems = unique, Stage = RequestDraftStage.KeyNext, Version = draft.Version + 1 };
+            return new("У чернетці були повтори. Для кожного номера залишено перший ключ. Перевірте замовлення: додайте ключ для іншого номера, завершіть створення заявки або скасуйте її.",
+                Keyboard: ReplyKeyboard.KeyNext, Draft: new(cleaned, draft.Version));
+        }
         var description = string.Join("\n", items.Select((item, index) => $"{index + 1}. {item.Type} — {item.Phone}"));
         var request = new MaintenanceRequest(command.UpdateId, command.UserId, complexId, RequestCategories.KeyOrder, "", description,
             clock.GetUtcNow(), Visibility: RequestVisibility.Private, KeyQuantity: items.Count, KeyItems: items);
@@ -213,6 +226,9 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         "інше" or "місця загального користування" => "Інше",
         _ => null
     };
+    private static ReplyKeyboard KeyPhoneKeyboard(RequestDraft draft) =>
+        draft.KeyItems is { Count: > 0 } ? ReplyKeyboard.KeyFinish : ReplyKeyboard.Cancel;
+
     private static CommandOutcome Prompt(RequestDraft draft, bool owner = false) => draft.Stage switch
     {
         RequestDraftStage.Scope => new("ЖК «Зелений острів 2».\n" +
@@ -221,7 +237,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Оберіть поверх від 1 до 25. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),
         RequestDraftStage.InitialCategory or RequestDraftStage.Category => new("Оберіть категорію: " + Categories + (owner ? ", " + RequestCategories.KeyOrder : "") + ". Скасувати: /cancel.", Keyboard: owner ? ReplyKeyboard.OwnerRequestCategory : ReplyKeyboard.RequestCategory),
         RequestDraftStage.KeyType => new("Оберіть тип ключа: Магніт або Перепустка. Скасувати: /cancel.", Keyboard: ReplyKeyboard.KeyType),
-        RequestDraftStage.KeyQuantity or RequestDraftStage.KeyPhone => new("Введіть номер телефону зареєстрованого мешканця, до якого прив’язати ключ. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Cancel),
+        RequestDraftStage.KeyQuantity or RequestDraftStage.KeyPhone => new("Введіть номер телефону зареєстрованого мешканця, до якого прив’язати ключ. Скасувати: /cancel.", Keyboard: KeyPhoneKeyboard(draft)),
         RequestDraftStage.KeyNext => new((draft.KeyItems?.Count >= 30 ? "Досягнуто межі 30 ключів. " : "Ключ додано. ") + "Завершіть створення заявки або додайте ще один ключ.", Keyboard: draft.KeyItems?.Count >= 30 ? ReplyKeyboard.KeyFinish : ReplyKeyboard.KeyNext),
         _ => new("Опишіть проблему (10–2000 символів). Після цього заявку буде створено для всіх мешканців комплексу. Скасувати: /cancel.", Keyboard: ReplyKeyboard.Remove)
     };

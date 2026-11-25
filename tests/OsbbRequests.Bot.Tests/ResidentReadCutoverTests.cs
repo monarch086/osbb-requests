@@ -7,7 +7,10 @@ using OsbbRequests.Bot.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.AdminApi.Data;
+using OsbbRequests.AdminApi.Models;
+using OsbbRequests.Shared.Domain;
 using OsbbRequests.Shared.Models;
+using OsbbRequests.Shared.Residents;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -110,36 +113,52 @@ public sealed class ResidentReadCutoverTests
     }
 
     [Fact]
-    public async Task KeyResidentDirectoryPagesIndividualKeysWithCurrentNamesAndSerialNumbers()
+    public async Task KeyResidentDirectoryPagesPhoneGroupsWithCurrentAddressAndEveryKey()
     {
         using var db = new ReadDynamo();
-        const string phone = "+380671234567";
-        var keys = Enumerable.Range(0, 26).Select(i => new KeyOrderItem("Магніт", i == 25 ? phone : "+380931234567", $"serial-{i:D2}")).ToArray();
-        var ticket = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: keys);
+        const string phone = "+380671230025";
+        var keys = Enumerable.Range(0, 26).Select(i => new KeyOrderItem("Магніт", $"+38067123{i:D4}", $"serial-{i:D2}")).ToArray();
+        var ticket = new MaintenanceRequest(2, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: keys);
         var ticketRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
-        db.ItemsByIndex["BuildingRequestsIndex"] = [ticketRow];
+        var olderTicket = ticket with { Id = 1, OwnerId = 98, KeyItems = [new("Перепустка", "067 123 0025")] };
+        var olderRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(olderTicket)) };
+        db.ItemsByIndex["BuildingRequestsIndex"] = [olderRow, ticketRow];
         db.RawRows["USER#99"] = ticketRow;
+        db.RawRows["USER#98"] = olderRow;
         var key = OsbbRequests.Shared.Residents.ResidentPhoneIndex.ItemKey("complex", 42, phone);
         var lookup = OsbbRequests.Shared.Residents.ResidentPhoneIndex.LookupKey("complex", phone);
         db.ItemsByIndex["ResidentsByPhone"] = [new() { ["pk"] = new(key) }];
         db.RawRows[key] = new() { ["complexId"] = new("complex"), ["phoneLookup"] = new(lookup), ["residentId"] = new() { N = "42" } };
         var resident = new ResidentRegistration("ref", 42, "complex", RegistrationStage.Approved, 1, DateTimeOffset.UnixEpoch,
-            DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Ірина", LastName: "Тестова");
+            DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Ірина", LastName: "Тестова", BuildingNumber: "4Г", ApartmentNumber: "25");
         db.Rows["COMPLEX#complex#RECORD#USER#42#REGISTRATION"] = new() { ["payload"] = new(JsonSerializer.Serialize(resident)) };
         var store = new DynamoAdminStore(db, "admins", "old", "complex", prioritizeRequests: false, residentsTable: "residents");
         var page = await store.ListResidentsWithKeysAsync(2, default);
         Assert.Equal(26, page.Total);
         Assert.Equal(2, page.PageNumber);
         var row = Assert.Single(page.Items);
-        Assert.Equal("Ірина Тестова", row.Name);
         Assert.Equal(phone, row.Phone);
-        Assert.Equal("serial-25", row.SerialNumber);
+        var match = Assert.Single(row.Residents);
+        Assert.Equal("Ірина Тестова", match.Name);
+        Assert.Equal("4Г", match.BuildingNumber);
+        Assert.Equal("25", match.ApartmentNumber);
+        Assert.Collection(row.Keys, first =>
+        {
+            Assert.Equal("Магніт", first.Type);
+            Assert.Equal("serial-25", first.SerialNumber);
+        }, second =>
+        {
+            Assert.Equal("Перепустка", second.Type);
+            Assert.Null(second.SerialNumber);
+        });
         var phoneQuery = Assert.Single(db.Queries, q => q.IndexName == "ResidentsByPhone");
         Assert.Equal(lookup, phoneQuery.ExpressionAttributeValues[":phone"].S);
         db.Rows["COMPLEX#complex#RECORD#USER#42#REGISTRATION"]["payload"] = new(JsonSerializer.Serialize(resident with { PersonalDataDeleted = true }));
         var missing = await store.ListResidentsWithKeysAsync(2, default);
         Assert.Equal(26, missing.Total);
-        Assert.Equal("Мешканця не знайдено", Assert.Single(missing.Items).Name);
+        var unmatched = Assert.Single(missing.Items);
+        Assert.Empty(unmatched.Residents);
+        Assert.Equal(2, unmatched.Keys.Count);
     }
 
     [Fact]
@@ -150,7 +169,7 @@ public sealed class ResidentReadCutoverTests
         for (var id = 1; id <= 26; id++)
         {
             var ticket = new MaintenanceRequest(id, id, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
-                Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: [new("Магніт", "+380671234567")]);
+                Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: [new("Магніт", $"+38067123{id:D4}")]);
             var row = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
             entries.Add(row);
             db.RawRows[$"USER#{id}"] = row;
@@ -160,7 +179,7 @@ public sealed class ResidentReadCutoverTests
         var store = new DynamoAdminStore(db, "admins", "old", "complex", prioritizeRequests: false, residentsTable: "residents");
         var page = await store.ListResidentsWithKeysAsync(2, default);
         Assert.Equal(26, page.Total);
-        Assert.Equal(1, Assert.Single(page.Items).RequestId);
+        Assert.Equal(1, Assert.Single(Assert.Single(page.Items).Keys).RequestId);
         Assert.Single(db.Reads, read => read.TableName == "old");
         Assert.Single(db.Queries, query => query.IndexName == "ResidentsByPhone");
     }
@@ -197,6 +216,57 @@ public sealed class ResidentReadCutoverTests
         Assert.Equal(1, stale.Total);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task KeyChangeUpdatesTheRequestAndWritesHistoryForEveryMatchingResident(bool remove)
+    {
+        using var db = new ReadDynamo();
+        const string phone = "+380671234567";
+        var store = new DynamoAdminStore(db, "admins", "old", "complex", residentsTable: "residents");
+        var actor = new AdminUser("admin", "admin@example.test", "Admin", true, false, 3, Permissions: new(false, true, false, false, false));
+        var request = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "Замовлення", DateTimeOffset.UnixEpoch,
+            Status: RequestStatus.Completed, KeyItems: [new("Магніт", phone, "old"), new("Магніт", phone, "other")]);
+        db.RawRows["USER#99"] = new() { ["payload"] = new(JsonSerializer.Serialize(request)), ["version"] = new() { N = "4" } };
+        db.ItemsByIndex[ResidentPhoneIndex.IndexName] = [];
+        foreach (var id in new[] { 42, 43 })
+        {
+            var key = ResidentPhoneIndex.ItemKey("complex", id, phone);
+            db.ItemsByIndex[ResidentPhoneIndex.IndexName].Add(new() { ["pk"] = new(key) });
+            db.RawRows[key] = new() { ["complexId"] = new("complex"), ["phoneLookup"] = new(ResidentPhoneIndex.LookupKey("complex", phone)), ["residentId"] = new() { N = id.ToString(System.Globalization.CultureInfo.InvariantCulture) } };
+            var resident = new ResidentRegistration($"ref-{id}", id, "complex", RegistrationStage.Approved, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Мешканець");
+            db.Rows[$"COMPLEX#complex#RECORD#USER#{id}#REGISTRATION"] = new() { ["payload"] = new(JsonSerializer.Serialize(resident)) };
+        }
+
+        var change = remove ? new ResidentKeyUpdate(4, Remove: true) : new ResidentKeyUpdate(4, Type: "Перепустка", SerialNumber: " new ");
+        await store.UpdateResidentKeyAsync(actor, 99, 1, 0, change, default);
+        var writes = db.Transaction!.TransactItems;
+        var update = Assert.Single(writes, item => item.Update is not null).Update;
+        Assert.Equal("4", update.ExpressionAttributeValues[":expected"].N);
+        var saved = JsonSerializer.Deserialize<MaintenanceRequest>(update.ExpressionAttributeValues[":payload"].S)!;
+        Assert.Equal(RequestStatus.Completed, saved.Status);
+        Assert.Equal(remove ? 1 : 2, saved.KeyQuantity);
+        Assert.Equal("other", saved.KeyItems![^1].SerialNumber);
+        if (!remove) Assert.Equal(new KeyOrderItem("Перепустка", phone, "new"), saved.KeyItems![0]);
+
+        var history = writes.Where(item => item.Put?.TableName == "residents").Select(item => item.Put.Item).ToArray();
+        Assert.Equal(2, writes.Count(item => item.ConditionCheck?.TableName == "residents"));
+        Assert.Equal(new[] { "REGISTRATION#ref-42", "REGISTRATION#ref-43" }, history.Select(item => item["sourcePk"].S));
+        Assert.All(history, item =>
+        {
+            Assert.StartsWith("EVENT#TYPE#", item["recordOrder"].S);
+            Assert.True(item.ContainsKey(ResidentRecordKey.IndexGroupAttribute));
+            var entry = JsonSerializer.Deserialize<ResidentTypeChange>(item["recordData"].M["payload"].S)!;
+            Assert.Equal(actor.Email, entry.Actor);
+            Assert.Equal(new ResidentKeyChange(1, new("Магніт", "old"), remove ? null : new("Перепустка", "new")), entry.KeyChange);
+        });
+
+        db.Transaction = null;
+        var conflict = await Assert.ThrowsAsync<ApiError>(() => store.UpdateResidentKeyAsync(actor, 99, 1, 0, change with { Version = 3 }, default));
+        Assert.Equal(409, conflict.Status);
+        Assert.Null(db.Transaction);
+    }
+
     [Fact]
     public async Task KeyOrderAuthorizationUsesNewTableInAtomicTransaction()
     {
@@ -210,6 +280,18 @@ public sealed class ResidentReadCutoverTests
         Assert.All(checks, check => Assert.Equal("residents", check.TableName));
         Assert.Contains(checks, check => check.Key["pk"].S.EndsWith("#MEMBERSHIP", StringComparison.Ordinal) && check.ConditionExpression.Contains("recordData.#active", StringComparison.Ordinal));
         Assert.Contains(checks, check => check.Key["pk"].S.EndsWith("#REGISTRATION", StringComparison.Ordinal) && check.ExpressionAttributeValues[":version"].N == "3");
+    }
+
+    [Fact]
+    public async Task DuplicatePhonesCannotBePersistedInNewKeyOrder()
+    {
+        using var db = new ReadDynamo();
+        var store = new DynamoCommandRepository(db, "old", residentsTable: "residents", complexId: "complex");
+        var ticket = new MaintenanceRequest(1, 42, "complex", RequestCategories.KeyOrder, "", "Замовлення", DateTimeOffset.UnixEpoch,
+            Visibility: RequestVisibility.Private, KeyQuantity: 2, KeyItems: [new("Магніт", "+380671234567"), new("Перепустка", "0671234567")]);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.CommitAsync(new CommandEnvelope(1, 42, 42, "/new"),
+            new CommandOutcome("ok", ticket, OwnerProfileVersion: 3), default));
+        Assert.Null(db.Transaction);
     }
 
     [Fact]

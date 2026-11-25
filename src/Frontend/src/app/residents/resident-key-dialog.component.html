@@ -1,0 +1,78 @@
+<div class="modal-backdrop fade show"></div>
+<div
+  class="modal d-block"
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+  aria-labelledby="resident-key-title"
+  (keydown.escape)="closed.emit()"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" #editor="ngForm" (ngSubmit)="submit()">
+      <div class="modal-header">
+        <h2 id="resident-key-title" class="modal-title fs-5">
+          {{ remove ? 'Видалити ключ' : 'Редагувати ключ' }}
+        </h2>
+      </div>
+      <div class="modal-body">
+        @if (error) {
+          <p class="alert alert-danger" role="alert">{{ error }}</p>
+        }
+        @if (remove) {
+          <p class="mb-0">
+            Видалити ключ «{{ key.type }}»
+            @if (key.serialNumber) {
+              із серійним номером {{ key.serialNumber }}
+            }
+            із заявки №{{ key.requestId }}?
+          </p>
+        } @else {
+          <div class="mb-3">
+            <label class="form-label" for="resident-key-type">Тип ключа</label>
+            <ng-select
+              labelForId="resident-key-type"
+              name="type"
+              [(ngModel)]="type"
+              [clearable]="false"
+              [searchable]="false"
+              [disabled]="saving"
+              required
+            >
+              <ng-option value="Магніт">Магніт</ng-option>
+              <ng-option value="Перепустка">Перепустка</ng-option>
+            </ng-select>
+          </div>
+          <label class="form-label" for="resident-key-serial">Серійний номер</label>
+          <input
+            id="resident-key-serial"
+            name="serialNumber"
+            class="form-control"
+            maxlength="25"
+            [(ngModel)]="serialNumber"
+            [disabled]="saving"
+          />
+        }
+      </div>
+      <div class="modal-footer">
+        <button
+          #cancel
+          type="button"
+          class="btn btn-outline-secondary"
+          [disabled]="saving"
+          (click)="closed.emit()"
+        >
+          Скасувати
+        </button>
+        <button
+          type="submit"
+          class="btn"
+          [class.btn-danger]="remove"
+          [class.btn-primary]="!remove"
+          [disabled]="saving || editor.invalid"
+        >
+          {{ remove ? 'Видалити' : 'Зберегти' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

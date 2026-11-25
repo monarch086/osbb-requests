@@ -418,7 +418,11 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         return resident.HasDeletedPersonalData ? new(null, null, null, null, true)
             : new(resident.FirstName?.Trim(), resident.LastName?.Trim(), resident.BuildingNumber, resident.ApartmentNumber, Phone: resident.Phone);
     }
-    public async Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct, string? comment = null)
+    public Task UpdateRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct, string? comment = null) =>
+        SaveRequestAsync(actor, current, next, ct, comment);
+
+    private async Task SaveRequestAsync(AdminUser actor, ManagedRequest current, MaintenanceRequest next, CancellationToken ct,
+        string? comment = null, IReadOnlyList<TransactWriteItem>? residentWrites = null)
     {
         if (!ComplexLayout.IsValidRequest(next.Category, next.Scope, next.BuildingNumber, next.Floor, next.Entrance)) throw new ApiError(400, "Некоректна прив’язка заявки.");
         var timestamp = DateTimeOffset.UtcNow;
@@ -442,6 +446,7 @@ public sealed partial class DynamoAdminStore(IAmazonDynamoDB db, string adminsTa
         {
             writes.Add(NotificationWrite(notification));
         }
+        if (residentWrites is not null) writes.AddRange(residentWrites);
         await Transact(writes, ct);
     }
     private TransactWriteItem NotificationWrite(ResidentNotification notification)

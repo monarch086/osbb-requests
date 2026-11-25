@@ -6,6 +6,8 @@ import type {
   Registration,
   RegistrationApproval,
   ResidentDataChange,
+  ResidentKey,
+  ResidentKeyUpdate,
   ResidentListRow,
   ResidentTypeHistory,
 } from '../api.models';
@@ -21,6 +23,7 @@ import { changeResidentCounts } from './resident-counts';
 import { ResidentDetailsDialogComponent } from './resident-details-dialog.component';
 import type { ResidentFilters, ResidentView } from './resident-directory';
 import { ResidentHistoryDialogComponent } from './resident-history-dialog.component';
+import { ResidentKeyDialogComponent } from './resident-key-dialog.component';
 import { ResidentTypeDialogComponent } from './resident-type-dialog.component';
 import { ResidentsComponent } from './residents.component';
 import { ResidentsList } from './residents-list';
@@ -34,6 +37,7 @@ import { ResidentsList } from './residents-list';
     PaginationComponent,
     ResidentTypeDialogComponent,
     ResidentHistoryDialogComponent,
+    ResidentKeyDialogComponent,
     ResidentDetailsDialogComponent,
   ],
   templateUrl: './residents-section.component.html',
@@ -49,6 +53,9 @@ export class ResidentsSectionComponent extends WorkspaceSection {
   protected selectedPending: Registration | null = null;
   protected selectedRegistered: RegisteredResident | null = null;
   protected rejecting: Registration | null = null;
+  protected selectedKey: ResidentKey | null = null;
+  protected removingKey = false;
+  private keyTrigger: HTMLElement | null = null;
   private detailsTrigger: HTMLElement | null = null;
   protected changingType: Registration | RegisteredResident | null = null;
   protected historyResident: Registration | RegisteredResident | null = null;
@@ -187,6 +194,40 @@ export class ResidentsSectionComponent extends WorkspaceSection {
     this.selectedPending = resident;
     this.selectedRegistered = null;
     this.error = '';
+  }
+
+  protected openKey(key: ResidentKey, remove: boolean): void {
+    this.keyTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    this.selectedKey = key;
+    this.removingKey = remove;
+    this.error = '';
+  }
+
+  protected closeKey(): void {
+    if (!this.saving) {
+      this.selectedKey = null;
+      this.keyTrigger?.focus();
+      this.keyTrigger = null;
+    }
+  }
+
+  protected async saveKey(change: ResidentKeyUpdate): Promise<void> {
+    const key = this.selectedKey;
+    if (!key) {
+      return;
+    }
+    const epoch = this.epoch;
+    await this.write(async () => {
+      await this.api.updateResidentKey(key, change);
+      if (epoch === this.epoch) {
+        this.selectedKey = null;
+        this.notice = 'remove' in change ? 'Ключ видалено.' : 'Дані ключа збережено.';
+      }
+    });
+    if (epoch === this.epoch && this.selectedKey === null) {
+      this.closeKey();
+      await this.load();
+    }
   }
   protected async openRegistered(resident: ResidentListRow): Promise<void> {
     this.detailsTrigger =
