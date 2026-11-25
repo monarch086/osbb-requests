@@ -178,21 +178,13 @@
             </div>
             <div class="col-12">
               <label class="form-label" for="ticket-visibility">Видимість</label>
-              <ng-select
-                labelForId="ticket-visibility"
-                name="visibility"
-                [(ngModel)]="draft.visibility"
-                [clearable]="false"
-                [searchable]="false"
-                [disabled]="saving"
-                appendTo="body"
-                required
-              >
-                <ng-option value="Private">Приватна</ng-option>
-                @if (draft.category !== 'Замовлення ключів') {
-                  <ng-option value="Public">Для мешканців комплексу</ng-option>
-                }
-              </ng-select>
+              <input
+                class="form-control"
+                id="ticket-visibility"
+                type="text"
+                [value]="draft.visibility === 'Public' ? 'Для мешканців комплексу' : 'Приватна'"
+                readonly
+              />
             </div>
           </div>
           @if (draft.category === 'Замовлення ключів' && draft.keyItems?.length) {

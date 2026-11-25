@@ -250,7 +250,7 @@ export class ApiService {
       floor: draft.floor,
       entrance: draft.entrance,
       status: draft.status,
-      visibility: draft.visibility,
+      visibility: ticket.request.visibility,
       resolution: draft.resolution,
       assignedTo: draft.assignedTo,
       priority: draft.priority,
