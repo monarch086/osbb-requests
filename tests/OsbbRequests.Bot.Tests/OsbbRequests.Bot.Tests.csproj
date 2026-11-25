@@ -5,8 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" />
-    <ProjectReference Include="../../src/OsbbRequests.AdminApi/OsbbRequests.AdminApi.csproj" />
-    <ProjectReference Include="../../src/OsbbRequests.Bot/OsbbRequests.Bot.csproj" />
+    <ProjectReference Include="../../src/Serverless/OsbbRequests.AdminApi/OsbbRequests.AdminApi.csproj" />
+    <ProjectReference Include="../../src/Serverless/OsbbRequests.Bot/OsbbRequests.Bot.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">

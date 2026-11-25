@@ -2,7 +2,7 @@
 
 ## Реалізовано
 
-Чотири Lambda з двох ZIP-артефактів:
+Проєкти Lambda розташовані в `src/Serverless`. Чотири функції пакуються у два ZIP-артефакти.
 
 - `OsbbRequests.Bot.Function` - HTTP webhook, перевірка секрету та публікація в SQS.
 - `OsbbRequests.Bot.CommandFunction` - обробка команд із FIFO-черги.

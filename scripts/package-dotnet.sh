@@ -11,7 +11,7 @@ package_project() {
   mkdir -p "$output_dir"
   rm -rf -- "$output_dir/publish"
   rm -f -- "$output_dir/$artifact_name.zip"
-  dotnet publish "$project_root/src/$project_name/$project_name.csproj" \
+  dotnet publish "$project_root/src/Serverless/$project_name/$project_name.csproj" \
     --configuration Release --runtime linux-arm64 --self-contained false \
     -p:RestoreLockedMode=true -p:PublishReadyToRun=false --output "$output_dir/publish"
   (cd "$output_dir/publish" && zip -q -r "$output_dir/$artifact_name.zip" .)

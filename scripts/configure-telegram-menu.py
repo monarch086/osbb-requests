@@ -8,7 +8,7 @@ from pathlib import Path
 import urllib.error
 import urllib.request
 
-DEFINITIONS = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'OsbbRequests.Bot' /
+DEFINITIONS = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'Serverless' / 'OsbbRequests.Bot' /
                        'Telegram' / 'command-menu.json').read_text(encoding='utf-8'))
 COMMANDS = [{key: item[key] for key in ('command', 'description')} for item in DEFINITIONS if item.get('command_menu')]
 RESIDENT_COMMANDS = COMMANDS
