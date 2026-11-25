@@ -69,5 +69,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+  frontend:
+    image: osbb-requests-frontend:local
+    build:
+      context: src/Frontend
+    profiles: [web-api]
+    environment:
+      NGINX_ENVSUBST_FILTER: ^OSBB_COGNITO_
+      OSBB_COGNITO_USER_POOL_ID: ${OSBB_COGNITO_USER_POOL_ID:-}
+      OSBB_COGNITO_CLIENT_ID: ${OSBB_COGNITO_CLIENT_ID:-}
+    ports:
+      - '${OSBB_FRONTEND_BIND:-127.0.0.1}:${OSBB_FRONTEND_PORT:-8083}:8080'
+    depends_on:
+      - web-api
 volumes:
   osbb_postgres_data:

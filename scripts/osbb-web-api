@@ -38,4 +38,4 @@ seed_database() (
     -c "SELECT 1 FROM pg_database WHERE datname = 'osbb_web_api'")"
   if [[ "$exists" != 1 ]]; then seed_database; fi
 ) 9>"${XDG_RUNTIME_DIR:-/tmp}/osbb-web-api-$UID.lock"
-exec "${compose[@]}" up -d --build web-api
+exec "${compose[@]}" up -d --build frontend

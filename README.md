@@ -502,12 +502,16 @@ python3 scripts/verify-resident-phone-index.py --stage dev --region eu-central-1
 
 ## Локальний Web API
 
-Скрипт `./scripts/osbb-web-api` запускає Kestrel у Compose на `127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_web_api` з копії імпортованої `osbb`. Наступні запуски використовують наявну копію. Порт можна налаштувати через `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
+Скрипт `./scripts/osbb-web-api` збирає та запускає в Compose адмінпанель на `http://127.0.0.1:8083` і Web API на `http://127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_web_api` з копії імпортованої `osbb`. Наступні запуски використовують наявну копію. Порти можна налаштувати через `OSBB_FRONTEND_PORT` та `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
 
 ```bash
 ./scripts/osbb-web-api
 curl --fail http://127.0.0.1:8082/health
 ```
+
+Образ адмінпанелі має тег `osbb-requests-frontend:local`. Nginx віддає Angular і під час запуску підставляє Cognito ID в `/assets/app-config.json`. Запити `/admin/*` надходять до локального Web API через той самий origin. Для окремої збірки образу виконайте `docker compose --env-file .env.data.local -f compose.data.yml build frontend`.
+
+Для доступу з іншої машини в локальній мережі задайте `OSBB_FRONTEND_BIND` у `.env.data.local` як LAN-адресу хоста, наприклад `192.168.0.41`, і повторіть запуск. Відкрийте панель за локальним іменем хоста, наприклад `http://nuc.local:8083/`. HTTP для локального імені `.local` дозволений для запитів до API через той самий origin.
 
 Усі адміністративні маршрути читають і зберігають дані у PostgreSQL. Cognito використовується для перевірки токенів і підтвердженого email при першому вході. AWS credentials потрібні скрипту на хості для CloudFormation. У контейнер вони не передаються, а образ Web API не містить клієнта DynamoDB. Роль `IsSuperAdmin` береться з імпортованого профілю і доступна через API лише для читання.
 

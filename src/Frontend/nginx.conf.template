@@ -1,0 +1,24 @@
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    location = /assets/app-config.json {
+        default_type application/json;
+        add_header Cache-Control "no-store";
+        return 200 '{"apiUrl":"/","clientId":"${OSBB_COGNITO_CLIENT_ID}","userPoolId":"${OSBB_COGNITO_USER_POOL_ID}"}';
+    }
+
+    location /admin/ {
+        resolver 127.0.0.11 valid=10s;
+        set $backend http://web-api:8080;
+        proxy_pass $backend;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-store";
+    }
+
+    location / {
+        try_files $uri /index.html;
+    }
+}
