@@ -13,9 +13,15 @@ using OsbbRequests.Postgres;
 using OsbbRequests.Services;
 using OsbbRequests.WebApi.Auth;
 
+[assembly: ApiController]
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCognitoAuthentication();
-builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add(new ResponseCacheAttribute { NoStore = true, Location = ResponseCacheLocation.None });
+    options.Filters.Add(new RequestSizeLimitAttribute(30_003));
+}).ConfigureApiBehaviorOptions(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
     {
@@ -103,7 +109,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-app.MapControllers();
+app.MapControllers().RequireAuthorization(CognitoAuthentication.AdminScope);
 app.Run();
 
 static RegionEndpoint CognitoRegion(IServiceProvider services) =>

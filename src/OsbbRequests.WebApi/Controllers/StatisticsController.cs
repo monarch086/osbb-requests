@@ -6,10 +6,11 @@ using OsbbRequests.WebApi.Auth;
 namespace OsbbRequests.WebApi.Controllers;
 
 [Route("admin/statistics")]
-public sealed class StatisticsController(StatisticsService statistics) : AdminControllerBase
+[RequireAdminAccess]
+public sealed class StatisticsController(StatisticsService statistics) : ControllerBase
 {
     [HttpGet]
     [RequireAdminAccess(AdminPermission.Statistics)]
     public async Task<StatisticsReport> Get([FromQuery] string? days, CancellationToken ct) =>
-        await statistics.GetStatisticsAsync(Actor, days, ct);
+        await statistics.GetStatisticsAsync(HttpContext.GetAdminActor(), days, ct);
 }
