@@ -86,6 +86,60 @@ public sealed class KeyOrderTests
         Assert.Empty(repo.Requests);
     }
 
+    [Theory]
+    [InlineData("+380 (67) 123-45-67", "Завершити створення заявки", 1)]
+    [InlineData("0671234567", "Скасувати", 0)]
+    [InlineData("380671234567", "0931234567", 2)]
+    public async Task DuplicatePhoneAllowsFinishingCancellingOrEnteringAnotherNumber(string duplicate, string next, int keyCount)
+    {
+        var repo = new MemoryRepository();
+        repo.Registrations[42] = Profile(ResidentType.Owner);
+        repo.Registrations[99] = Profile(ResidentType.FamilyMember, 99, "+380931234567");
+        await Send(repo, 1, "/new");
+        await Send(repo, 2, RequestCategories.KeyOrder);
+        await Send(repo, 3, "Магніт");
+        await Send(repo, 4, "0671234567");
+        await Send(repo, 5, "Додати ще один ключ");
+        await Send(repo, 6, "Перепустка");
+        var original = repo.Drafts[42];
+
+        await Send(repo, 7, duplicate);
+        Assert.Contains("Цей номер уже додано до заявки", repo.Replies[7].Text);
+        Assert.Equal(ReplyKeyboard.KeyFinish, repo.Replies[7].Keyboard);
+        Assert.Equal(original, repo.Drafts[42]);
+        Assert.Empty(repo.Requests);
+
+        await Send(repo, 8, next);
+        if (keyCount == 0)
+        {
+            Assert.Equal(RequestDraftStage.Cancelled, repo.Drafts[42].Stage);
+            Assert.Empty(repo.Requests);
+            return;
+        }
+        if (keyCount == 2) await Send(repo, 9, "Завершити створення заявки");
+        var order = Assert.Single(repo.Requests);
+        Assert.Equal(keyCount, order.KeyQuantity);
+        Assert.Equal(new KeyOrderItem("Магніт", "+380671234567"), order.KeyItems![0]);
+        if (keyCount == 2) Assert.Equal(new KeyOrderItem("Перепустка", "+380931234567"), order.KeyItems[1]);
+    }
+
+    [Fact]
+    public async Task LegacyDraftWithDuplicatesRequiresConfirmationAfterCleanup()
+    {
+        var repo = new MemoryRepository();
+        repo.Registrations[42] = Profile(ResidentType.Owner);
+        repo.Drafts[42] = new(42, "building", RequestDraftStage.KeyNext, 5, Category: RequestCategories.KeyOrder,
+            KeyItems: [new("Магніт", "+380671234567"), new("Перепустка", "0671234567")]);
+
+        await Send(repo, 1, "Завершити створення заявки");
+        Assert.Contains("У чернетці були повтори", repo.Replies[1].Text);
+        Assert.Empty(repo.Requests);
+        Assert.Equal(new KeyOrderItem("Магніт", "+380671234567"), Assert.Single(repo.Drafts[42].KeyItems!));
+
+        await Send(repo, 2, "Завершити створення заявки");
+        Assert.Equal(1, Assert.Single(repo.Requests).KeyQuantity);
+    }
+
     [Fact]
     public async Task CancellationAfterAddingKeyLeavesNoRequest()
     {

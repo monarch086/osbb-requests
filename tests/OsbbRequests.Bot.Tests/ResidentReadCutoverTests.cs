@@ -283,6 +283,18 @@ public sealed class ResidentReadCutoverTests
     }
 
     [Fact]
+    public async Task DuplicatePhonesCannotBePersistedInNewKeyOrder()
+    {
+        using var db = new ReadDynamo();
+        var store = new DynamoCommandRepository(db, "old", residentsTable: "residents", complexId: "complex");
+        var ticket = new MaintenanceRequest(1, 42, "complex", RequestCategories.KeyOrder, "", "Замовлення", DateTimeOffset.UnixEpoch,
+            Visibility: RequestVisibility.Private, KeyQuantity: 2, KeyItems: [new("Магніт", "+380671234567"), new("Перепустка", "0671234567")]);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.CommitAsync(new CommandEnvelope(1, 42, 42, "/new"),
+            new CommandOutcome("ok", ticket, OwnerProfileVersion: 3), default));
+        Assert.Null(db.Transaction);
+    }
+
+    [Fact]
     public async Task StructuredKeyOrderWithoutLocationKeepsOwnerAuthorizationInTransaction()
     {
         using var db = new ReadDynamo();
