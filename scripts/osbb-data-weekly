@@ -20,5 +20,5 @@ cd "$project_root"
 export OSBB_IMPORTER_UID="$(id -u)" OSBB_IMPORTER_GID="$(id -g)"
 compose=(docker compose --env-file .env.data.local -f compose.data.yml)
 "${compose[@]}" up -d --wait --no-deps postgres
-"${compose[@]}" run --rm --build --no-deps -T importer import --stage dev --region eu-central-1
+"${compose[@]}" up --build --no-deps --exit-code-from importer importer
 ./scripts/osbb-data backup

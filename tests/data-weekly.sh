@@ -8,6 +8,7 @@ cat > "$work_dir/bin/docker" <<'DOCKER'
 #!/usr/bin/env bash
 printf 'docker %s\n' "$*" >> "$WEEKLY_TEST_LOG"
 case " $* " in
+  *' --exit-code-from importer '*) exit "${WEEKLY_TEST_FAIL:-0}" ;;
   *' pg_dump '*) printf 'synthetic archive' ;;
   *' pg_restore '*) cat >/dev/null ;;
 esac
@@ -15,7 +16,7 @@ DOCKER
 cat > "$work_dir/bin/dotnet" <<'DOTNET'
 #!/usr/bin/env bash
 printf 'dotnet %s\n' "$*" >> "$WEEKLY_TEST_LOG"
-if [[ "${WEEKLY_TEST_FAIL:-0}" == 1 ]]; then exit 1; fi
+exit 1
 DOTNET
 chmod +x "$work_dir/bin/docker" "$work_dir/bin/dotnet"
 export PATH="$work_dir/bin:$PATH"
@@ -27,8 +28,8 @@ export WEEKLY_TEST_LOG="$work_dir/calls"
 python3 - "$WEEKLY_TEST_LOG" <<'PY'
 import sys
 text = open(sys.argv[1], encoding='utf-8').read()
-assert text.index(' up ') < text.index('dotnet ') < text.index(' pg_dump ') < text.index(' pg_restore ')
-assert '--stage dev --region eu-central-1' in text
+assert text.index(' up -d --wait --no-deps postgres') < text.index(' up --build --no-deps --exit-code-from importer importer') < text.index(' pg_dump ') < text.index(' pg_restore ')
+assert 'dotnet ' not in text
 PY
 : > "$WEEKLY_TEST_LOG"
 if WEEKLY_TEST_FAIL=1 "$project_root/scripts/osbb-data-weekly" >/dev/null 2>&1; then
