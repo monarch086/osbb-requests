@@ -1,28 +1,15 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
+using OsbbRequests.Domain.Residents;
 
 namespace OsbbRequests.Shared.Residents;
 
 /// <summary>Stable keys for one resident/phone association; multiple residents may share a phone.</summary>
-public static partial class ResidentPhoneIndex
+public static class ResidentPhoneIndex
 {
     public const string IndexName = "ResidentsByPhone";
 
-    public static string Normalize(string phone)
-    {
-        var value = string.Concat(phone.Trim().Where(c => c is not (' ' or '(' or ')' or '-')));
-        if (value.StartsWith('0')) value = "+38" + value;
-        else if (!value.StartsWith('+')) value = "+" + value;
-        return PhonePattern().IsMatch(value) ? value : throw new ArgumentException("Invalid phone number.", nameof(phone));
-    }
-
-    public static bool TryNormalize(string? phone, out string? normalized)
-    {
-        normalized = null;
-        if (string.IsNullOrWhiteSpace(phone)) return false;
-        try { normalized = Normalize(phone); return true; }
-        catch (ArgumentException) { return false; }
-    }
+    public static string Normalize(string phone) => PhoneNumber.Normalize(phone);
+    public static bool TryNormalize(string? phone, out string? normalized) => PhoneNumber.TryNormalize(phone, out normalized);
 
     public static string LookupKey(string complexId, string phone)
     {
@@ -37,6 +24,4 @@ public static partial class ResidentPhoneIndex
         return "COMPLEX#" + complexId + "#PHONE_ENTRY#" + userId.ToString(CultureInfo.InvariantCulture) + "#" + Normalize(phone);
     }
 
-    [GeneratedRegex(@"^\+[1-9][0-9]{7,14}$", RegexOptions.CultureInvariant)]
-    private static partial Regex PhonePattern();
 }

@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
 
 namespace OsbbRequests.Data.Storage;
 
@@ -119,8 +118,4 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
                 .HasForeignKey(nameof(ImportRun.SourceId)).OnDelete(DeleteBehavior.Restrict);
         }
     }
-}
-public sealed class DataContextFactory : IDesignTimeDbContextFactory<DataContext>
-{
-    public DataContext CreateDbContext(string[] args) => new(new DbContextOptionsBuilder<DataContext>().UseNpgsql("Host=localhost;Database=osbb;Username=osbb;Password=design-time").Options);
 }

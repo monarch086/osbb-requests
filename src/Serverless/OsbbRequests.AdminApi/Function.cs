@@ -5,6 +5,7 @@ using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using OsbbRequests.Aws;
+using OsbbRequests.Cognito;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Shared.Telegram;
 using OsbbRequests.AdminApi.Statistics;

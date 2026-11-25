@@ -2,7 +2,7 @@ using OsbbRequests.Domain.Admin;
 
 namespace OsbbRequests.Services;
 
-public sealed class StatisticsService(IStatisticsStore? statistics)
+public sealed class StatisticsService(IStatisticsReader? statistics)
 {
     public async Task<StatisticsReport> GetStatisticsAsync(AdminUser actor, string? period, CancellationToken ct)
     {

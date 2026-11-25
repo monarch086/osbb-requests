@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../OsbbRequests.Services/OsbbRequests.Services.csproj" />
+    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="4.0.100" />
+  </ItemGroup>
+</Project>

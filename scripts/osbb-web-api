@@ -8,17 +8,34 @@ source .env.data.local
 set +a
 
 outputs="$(aws cloudformation describe-stacks --stack-name osbb-requests-dev --region eu-central-1 \
-  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId' || OutputKey=='UserPoolClientId' || OutputKey=='AdministratorsTableName' || OutputKey=='CommandDataTableName' || OutputKey=='ResidentsTableName']" --output json --no-cli-pager)"
+  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId' || OutputKey=='UserPoolClientId']" --output json --no-cli-pager)"
 config="$(python3 -c '
 import json, sys
 outputs = {row["OutputKey"]: row["OutputValue"] for row in json.load(sys.stdin)}
-for key in ("UserPoolId", "UserPoolClientId", "AdministratorsTableName", "CommandDataTableName", "ResidentsTableName"):
+for key in ("UserPoolId", "UserPoolClientId"):
     print(outputs[key])
 ' <<< "$outputs")"
 mapfile -t values <<< "$config"
 export OSBB_COGNITO_USER_POOL_ID="${values[0]}" OSBB_COGNITO_CLIENT_ID="${values[1]}"
-export OSBB_ADMINISTRATORS_TABLE="${values[2]}" OSBB_COMMAND_DATA_TABLE="${values[3]}"
-export OSBB_RESIDENTS_TABLE="${values[4]}"
-export OSBB_WEB_API_UID="$(id -u)" OSBB_WEB_API_GID="$(id -g)"
 
-exec docker compose --env-file .env.data.local -f compose.data.yml up -d --build web-api
+compose=(docker compose --env-file .env.data.local -f compose.data.yml)
+"${compose[@]}" up -d --wait --no-deps postgres
+
+seed_database() (
+  local seed="osbb_web_api_seed_$BASHPID"
+  "${compose[@]}" exec -T postgres createdb -U osbb "$seed"
+  trap '"${compose[@]}" exec -T postgres dropdb --if-exists -U osbb "$seed"' EXIT
+  "${compose[@]}" exec -T postgres pg_dump -U osbb -d osbb --format=custom \
+    | "${compose[@]}" exec -T postgres pg_restore -U osbb --exit-on-error --no-owner --no-acl -d "$seed"
+  "${compose[@]}" exec -T postgres psql -U osbb -d postgres -v ON_ERROR_STOP=1 \
+    -c "ALTER DATABASE $seed RENAME TO osbb_web_api"
+  trap - EXIT
+)
+
+(
+  flock 9
+  exists="$("${compose[@]}" exec -T postgres psql -U osbb -d postgres -At -v ON_ERROR_STOP=1 \
+    -c "SELECT 1 FROM pg_database WHERE datname = 'osbb_web_api'")"
+  if [[ "$exists" != 1 ]]; then seed_database; fi
+) 9>"${XDG_RUNTIME_DIR:-/tmp}/osbb-web-api-$UID.lock"
+exec "${compose[@]}" up -d --build web-api

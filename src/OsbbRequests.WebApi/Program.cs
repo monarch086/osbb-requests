@@ -1,10 +1,14 @@
 using System.Text.Json.Serialization;
 using Amazon;
 using Amazon.CognitoIdentityProvider;
-using Amazon.DynamoDBv2;
+using Amazon.Runtime;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using OsbbRequests.Data.Storage;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
-using OsbbRequests.Aws;
+using OsbbRequests.Cognito;
+using OsbbRequests.Postgres;
 using OsbbRequests.Services;
 using OsbbRequests.WebApi.Auth;
 
@@ -20,32 +24,36 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithMethods("GET", "POST", "PATCH").WithHeaders("authorization", "content-type")));
 
 builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(services =>
-    new AmazonCognitoIdentityProviderClient(CognitoRegion(services)));
-builder.Services.AddSingleton<IAmazonDynamoDB>(services => new AmazonDynamoDBClient(CognitoRegion(services)));
+    new AmazonCognitoIdentityProviderClient(new AnonymousAWSCredentials(), CognitoRegion(services)));
 builder.Services.AddSingleton<IIdentityProvider, CognitoIdentity>();
-builder.Services.AddSingleton(services => new DynamoAdminStore(
-    services.GetRequiredService<IAmazonDynamoDB>(),
-    builder.Configuration["DynamoDb:AdministratorsTable"] ?? "osbb-requests-dev-administrators",
-    builder.Configuration["DynamoDb:CommandDataTable"] ?? "osbb-requests-dev-command-data",
-    builder.Configuration["DynamoDb:ComplexId"] ?? "osbb-requests-dev",
-    prioritizeRequests: builder.Configuration.GetValue("DynamoDb:PrioritizeRequests", true),
-    residentsTable: builder.Configuration["DynamoDb:ResidentsTable"] ?? "osbb-requests-dev-residents",
-    compactResidentDirectory: builder.Configuration.GetValue("DynamoDb:CompactResidentDirectory", true),
-    compactResidentNameDirectory: builder.Configuration.GetValue("DynamoDb:CompactResidentNameDirectory", true)));
-builder.Services.AddSingleton<IAdministratorAccounts>(services => services.GetRequiredService<DynamoAdminStore>());
-builder.Services.AddSingleton<IAdministratorStore>(services => services.GetRequiredService<DynamoAdminStore>());
-builder.Services.AddSingleton<IAdministratorDirectory>(services => services.GetRequiredService<IAdministratorStore>());
-builder.Services.AddSingleton<IRequestStore>(services => services.GetRequiredService<DynamoAdminStore>());
-builder.Services.AddSingleton<IResidentStore>(services => services.GetRequiredService<DynamoAdminStore>());
-builder.Services.AddSingleton<IMessageStore>(services => services.GetRequiredService<DynamoAdminStore>());
-builder.Services.AddSingleton<IStatisticsStore>(services => new DynamoStatisticsStore(services.GetRequiredService<IAmazonDynamoDB>(),
-    builder.Configuration["DynamoDb:StatisticsTable"] ?? "osbb-requests-dev-statistics"));
-builder.Services.AddSingleton<AdminAccountService>();
-builder.Services.AddSingleton<PermissionService>();
-builder.Services.AddSingleton<RequestService>();
-builder.Services.AddSingleton<ResidentService>();
-builder.Services.AddSingleton<MessageService>();
-builder.Services.AddSingleton<StatisticsService>();
+builder.Services.AddDbContextFactory<DataContext>(options => options.UseNpgsql(
+    builder.Configuration.GetConnectionString("Postgres") ?? new NpgsqlConnectionStringBuilder
+    {
+        Host = "postgres",
+        Database = "osbb_web_api",
+        Username = "osbb",
+        Password = builder.Configuration["Postgres:Password"],
+        GssEncryptionMode = GssEncryptionMode.Disable
+    }.ConnectionString));
+builder.Services.AddSingleton(new PostgresOptions(
+    builder.Configuration["Postgres:Region"] ?? "eu-central-1",
+    builder.Configuration["Postgres:Stage"] ?? "dev",
+    builder.Configuration["Postgres:ComplexId"] ?? "osbb-requests-dev",
+    string.IsNullOrWhiteSpace(builder.Configuration["Postgres:AccountId"]) ? null : builder.Configuration["Postgres:AccountId"]));
+builder.Services.AddScoped<PostgresAdminStore>();
+builder.Services.AddScoped<IAdministratorAccounts>(services => services.GetRequiredService<PostgresAdminStore>());
+builder.Services.AddScoped<IAdministratorStore>(services => services.GetRequiredService<PostgresAdminStore>());
+builder.Services.AddScoped<IAdministratorDirectory>(services => services.GetRequiredService<PostgresAdminStore>());
+builder.Services.AddScoped<IRequestStore>(services => services.GetRequiredService<PostgresAdminStore>());
+builder.Services.AddScoped<IResidentStore>(services => services.GetRequiredService<PostgresAdminStore>());
+builder.Services.AddScoped<IMessageStore>(services => services.GetRequiredService<PostgresAdminStore>());
+builder.Services.AddScoped<IStatisticsReader>(services => services.GetRequiredService<PostgresAdminStore>());
+builder.Services.AddScoped<AdminAccountService>();
+builder.Services.AddScoped<PermissionService>();
+builder.Services.AddScoped<RequestService>();
+builder.Services.AddScoped<ResidentService>();
+builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<StatisticsService>();
 
 var app = builder.Build();
 app.UseExceptionHandler(new ExceptionHandlerOptions

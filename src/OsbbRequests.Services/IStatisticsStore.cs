@@ -2,8 +2,12 @@ using OsbbRequests.Domain.Admin;
 
 namespace OsbbRequests.Services;
 
-public interface IStatisticsStore
+public interface IStatisticsReader
 {
     Task<IReadOnlyList<DailyStatistic>> ReadAsync(int days, CancellationToken ct);
+}
+
+public interface IStatisticsStore : IStatisticsReader
+{
     Task RecordAsync(string endpoint, double read, double write, long durationMs, CancellationToken ct);
 }

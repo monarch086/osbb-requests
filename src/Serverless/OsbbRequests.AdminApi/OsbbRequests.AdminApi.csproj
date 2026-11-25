@@ -4,6 +4,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../OsbbRequests.Cognito/OsbbRequests.Cognito.csproj" />
     <ProjectReference Include="../../OsbbRequests.Aws/OsbbRequests.Aws.csproj" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" />
     <ProjectReference Include="../../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />

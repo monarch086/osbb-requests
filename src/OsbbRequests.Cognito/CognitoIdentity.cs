@@ -3,7 +3,7 @@ using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
 using OsbbRequests.Domain.Admin;
 
-namespace OsbbRequests.Aws;
+namespace OsbbRequests.Cognito;
 
 public sealed class CognitoIdentity(IAmazonCognitoIdentityProvider client) : IIdentityProvider
 {

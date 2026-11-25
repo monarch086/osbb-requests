@@ -9,5 +9,9 @@
 !src/OsbbRequests.Shared/**
 !src/OsbbRequests.Domain/
 !src/OsbbRequests.Domain/**
+!src/OsbbRequests.Postgres/
+!src/OsbbRequests.Postgres/**
+!src/OsbbRequests.Services/
+!src/OsbbRequests.Services/**
 **/bin/
 **/obj/

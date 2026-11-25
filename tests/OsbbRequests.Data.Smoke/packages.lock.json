@@ -202,6 +202,7 @@
           "AWSSDK.DynamoDBv2": "[4.0.108, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "OsbbRequests.Postgres": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )",
           "System.Security.Cryptography.Pkcs": "[10.0.15, )",
           "System.Security.Cryptography.Xml": "[10.0.15, )"
@@ -209,6 +210,21 @@
       },
       "osbbrequests.domain": {
         "type": "Project"
+      },
+      "osbbrequests.postgres": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
+          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "OsbbRequests.Services": "[1.0.0, )"
+        }
+      },
+      "osbbrequests.services": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Domain": "[1.0.0, )"
+        }
       },
       "osbbrequests.shared": {
         "type": "Project",

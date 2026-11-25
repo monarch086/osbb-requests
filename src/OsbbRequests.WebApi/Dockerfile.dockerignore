@@ -5,13 +5,13 @@
 !src/
 !src/OsbbRequests.WebApi/
 !src/OsbbRequests.WebApi/**
-!src/OsbbRequests.Aws/
-!src/OsbbRequests.Aws/**
+!src/OsbbRequests.Cognito/
+!src/OsbbRequests.Cognito/**
 !src/OsbbRequests.Services/
 !src/OsbbRequests.Services/**
 !src/OsbbRequests.Domain/
 !src/OsbbRequests.Domain/**
-!src/OsbbRequests.Shared/
-!src/OsbbRequests.Shared/**
+!src/OsbbRequests.Postgres/
+!src/OsbbRequests.Postgres/**
 **/bin/
 **/obj/

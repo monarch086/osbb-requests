@@ -57,29 +57,17 @@ services:
       context: .
       dockerfile: src/OsbbRequests.WebApi/Dockerfile
     profiles: [web-api]
-    user: '${OSBB_WEB_API_UID:-1000}:${OSBB_WEB_API_GID:-1000}'
     environment:
-      HOME: /app
-      AWS_PROFILE: ${AWS_PROFILE:-default}
       ASPNETCORE_HTTP_PORTS: '8080'
       Cognito__UserPoolId: ${OSBB_COGNITO_USER_POOL_ID:-}
       Cognito__ClientId: ${OSBB_COGNITO_CLIENT_ID:-}
-      DynamoDb__AdministratorsTable: ${OSBB_ADMINISTRATORS_TABLE:-osbb-requests-dev-administrators}
-      DynamoDb__CommandDataTable: ${OSBB_COMMAND_DATA_TABLE:-osbb-requests-dev-command-data}
-      DynamoDb__ResidentsTable: ${OSBB_RESIDENTS_TABLE:-osbb-requests-dev-residents}
-      DynamoDb__StatisticsTable: ${OSBB_STATISTICS_TABLE:-osbb-requests-dev-statistics}
-      DynamoDb__PrioritizeRequests: ${OSBB_WEB_API_PRIORITIZE_REQUESTS:-true}
-      DynamoDb__CompactResidentDirectory: ${OSBB_WEB_API_COMPACT_RESIDENT_DIRECTORY:-true}
-      DynamoDb__CompactResidentNameDirectory: ${OSBB_WEB_API_COMPACT_RESIDENT_NAME_DIRECTORY:-true}
-      DynamoDb__ComplexId: ${OSBB_COMPLEX_ID:-osbb-requests-dev}
+      Postgres__Password: ${OSBB_POSTGRES_PASSWORD:?Set OSBB_POSTGRES_PASSWORD}
+      Postgres__ComplexId: ${OSBB_COMPLEX_ID:-osbb-requests-dev}
+      Postgres__AccountId: ${OSBB_SOURCE_ACCOUNT_ID:-}
     ports:
       - '127.0.0.1:${OSBB_WEB_API_PORT:-8082}:8080'
-    volumes:
-      - type: bind
-        source: ${OSBB_AWS_DIRECTORY:-${HOME}/.aws}
-        target: /app/.aws
-        read_only: true
-        bind:
-          create_host_path: false
+    depends_on:
+      postgres:
+        condition: service_healthy
 volumes:
   osbb_postgres_data:

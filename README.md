@@ -502,16 +502,16 @@ python3 scripts/verify-resident-phone-index.py --stage dev --region eu-central-1
 
 ## Локальний Web API
 
-`./scripts/osbb-web-api` читає з CloudFormation ідентифікатори Cognito й назви таблиць стека `osbb-requests-dev` у `eu-central-1`. Потім скрипт збирає і запускає сервіс `web-api` у `compose.data.yml`. Він використовує наявний `.env.data.local` і профіль AWS оператора. Порт доступний на `127.0.0.1:8082`, його можна змінити через `OSBB_WEB_API_PORT`.
+Скрипт `./scripts/osbb-web-api` запускає Kestrel у Compose на `127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_web_api` з копії імпортованої `osbb`. Наступні запуски використовують наявну копію. Порт можна налаштувати через `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
 
 ```bash
 ./scripts/osbb-web-api
 curl --fail http://127.0.0.1:8082/health
 ```
 
-`GET /admin/me` приймає access-токен цього Cognito-пулу й повертає поточний профіль адміністратора. Перший вхід із підтвердженою адресою створює неактивний акаунт і запис сповіщення в DynamoDB `dev`. Для цього AWS-профілю потрібні дозвіл читати профілі адміністраторів і дозволи на умовне оновлення профілю та запис сповіщення в транзакції. Контейнер читає файли профілю з `~/.aws` або `OSBB_AWS_DIRECTORY`. Якщо для стека налаштовано інший ID комплексу, задайте `OSBB_COMPLEX_ID` у `.env.data.local`.
+Усі адміністративні маршрути читають і зберігають дані у PostgreSQL. Cognito використовується для перевірки токенів і підтвердженого email при першому вході. AWS credentials потрібні скрипту на хості для CloudFormation. У контейнер вони не передаються, а образ Web API не містить клієнта DynamoDB. Роль `IsSuperAdmin` береться з імпортованого профілю і доступна через API лише для читання.
 
-Web API підтримує адміністративні маршрути Lambda для заявок, мешканців, реєстрацій, додаткових квартир, ключів, розсилок, адміністраторів, статистики й експорту Excel. Обидва API використовують таблиці DynamoDB `dev`. Дії в локальному API, зокрема погодження й розсилки, впливають на дані та сповіщення цього середовища. Для запису потрібні дозволи відповідної операції. Локальні виклики можуть читати статистику DynamoDB, а збір метрик HTTP-запитів виконує Lambda. [План реалізації](docs/web-api-implementation-plan.md)
+Щотижневий імпортер оновлює `osbb`. Робоча база `osbb_web_api` зберігає власні зміни, історію й події `LOCAL_PENDING`. Чинний Telegram-воркер обробляє події DynamoDB, тож локальні зміни й сповіщення не передаються в бот. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_web_api ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
 
 ## Локальна PostgreSQL та імпорт DynamoDB (експериментально)
 
@@ -590,7 +590,7 @@ loginctl enable-linger "$USER"
 
 Локальна база містить персональні дані, включно з історичними записами й можливими старими дублями з `command-data`. Захистіть доступ до хоста та Docker volume; після видалення інформації в боті локальна копія оновлюється лише після повторного імпорту. Не додавайте пароль або дані до Git. Команда `docker compose --env-file .env.data.local -f compose.data.yml down` зупиняє стек, зберігаючи том.
 
-Нові міграції створюються через локальний EF Core tool: `dotnet tool restore`, потім `dotnet ef migrations add Назва --project src/OsbbRequests.Data --output-dir Storage/Migrations`; команда `migrate` застосовує їх. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
+Нові міграції створюються через локальний EF Core tool: `dotnet tool restore`, потім `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.Data --output-dir Storage/Migrations`; команда `migrate` застосовує їх. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
 
 Перевірку імпорту синтетичними даними можна виконати на окремій тестовій базі:
 
