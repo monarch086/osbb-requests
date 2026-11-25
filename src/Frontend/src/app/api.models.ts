@@ -157,8 +157,12 @@ export interface Ticket {
   keyItems?: KeyOrderItem[] | null;
 }
 export interface ResidentKeyEntry {
-  name: string;
   phone: string;
+  residents: KeyResident[];
+  keys: ResidentKey[];
+}
+export interface ResidentKey {
+  type: string;
   serialNumber: string | null;
   requestId: number;
   keyIndex: number;

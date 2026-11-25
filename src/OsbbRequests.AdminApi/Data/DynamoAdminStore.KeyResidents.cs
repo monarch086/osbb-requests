@@ -12,7 +12,8 @@ public sealed partial class DynamoAdminStore
     public async Task<ResidentKeyPage> ListResidentsWithKeysAsync(int page, CancellationToken ct)
     {
         if (page < 1 || page > 1000000) throw new ApiError(400, "Некоректна сторінка.");
-        var keys = new List<(long RequestId, long OwnerId, int Index)>();
+        const int pageSize = 25;
+        var keys = new List<(long RequestId, long OwnerId, int Index, string Phone)>();
         var filters = new RequestFilters([nameof(RequestStatus.Completed)], null, null, null, null, Section: "keys");
         var seen = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = null;
@@ -23,42 +24,56 @@ public sealed partial class DynamoAdminStore
             {
                 var request = candidate.Request;
                 if (request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items }) continue;
-                for (var index = 0; index < items.Count; index++) keys.Add((request.Id, request.OwnerId, index));
+                for (var index = 0; index < items.Count; index++)
+                    keys.Add((request.Id, request.OwnerId, index, KeyDirectoryPhone(items[index].Phone)));
             }
             cursor = batch.Cursor;
             if (cursor is not null && !seen.Add(cursor)) throw new InvalidOperationException("Repeated request cursor.");
         } while (cursor is not null);
-        if (keys.Count == 0) return new([], 1, 25, 0);
-        var actual = Math.Min(page, Math.Max(1, (keys.Count + 24) / 25));
-        var selected = keys.OrderByDescending(key => key.RequestId).ThenBy(key => key.OwnerId).ThenBy(key => key.Index)
-            .Skip((actual - 1) * 25).Take(25).ToArray();
+        var groups = keys.OrderByDescending(key => key.RequestId).ThenBy(key => key.OwnerId).ThenBy(key => key.Index)
+            .GroupBy(key => key.Phone, StringComparer.Ordinal).ToArray();
+        if (groups.Length == 0) return new([], 1, pageSize, 0);
+        var actual = Math.Min(page, (groups.Length - 1) / pageSize + 1);
+        var selected = groups.Skip((actual - 1) * pageSize).Take(pageSize);
         var requests = new Dictionary<(long OwnerId, long RequestId), ManagedRequest?>();
-        var current = new List<(long RequestId, int Index, KeyOrderItem Item)>();
-        foreach (var key in selected)
+        var current = new List<(string Phone, IReadOnlyList<ResidentKey> Keys)>();
+        foreach (var group in selected)
         {
-            var identity = (key.OwnerId, key.RequestId);
-            if (!requests.TryGetValue(identity, out var latest))
-                requests[identity] = latest = await GetRequestAsync(key.OwnerId, key.RequestId, ct);
-            if (latest?.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || key.Index >= items.Count) continue;
-            current.Add((key.RequestId, key.Index, items[key.Index]));
+            var currentKeys = new List<ResidentKey>();
+            foreach (var key in group)
+            {
+                var identity = (key.OwnerId, key.RequestId);
+                if (!requests.TryGetValue(identity, out var latest))
+                    requests[identity] = latest = await GetRequestAsync(key.OwnerId, key.RequestId, ct);
+                if (latest?.Request is not { Category: RequestCategories.KeyOrder, Status: RequestStatus.Completed, KeyItems: { } items } || key.Index >= items.Count) continue;
+                var item = items[key.Index];
+                if (KeyDirectoryPhone(item.Phone) != group.Key) continue;
+                currentKeys.Add(new(item.Type, item.SerialNumber, key.RequestId, key.Index));
+            }
+            if (currentKeys.Count > 0) current.Add((group.Key, currentKeys));
         }
-        var residents = await GetKeyResidentsAsync(new MaintenanceRequest(0, 0, building, RequestCategories.KeyOrder,
-            "", "", DateTimeOffset.UnixEpoch, KeyItems: current.Select(key => key.Item).ToArray()), ct);
-        var rows = current.Select((key, index) => new ResidentKeyEntry(
-            residents[index].Count == 0 ? "Мешканця не знайдено" : string.Join(", ", residents[index].Select(resident => resident.Name)), key.Item.Phone,
-            key.Item.SerialNumber, key.RequestId, key.Index)).ToArray();
-        return new(rows, actual, 25, keys.Count);
+        var residents = await FindKeyResidentsAsync(current.Select(group => group.Phone), ct);
+        var rows = current.Select((group, index) => new ResidentKeyEntry(group.Phone, residents[index], group.Keys)).ToArray();
+        return new(rows, actual, pageSize, groups.Length);
     }
 
-    public async Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct)
+    private static string KeyDirectoryPhone(string phone) => ResidentPhoneIndex.TryNormalize(phone, out var normalized) ? normalized! : phone;
+
+    public Task<IReadOnlyList<IReadOnlyList<KeyResident>>> GetKeyResidentsAsync(MaintenanceRequest request, CancellationToken ct)
     {
-        if (request.BuildingId != building || request.Category != RequestCategories.KeyOrder || residentsTable is null)
+        if (request.BuildingId != building || request.Category != RequestCategories.KeyOrder)
             throw new InvalidOperationException("Invalid key order.");
+        return FindKeyResidentsAsync((request.KeyItems ?? []).Select(item => item.Phone), ct);
+    }
+
+    private async Task<IReadOnlyList<IReadOnlyList<KeyResident>>> FindKeyResidentsAsync(IEnumerable<string> phones, CancellationToken ct)
+    {
+        if (residentsTable is null) throw new InvalidOperationException("Invalid key order.");
         var cache = new Dictionary<string, IReadOnlyList<KeyResident>>(StringComparer.Ordinal);
         var results = new List<IReadOnlyList<KeyResident>>();
-        foreach (var item in request.KeyItems ?? [])
+        foreach (var value in phones)
         {
-            if (!ResidentPhoneIndex.TryNormalize(item.Phone, out var phone)) { results.Add([]); continue; }
+            if (!ResidentPhoneIndex.TryNormalize(value, out var phone)) { results.Add([]); continue; }
             if (!cache.TryGetValue(phone!, out var names))
             {
                 var matches = new List<KeyResident>();

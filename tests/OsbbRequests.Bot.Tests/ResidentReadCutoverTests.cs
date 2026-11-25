@@ -110,36 +110,52 @@ public sealed class ResidentReadCutoverTests
     }
 
     [Fact]
-    public async Task KeyResidentDirectoryPagesIndividualKeysWithCurrentNamesAndSerialNumbers()
+    public async Task KeyResidentDirectoryPagesPhoneGroupsWithCurrentAddressAndEveryKey()
     {
         using var db = new ReadDynamo();
-        const string phone = "+380671234567";
-        var keys = Enumerable.Range(0, 26).Select(i => new KeyOrderItem("Магніт", i == 25 ? phone : "+380931234567", $"serial-{i:D2}")).ToArray();
-        var ticket = new MaintenanceRequest(1, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: keys);
+        const string phone = "+380671230025";
+        var keys = Enumerable.Range(0, 26).Select(i => new KeyOrderItem("Магніт", $"+38067123{i:D4}", $"serial-{i:D2}")).ToArray();
+        var ticket = new MaintenanceRequest(2, 99, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch, Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: keys);
         var ticketRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
-        db.ItemsByIndex["BuildingRequestsIndex"] = [ticketRow];
+        var olderTicket = ticket with { Id = 1, OwnerId = 98, KeyItems = [new("Перепустка", "067 123 0025")] };
+        var olderRow = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(olderTicket)) };
+        db.ItemsByIndex["BuildingRequestsIndex"] = [olderRow, ticketRow];
         db.RawRows["USER#99"] = ticketRow;
+        db.RawRows["USER#98"] = olderRow;
         var key = OsbbRequests.Shared.Residents.ResidentPhoneIndex.ItemKey("complex", 42, phone);
         var lookup = OsbbRequests.Shared.Residents.ResidentPhoneIndex.LookupKey("complex", phone);
         db.ItemsByIndex["ResidentsByPhone"] = [new() { ["pk"] = new(key) }];
         db.RawRows[key] = new() { ["complexId"] = new("complex"), ["phoneLookup"] = new(lookup), ["residentId"] = new() { N = "42" } };
         var resident = new ResidentRegistration("ref", 42, "complex", RegistrationStage.Approved, 1, DateTimeOffset.UnixEpoch,
-            DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Ірина", LastName: "Тестова");
+            DateTimeOffset.UnixEpoch, Phone: phone, FirstName: "Ірина", LastName: "Тестова", BuildingNumber: "4Г", ApartmentNumber: "25");
         db.Rows["COMPLEX#complex#RECORD#USER#42#REGISTRATION"] = new() { ["payload"] = new(JsonSerializer.Serialize(resident)) };
         var store = new DynamoAdminStore(db, "admins", "old", "complex", prioritizeRequests: false, residentsTable: "residents");
         var page = await store.ListResidentsWithKeysAsync(2, default);
         Assert.Equal(26, page.Total);
         Assert.Equal(2, page.PageNumber);
         var row = Assert.Single(page.Items);
-        Assert.Equal("Ірина Тестова", row.Name);
         Assert.Equal(phone, row.Phone);
-        Assert.Equal("serial-25", row.SerialNumber);
+        var match = Assert.Single(row.Residents);
+        Assert.Equal("Ірина Тестова", match.Name);
+        Assert.Equal("4Г", match.BuildingNumber);
+        Assert.Equal("25", match.ApartmentNumber);
+        Assert.Collection(row.Keys, first =>
+        {
+            Assert.Equal("Магніт", first.Type);
+            Assert.Equal("serial-25", first.SerialNumber);
+        }, second =>
+        {
+            Assert.Equal("Перепустка", second.Type);
+            Assert.Null(second.SerialNumber);
+        });
         var phoneQuery = Assert.Single(db.Queries, q => q.IndexName == "ResidentsByPhone");
         Assert.Equal(lookup, phoneQuery.ExpressionAttributeValues[":phone"].S);
         db.Rows["COMPLEX#complex#RECORD#USER#42#REGISTRATION"]["payload"] = new(JsonSerializer.Serialize(resident with { PersonalDataDeleted = true }));
         var missing = await store.ListResidentsWithKeysAsync(2, default);
         Assert.Equal(26, missing.Total);
-        Assert.Equal("Мешканця не знайдено", Assert.Single(missing.Items).Name);
+        var unmatched = Assert.Single(missing.Items);
+        Assert.Empty(unmatched.Residents);
+        Assert.Equal(2, unmatched.Keys.Count);
     }
 
     [Fact]
@@ -150,7 +166,7 @@ public sealed class ResidentReadCutoverTests
         for (var id = 1; id <= 26; id++)
         {
             var ticket = new MaintenanceRequest(id, id, "complex", RequestCategories.KeyOrder, "", "", DateTimeOffset.UnixEpoch,
-                Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: [new("Магніт", "+380671234567")]);
+                Status: OsbbRequests.Shared.Domain.RequestStatus.Completed, KeyItems: [new("Магніт", $"+38067123{id:D4}")]);
             var row = new Dictionary<string, AttributeValue> { ["payload"] = new(JsonSerializer.Serialize(ticket)) };
             entries.Add(row);
             db.RawRows[$"USER#{id}"] = row;
@@ -160,7 +176,7 @@ public sealed class ResidentReadCutoverTests
         var store = new DynamoAdminStore(db, "admins", "old", "complex", prioritizeRequests: false, residentsTable: "residents");
         var page = await store.ListResidentsWithKeysAsync(2, default);
         Assert.Equal(26, page.Total);
-        Assert.Equal(1, Assert.Single(page.Items).RequestId);
+        Assert.Equal(1, Assert.Single(Assert.Single(page.Items).Keys).RequestId);
         Assert.Single(db.Reads, read => read.TableName == "old");
         Assert.Single(db.Queries, query => query.IndexName == "ResidentsByPhone");
     }

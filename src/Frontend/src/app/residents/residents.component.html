@@ -110,13 +110,29 @@
   <section class="card">
     <div class="card-header py-3"><h2 class="h5 mb-0">Мешканці з ключами</h2></div>
     <div class="list-group list-group-flush">
-      @for (resident of keyResidents; track $index) {
+      @for (entry of keyResidents; track entry.phone) {
         <div class="list-group-item p-3">
-          <strong>{{ resident.name }}</strong>
-          <span class="d-block">Телефон: {{ resident.phone }}</span>
-          @if (resident.serialNumber) {
-            <span class="d-block">Серійний номер: {{ resident.serialNumber }}</span>
+          @for (resident of entry.residents; track $index) {
+            <div class="mb-1">
+              <strong>{{ resident.name }}</strong>
+              <span class="small text-body-secondary d-block">{{
+                residentAddress(resident.buildingNumber, resident.apartmentNumber)
+              }}</span>
+            </div>
+          } @empty {
+            <strong>Мешканця не знайдено</strong>
           }
+          <span class="d-block">Телефон: {{ entry.phone }}</span>
+          <ul class="list-group mt-3" aria-label="Ключі">
+            @for (key of entry.keys; track key.requestId + ':' + key.keyIndex) {
+              <li class="list-group-item d-flex flex-wrap align-items-baseline gap-2">
+                <strong>{{ key.type }}</strong>
+                <span class="small text-body-secondary text-break">
+                  Серійний номер: {{ key.serialNumber || 'Не зазначено' }}
+                </span>
+              </li>
+            }
+          </ul>
         </div>
       }
     </div>
@@ -161,20 +177,9 @@
         >
           <span class="h6 d-block mb-1">{{ r.firstName }} {{ r.lastName }}</span>
           <span class="small text-body-secondary d-block">{{ typeLabel(r.residentType) }}</span>
-          <span class="small text-body-secondary d-block">
-            @if (r.buildingNumber) {
-              Будинок {{ r.buildingNumber }}
-            }
-            @if (r.buildingNumber && r.apartmentNumber) {
-              ·
-            }
-            @if (r.apartmentNumber) {
-              Квартира {{ r.apartmentNumber }}
-            }
-            @if (!r.buildingNumber && !r.apartmentNumber) {
-              Розташування не зазначено
-            }
-          </span>
+          <span class="small text-body-secondary d-block">{{
+            residentAddress(r.buildingNumber, r.apartmentNumber)
+          }}</span>
         </button>
       }
     </div>
@@ -319,20 +324,9 @@
           <span class="small text-body-secondary d-block">{{
             typeLabel(resident.residentType)
           }}</span>
-          <span class="small text-body-secondary d-block">
-            @if (resident.buildingNumber) {
-              Будинок {{ resident.buildingNumber }}
-            }
-            @if (resident.buildingNumber && resident.apartmentNumber) {
-              ·
-            }
-            @if (resident.apartmentNumber) {
-              Квартира {{ resident.apartmentNumber }}
-            }
-            @if (!resident.buildingNumber && !resident.apartmentNumber) {
-              Розташування не зазначено
-            }
-          </span>
+          <span class="small text-body-secondary d-block">{{
+            residentAddress(resident.buildingNumber, resident.apartmentNumber)
+          }}</span>
         </button>
       }
     </div>

@@ -36,7 +36,8 @@ public sealed record KeyResident(string Name, string? BuildingNumber, string? Ap
 public sealed record ManagedRequest(MaintenanceRequest Request, int Version, RequestAuthor? Author = null,
     [property: Obsolete("Use KeyResidents; retained temporarily for older frontend versions.")] IReadOnlyList<IReadOnlyList<string>>? KeyResidentNames = null,
     IReadOnlyList<IReadOnlyList<KeyResident>>? KeyResidents = null);
-public sealed record ResidentKeyEntry(string Name, string Phone, string? SerialNumber, long RequestId, int KeyIndex);
+public sealed record ResidentKeyEntry(string Phone, IReadOnlyList<KeyResident> Residents, IReadOnlyList<ResidentKey> Keys);
+public sealed record ResidentKey(string Type, string? SerialNumber, long RequestId, int KeyIndex);
 public sealed record ResidentKeyPage(IReadOnlyList<ResidentKeyEntry> Items, int PageNumber, int PageSize, int Total);
 public sealed record RequestCounts(int Total, int NewCount, int ProgressCount);
 public sealed record AdminRequestPage(IReadOnlyList<ManagedRequest> Items, string? Cursor, int PageNumber, int PageSize, RequestCounts? Counts);

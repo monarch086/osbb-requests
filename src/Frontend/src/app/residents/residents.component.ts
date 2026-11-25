@@ -44,6 +44,16 @@ export class ResidentsComponent {
   @Output() readonly selectPending = new EventEmitter<Registration>();
   @Output() readonly selectRegistered = new EventEmitter<ResidentListRow>();
   protected readonly buildings = buildingNumbers;
+  protected residentAddress(
+    buildingNumber?: string | null,
+    apartmentNumber?: string | null,
+  ): string {
+    const address = [
+      buildingNumber && `Будинок ${buildingNumber}`,
+      apartmentNumber && `Квартира ${apartmentNumber}`,
+    ];
+    return address.filter(Boolean).join(' · ') || 'Розташування не зазначено';
+  }
   protected changeFilters(change: Partial<ResidentFilters>): void {
     this.filtersChange.emit({ ...this.filters, ...change });
   }
