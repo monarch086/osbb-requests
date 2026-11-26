@@ -6,7 +6,7 @@ using Amazon.Lambda.SQSEvents;
 using Amazon.SimpleSystemsManagement;
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
-using OsbbRequests.Bot.Persistence;
+using OsbbRequests.Aws.Bot;
 using OsbbRequests.CommandProcessor.Telegram;
 
 namespace OsbbRequests.Bot;

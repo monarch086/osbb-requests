@@ -4,7 +4,7 @@ using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
-using OsbbRequests.Bot.Persistence;
+using OsbbRequests.Aws.Bot;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 using System.Text.Json;

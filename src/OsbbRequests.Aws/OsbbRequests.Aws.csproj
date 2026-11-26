@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="../OsbbRequests.CommandProcessor/OsbbRequests.CommandProcessor.csproj" />
     <ProjectReference Include="../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />
     <ProjectReference Include="../OsbbRequests.Services/OsbbRequests.Services.csproj" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.108" />

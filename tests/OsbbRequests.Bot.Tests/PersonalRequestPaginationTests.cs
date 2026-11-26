@@ -3,7 +3,7 @@ using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.Bot.Persistence;
+using OsbbRequests.Aws.Bot;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using Xunit;

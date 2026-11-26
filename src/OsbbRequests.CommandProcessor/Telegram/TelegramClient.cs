@@ -12,6 +12,32 @@ namespace OsbbRequests.CommandProcessor.Telegram;
 
 public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenProvider) : ITelegramClient
 {
+    public async Task<IReadOnlyList<TelegramUpdate>> GetUpdatesAsync(long offset, CancellationToken cancellationToken)
+    {
+        var result = await CallAsync(TelegramOperation.GetUpdates, "getUpdates",
+            new { offset, timeout = 30, limit = 10, allowed_updates = new[] { "message" } }, cancellationToken);
+        try
+        {
+            if (result.ValueKind == JsonValueKind.Array && result.Deserialize<TelegramUpdate[]>() is { } updates &&
+                updates.All(update => update?.UpdateId is >= 0 and < long.MaxValue))
+                return updates;
+        }
+        catch (JsonException)
+        {
+            // Discard untrusted response details.
+        }
+        throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, operation: TelegramOperation.GetUpdates);
+    }
+
+    public async Task<string> GetBotUsernameAsync(CancellationToken cancellationToken)
+    {
+        var result = await CallAsync(TelegramOperation.GetMe, "getMe", new { }, cancellationToken);
+        if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty("username", out var username) &&
+            username.ValueKind == JsonValueKind.String && username.GetString() is { Length: > 0 } value)
+            return value;
+        throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, operation: TelegramOperation.GetMe);
+    }
+
     public async Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken, ReplyKeyboard? keyboard = null)
         => _ = await SendAsync(chatId, text, cancellationToken, keyboard);
 
@@ -70,7 +96,9 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         else if (keyboard == ReplyKeyboard.Remove)
             payload["reply_markup"] = new { remove_keyboard = true };
         // No parse_mode: all resident content is plain text, never Telegram HTML.
-        return await CallAsync("sendMessage", payload, cancellationToken);
+        var sent = await CallAsync(TelegramOperation.SendMessage, "sendMessage", payload, cancellationToken);
+        return sent.ValueKind == JsonValueKind.Object && sent.TryGetProperty("message_id", out var id) &&
+            id.TryGetInt64(out var messageId) && messageId > 0 ? messageId : null;
     }
 
     private readonly Dictionary<long, bool> configuredMenus = [];
@@ -80,7 +108,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         lock (configuredMenus)
             if (!force && configuredMenus.TryGetValue(chatId, out var current) && current == registered) return;
         foreach (var language in new[] { "", "uk" })
-            await CallAsync("setMyCommands", new
+            await CallAsync(TelegramOperation.SetCommandMenu, "setMyCommands", new
             {
                 scope = new { type = "chat", chat_id = chatId },
                 language_code = language,
@@ -94,10 +122,10 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         }
     }
 
-    private async Task<long?> CallAsync(string method, object payload, CancellationToken cancellationToken, bool requireTrueResult = false)
+    private async Task<JsonElement> CallAsync(TelegramOperation operation, string method, object payload,
+        CancellationToken cancellationToken, bool requireTrueResult = false)
     {
         var token = await tokenProvider.GetAsync(cancellationToken);
-        var operation = method == "sendMessage" ? TelegramOperation.SendMessage : TelegramOperation.SetCommandMenu;
         int? responseStatus = null;
         try
         {
@@ -114,7 +142,8 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             if (!response.IsSuccessStatusCode)
             {
                 var details = await ReadErrorResponseAsync(response.Content, cancellationToken);
-                if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
+                if (operation is TelegramOperation.SendMessage or TelegramOperation.SetCommandMenu &&
+                    response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
                     throw new TelegramRecipientUnavailableException((int)response.StatusCode, operation, details);
                 throw new TelegramApiException(TelegramFailureCategory.HttpError, (int)response.StatusCode, operation, response: details);
             }
@@ -129,8 +158,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             if (requireTrueResult && (!body.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.True))
                 throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode, operation,
                     response: TelegramErrorResponse.Read(body.RootElement));
-            return body.RootElement.TryGetProperty("result", out var sent) && sent.ValueKind == JsonValueKind.Object &&
-                sent.TryGetProperty("message_id", out var id) && id.TryGetInt64(out var messageId) && messageId > 0 ? messageId : null;
+            return body.RootElement.TryGetProperty("result", out var value) ? value.Clone() : default;
         }
         catch (HttpRequestException error)
         {

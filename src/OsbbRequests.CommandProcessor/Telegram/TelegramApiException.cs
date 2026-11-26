@@ -14,7 +14,7 @@ public enum TelegramFailureCategory
     UnconfirmedResult
 }
 
-public enum TelegramOperation { SendMessage, SetCommandMenu }
+public enum TelegramOperation { SendMessage, SetCommandMenu, GetUpdates, GetMe }
 
 public sealed class TelegramApiException(TelegramFailureCategory category, int? statusCode = null,
     TelegramOperation? operation = null, HttpRequestError? requestError = null, SocketError? socketError = null, TelegramErrorResponse? response = null)

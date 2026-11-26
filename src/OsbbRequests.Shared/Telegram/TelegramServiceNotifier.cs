@@ -11,7 +11,7 @@ public interface IServiceNotifier
 }
 
 public sealed class TelegramServiceNotifier(HttpClient http, ISecretProvider secrets, string lambdaName, string stage,
-    string chatId = TelegramServiceNotifier.ServiceNotificationChatId) : IServiceNotifier
+    string chatId = TelegramServiceNotifier.ServiceNotificationChatId, string sourceLabel = "Lambda", string logLocation = "CloudWatch") : IServiceNotifier
 {
     public const string ServiceNotificationChatId = "38627946";
 
@@ -31,11 +31,11 @@ public sealed class TelegramServiceNotifier(HttpClient http, ISecretProvider sec
             var diagnostics = error is ITelegramFailureDetails telegram
                 ? "Telegram: " + Field(telegram.SafeDiagnostics.Trim(), 400) + "\n"
                 : "";
-            var text = "Помилка ОСББ\n" + $"Lambda: {Field(lambdaName)}\nСередовище: {Field(stage)}\n" +
+            var text = "Помилка ОСББ\n" + $"{Field(sourceLabel)}: {Field(lambdaName)}\nСередовище: {Field(stage)}\n" +
                 $"Етап: {Field(operation)}\nТип: {Field(error.GetType().Name)}\nID: {Field(requestId ?? "-")}\n" +
                 diagnostics + string.Join("\n", new StackTrace(error, false).GetFrames().Take(5).Select(frame =>
                     Field(frame.GetMethod()?.DeclaringType?.FullName + "." + frame.GetMethod()?.Name))) +
-                "\nПодробиці: CloudWatch.";
+                $"\nПодробиці: {Field(logLocation)}.";
             var token = await secrets.GetAsync(timeout.Token);
             using var response = await http.PostAsJsonAsync($"https://api.telegram.org/bot{token}/sendMessage",
                 new { chat_id = chatId, text, link_preview_options = new { is_disabled = true } }, timeout.Token);

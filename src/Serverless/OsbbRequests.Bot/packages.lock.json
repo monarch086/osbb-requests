@@ -98,6 +98,15 @@
         "resolved": "72.1.0.3",
         "contentHash": "xTHoHJKtgHDsYkQ/RU3o4U36ktjQqnR+ML00HDDK2SWr+9nMekxnXvtLZ2I4cqF8s51frxqTRgx1jDVtIzCf3w=="
       },
+      "osbbrequests.aws": {
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.DynamoDBv2": "[4.0.108, )",
+          "OsbbRequests.CommandProcessor": "[1.0.0, )",
+          "OsbbRequests.Services": "[1.0.0, )",
+          "OsbbRequests.Shared": "[1.0.0, )"
+        }
+      },
       "osbbrequests.commandprocessor": {
         "type": "Project",
         "dependencies": {
@@ -106,6 +115,12 @@
       },
       "osbbrequests.domain": {
         "type": "Project"
+      },
+      "osbbrequests.services": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Domain": "[1.0.0, )"
+        }
       },
       "osbbrequests.shared": {
         "type": "Project",

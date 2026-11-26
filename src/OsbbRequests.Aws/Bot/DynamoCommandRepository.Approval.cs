@@ -3,7 +3,7 @@ using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.Bot.Persistence;
+namespace OsbbRequests.Aws.Bot;
 
 public sealed partial class DynamoCommandRepository
 {

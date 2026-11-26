@@ -14,7 +14,7 @@ using Amazon.Lambda.SQSEvents;
 using Amazon.Runtime;
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
-using OsbbRequests.Bot.Persistence;
+using OsbbRequests.Aws.Bot;
 using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Bot.Webhook;
 using Xunit;

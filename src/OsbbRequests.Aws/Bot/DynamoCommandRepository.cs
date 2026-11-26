@@ -8,7 +8,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.CommandProcessor.Models;
 
-namespace OsbbRequests.Bot.Persistence;
+namespace OsbbRequests.Aws.Bot;
 
 public sealed partial class DynamoCommandRepository(IAmazonDynamoDB client, string tableName,
     TimeProvider? timeProvider = null, string? residentsTable = null, string? complexId = null, bool usePhoneIndex = false) : ICommandRepository

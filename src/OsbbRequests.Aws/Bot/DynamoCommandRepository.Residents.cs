@@ -3,7 +3,7 @@ using System.Text.Json;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
-namespace OsbbRequests.Bot.Persistence;
+namespace OsbbRequests.Aws.Bot;
 
 public sealed partial class DynamoCommandRepository
 {

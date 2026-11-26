@@ -10,7 +10,7 @@ using OsbbRequests.Domain.Admin;
 using OsbbRequests.Bot;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Bot.Notifications;
-using OsbbRequests.Bot.Persistence;
+using OsbbRequests.Aws.Bot;
 using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;

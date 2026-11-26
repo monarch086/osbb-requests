@@ -47,6 +47,34 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+  command-listener:
+    image: osbb-requests-command-listener:local
+    build:
+      context: .
+      dockerfile: src/OsbbRequests.CommandListener/Dockerfile
+    profiles: [command-listener]
+    restart: 'on-failure:3'
+    user: '${OSBB_LISTENER_UID:-1000}:${OSBB_LISTENER_GID:-1000}'
+    environment:
+      HOME: /app
+      AWS_PROFILE: ${OSBB_LISTENER_AWS_PROFILE:-default}
+      AWS_REGION: ${OSBB_LISTENER_AWS_REGION:-eu-central-1}
+      STAGE: ${OSBB_LISTENER_STAGE:-local}
+      BOT_TOKEN_PARAMETER: ${OSBB_LISTENER_BOT_TOKEN_PARAMETER:-}
+      TELEGRAM_BOT_USERNAME: ${OSBB_LISTENER_BOT_USERNAME:-}
+      BUILDING_ID: ${OSBB_LISTENER_COMPLEX_ID:-}
+      COMMAND_DATA_TABLE: ${OSBB_LISTENER_COMMAND_DATA_TABLE:-}
+      RESIDENTS_TABLE: ${OSBB_LISTENER_RESIDENTS_TABLE:-}
+      RESIDENT_APPROVAL_MODE: ${OSBB_LISTENER_RESIDENT_APPROVAL_MODE:-Automatic}
+      SERVICE_BOT_TOKEN_PARAMETER: ${OSBB_LISTENER_SERVICE_BOT_TOKEN_PARAMETER:-}
+      SERVICE_NOTIFICATION_CHAT_ID: ${OSBB_LISTENER_SERVICE_NOTIFICATION_CHAT_ID:-38627946}
+    volumes:
+      - type: bind
+        source: ${OSBB_AWS_DIRECTORY:-${HOME}/.aws}
+        target: /app/.aws
+        read_only: true
+        bind:
+          create_host_path: false
   web-api:
     image: osbb-requests-web-api:local
     build:

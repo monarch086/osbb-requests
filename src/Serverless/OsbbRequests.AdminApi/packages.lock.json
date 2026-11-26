@@ -94,6 +94,7 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.DynamoDBv2": "[4.0.108, )",
+          "OsbbRequests.CommandProcessor": "[1.0.0, )",
           "OsbbRequests.Services": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )"
         }
@@ -103,6 +104,12 @@
         "dependencies": {
           "AWSSDK.CognitoIdentityProvider": "[4.0.100, )",
           "OsbbRequests.Services": "[1.0.0, )"
+        }
+      },
+      "osbbrequests.commandprocessor": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Shared": "[1.0.0, )"
         }
       },
       "osbbrequests.domain": {

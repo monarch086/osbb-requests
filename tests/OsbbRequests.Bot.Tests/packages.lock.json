@@ -206,6 +206,7 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.DynamoDBv2": "[4.0.108, )",
+          "OsbbRequests.CommandProcessor": "[1.0.0, )",
           "OsbbRequests.Services": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )"
         }
@@ -220,6 +221,7 @@
           "Amazon.Lambda.Core": "[3.3.0, )",
           "Amazon.Lambda.SQSEvents": "[2.2.0, )",
           "Amazon.Lambda.Serialization.SystemTextJson": "[3.0.1, )",
+          "OsbbRequests.Aws": "[1.0.0, )",
           "OsbbRequests.CommandProcessor": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )"
         }
@@ -229,6 +231,14 @@
         "dependencies": {
           "AWSSDK.CognitoIdentityProvider": "[4.0.100, )",
           "OsbbRequests.Services": "[1.0.0, )"
+        }
+      },
+      "osbbrequests.commandlistener": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Aws": "[1.0.0, )",
+          "OsbbRequests.CommandProcessor": "[1.0.0, )",
+          "OsbbRequests.Shared": "[1.0.0, )"
         }
       },
       "osbbrequests.commandprocessor": {

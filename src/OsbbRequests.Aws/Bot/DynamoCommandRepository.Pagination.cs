@@ -2,7 +2,7 @@ using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.CommandProcessor.Models;
 
-namespace OsbbRequests.Bot.Persistence;
+namespace OsbbRequests.Aws.Bot;
 
 public sealed partial class DynamoCommandRepository
 {
