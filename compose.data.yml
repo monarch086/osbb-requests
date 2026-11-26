@@ -41,7 +41,7 @@ services:
       context: .
       dockerfile: src/OsbbRequests.DataImport/Dockerfile
     profiles: [tools]
-    command: [import, --stage, dev, --region, eu-central-1]
+    command: [import, --stage, "${OSBB_SOURCE_STAGE:-dev}", --region, "${OSBB_SOURCE_REGION:-eu-central-1}"]
     user: '${OSBB_IMPORTER_UID:-1000}:${OSBB_IMPORTER_GID:-1000}'
     environment:
       HOME: /app
@@ -92,6 +92,8 @@ services:
       Cognito__UserPoolId: ${OSBB_COGNITO_USER_POOL_ID:-}
       Cognito__ClientId: ${OSBB_COGNITO_CLIENT_ID:-}
       ConnectionStrings__Postgres: ${OSBB_CONNECTION_STRING:?Set OSBB_CONNECTION_STRING}
+      Postgres__Stage: ${OSBB_SOURCE_STAGE:-dev}
+      Postgres__Region: ${OSBB_SOURCE_REGION:-eu-central-1}
       Postgres__ComplexId: ${OSBB_COMPLEX_ID:-osbb-requests-dev}
       Postgres__AccountId: ${OSBB_SOURCE_ACCOUNT_ID:-}
     ports:

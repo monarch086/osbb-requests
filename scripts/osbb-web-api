@@ -8,16 +8,8 @@ import_database="${OSBB_IMPORT_DATABASE:?Set OSBB_IMPORT_DATABASE}"
 web_database="${OSBB_DATABASE:?Set OSBB_DATABASE}"
 database_user="${OSBB_POSTGRES_USER:-osbb}"
 
-outputs="$(aws cloudformation describe-stacks --stack-name osbb-requests-dev --region eu-central-1 \
-  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId' || OutputKey=='UserPoolClientId']" --output json --no-cli-pager)"
-config="$(python3 -c '
-import json, sys
-outputs = {row["OutputKey"]: row["OutputValue"] for row in json.load(sys.stdin)}
-for key in ("UserPoolId", "UserPoolClientId"):
-    print(outputs[key])
-' <<< "$outputs")"
-mapfile -t values <<< "$config"
-export OSBB_COGNITO_USER_POOL_ID="${values[0]}" OSBB_COGNITO_CLIENT_ID="${values[1]}"
+: "${OSBB_COGNITO_USER_POOL_ID:?Set OSBB_COGNITO_USER_POOL_ID in the environment file}"
+: "${OSBB_COGNITO_CLIENT_ID:?Set OSBB_COGNITO_CLIENT_ID in the environment file}"
 
 "${compose[@]}" up -d --wait --no-deps postgres
 
