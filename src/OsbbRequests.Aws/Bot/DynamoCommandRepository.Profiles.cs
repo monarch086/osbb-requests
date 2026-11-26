@@ -25,7 +25,7 @@ public sealed partial class DynamoCommandRepository
             ConsistentRead = true,
             Key = new() { ["pk"] = new(OwnerApartments.Key(complexId, userId)) }
         }, ct);
-        return OwnerApartments.Read(response.Item ?? [], complexId, userId);
+        return DynamoOwnerApartments.Read(response.Item ?? [], complexId, userId);
     }
 
     private async Task AddProfileWritesAsync(List<TransactWriteItem> writes, CommandEnvelope command, CommandOutcome outcome, CancellationToken ct)
@@ -43,7 +43,7 @@ public sealed partial class DynamoCommandRepository
         {
             if (residentsTable is null || complexId is null || submission.Value.OwnerId != command.UserId || submission.Value.ComplexId != complexId)
                 throw new InvalidOperationException("Invalid apartment submission.");
-            writes.Add(new() { ConditionCheck = OwnerApartments.CheckProfile(residentsTable, complexId, command.UserId, submission.ProfileVersion) });
+            writes.Add(new() { ConditionCheck = DynamoOwnerApartments.CheckProfile(residentsTable, complexId, command.UserId, submission.ProfileVersion) });
             writes.Add(new() { ConditionCheck = MembershipCheck(command.UserId, complexId) });
             var apartment = submission.Value.Items.Single(item => item.Id == submission.ApartmentId && item.Status == ApartmentReviewStatus.Pending);
             writes.Add(submission.Value.Save(residentsTable, submission.ExpectedVersion));

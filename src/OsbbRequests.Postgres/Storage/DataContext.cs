@@ -24,8 +24,24 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
     public DbSet<AdministratorPermission> AdministratorPermissions => Set<AdministratorPermission>();
     public DbSet<AdministratorNotificationSetting> AdministratorNotificationSettings => Set<AdministratorNotificationSetting>();
     public DbSet<ApiDailyStatistic> ApiDailyStatistics => Set<ApiDailyStatistic>();
+    public DbSet<BotConversation> BotConversations => Set<BotConversation>();
+    public DbSet<BotCommandReceipt> BotCommandReceipts => Set<BotCommandReceipt>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<BotConversation>(e =>
+        {
+            e.ToTable("bot_conversations");
+            e.HasKey(x => new { x.ComplexId, x.Bot, x.UserId, x.Kind });
+            e.Property(x => x.Data).HasColumnType("jsonb");
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => x.ComplexId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<BotCommandReceipt>(e =>
+        {
+            e.ToTable("bot_command_receipts");
+            e.HasKey(x => new { x.ComplexId, x.Bot, x.UpdateId });
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => x.ComplexId).OnDelete(DeleteBehavior.Restrict);
+        });
         model.Entity<SourceRecord>(e => { e.ToTable("source_records"); e.HasKey(x => new { x.SourceId, x.Table, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
         model.Entity<ImportRun>(e => { e.ToTable("import_runs"); e.HasKey(x => x.Id); });
         model.Entity<ResidentApartment>(e =>

@@ -504,17 +504,21 @@ python3 scripts/verify-resident-phone-index.py --stage dev --region eu-central-1
 
 ## Локальний слухач Telegram
 
-Контейнер `command-listener` працює у стеку `osbb-requests` за окремим профілем Compose. Він отримує повідомлення через `getUpdates` і використовує DynamoDB для стану діалогів, мешканців та заявок. Для локального тестування використайте окремого бота без webhook і окремі таблиці DynamoDB, щоб уникнути збігу ідентифікаторів оновлень різних ботів. PostgreSQL адмінпанелі має власний набір даних.
+Контейнер `command-listener` запускається за окремим профілем Compose і отримує повідомлення через Telegram `getUpdates`. Він використовує ту саму робочу базу `OSBB_DATABASE` (типово `osbb_dev`) і рядок підключення `OSBB_CONNECTION_STRING`, що й локальна адмінпанель. Імпортер продовжує оновлювати окрему базу `osbb-import`.
 
-У `.env.data.local` задайте `OSBB_LISTENER_BOT_TOKEN_PARAMETER` (шлях до SSM SecureString), `OSBB_LISTENER_BOT_USERNAME`, `OSBB_LISTENER_COMPLEX_ID`, `OSBB_LISTENER_COMMAND_DATA_TABLE` і `OSBB_LISTENER_RESIDENTS_TABLE`. Таблиця мешканців має містити активний індекс `ResidentsByPhone`. Профіль `OSBB_LISTENER_AWS_PROFILE` повинен мати доступ до цього параметра та операцій обробника з обома таблицями й відповідними індексами. Файли AWS за замовчуванням монтуються з `~/.aws` лише для читання. `OSBB_LISTENER_AWS_REGION` задає регіон, а `OSBB_LISTENER_UID` та `OSBB_LISTENER_GID` дають змогу підібрати права для читання локальних файлів AWS.
+У приватному `.env.data.local` задайте `OSBB_LISTENER_BOT_TOKEN` і `OSBB_LISTENER_BOT_USERNAME` бота без webhook. За потреби задайте окремий `OSBB_LISTENER_SERVICE_BOT_TOKEN` для сервісних сповіщень про зупинку. За замовчуванням слухач використовує комплекс локальної адмінпанелі. `OSBB_LISTENER_COMPLEX_ID` задає інший зовнішній ID комплексу, а `OSBB_LISTENER_POSTGRES_COMPLEX_ID` дає змогу вибрати конкретний рядок у `complexes`, якщо зовнішній ID повторюється.
+
+Після ініціалізації робочої бази застосуйте міграції в її контейнерному оточенні й запустіть слухач.
 
 ```bash
-docker compose --env-file .env.data.local -f compose.data.yml up -d --build command-listener
+docker compose --env-file .env.data.local -f compose.data.yml build command-listener
+docker compose --env-file .env.data.local -f compose.data.yml run --rm command-listener migrate
+docker compose --env-file .env.data.local -f compose.data.yml up -d command-listener
 docker compose --env-file .env.data.local -f compose.data.yml logs -f command-listener
 docker compose --env-file .env.data.local -f compose.data.yml stop command-listener
 ```
 
-Для одного токена запускайте лише один слухач. Якщо Telegram повертає `409` через активний webhook або інший процес опитування, слухач завершується, а Compose обмежує кількість перезапусків. Перехід чинного бота на polling потребує окремого перемикання приймання команд. Lambda доставки сповіщень працює окремо. Для сервісних сповіщень про зупинку слухача можна задати `OSBB_LISTENER_SERVICE_BOT_TOKEN_PARAMETER`.
+Для одного токена запускайте один слухач. Якщо Telegram повертає `409` через активний webhook або інший процес опитування, слухач завершується. Нові сповіщення з локальної адмінпанелі й бота записуються в `notifications` зі станом `LOCAL_PENDING`. Їхня доставка потребує окремого PostgreSQL-воркера.
 
 ## Локальний Web API
 
@@ -533,7 +537,7 @@ curl --fail http://127.0.0.1:8082/health
 
 Усі адміністративні маршрути читають і зберігають дані у PostgreSQL. Для нових редагувань історія заявки відображає ті самі поля аудиту, що й хмарний API. Cognito використовується для перевірки токенів і підтвердженого email при першому вході. AWS credentials потрібні скрипту на хості для CloudFormation. У контейнер вони не передаються, а образ Web API не містить клієнта DynamoDB. Роль `IsSuperAdmin` береться з імпортованого профілю і доступна через API лише для читання.
 
-Щотижневий імпортер оновлює `osbb-import`. Робоча база `osbb_dev` зберігає власні зміни, історію й події `LOCAL_PENDING`. Чинний Telegram-воркер обробляє події DynamoDB, тож локальні зміни й сповіщення не передаються в бот. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_dev ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
+Щотижневий імпортер оновлює `osbb-import`. Робоча база `osbb_dev` зберігає власні зміни, історію й події `LOCAL_PENDING`. Локальний слухач читає актуальні зміни з `osbb_dev`. Для доставки подій `LOCAL_PENDING` потрібен окремий воркер. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_dev ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
 
 ## Локальна PostgreSQL та імпорт DynamoDB (експериментально)
 

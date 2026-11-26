@@ -36,7 +36,7 @@ public sealed class OwnerApartmentStoreTests
         var save = Assert.Single(writes, write => write.Put?.TableName == "residents").Put;
         Assert.Equal("2", save.ExpressionAttributeValues[":version"].N);
         Assert.False(save.Item.ContainsKey(ResidentRecordKey.IndexGroupAttribute));
-        var result = Assert.Single(OwnerApartments.Read(save.Item, "complex", Owner.UserId)!.Items);
+        var result = Assert.Single(DynamoOwnerApartments.Read(save.Item, "complex", Owner.UserId)!.Items);
         Assert.Equal(status, result.Status);
         Assert.Equal(Reviewer.Email, result.ReviewedBy);
         Assert.NotNull(result.ReviewedAt);

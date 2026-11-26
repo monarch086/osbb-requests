@@ -161,6 +161,73 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.ToTable("api_daily_statistics", (string)null);
                 });
 
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.BotCommandReceipt", b =>
+                {
+                    b.Property<long>("ComplexId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Bot")
+                        .HasColumnType("text");
+
+                    b.Property<long>("UpdateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ChatId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Delivered")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("Keyboard")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RefreshMenu")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("ComplexId", "Bot", "UpdateId");
+
+                    b.ToTable("bot_command_receipts", (string)null);
+                });
+
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.BotConversation", b =>
+                {
+                    b.Property<long>("ComplexId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Bot")
+                        .HasColumnType("text");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Kind")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Data")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ComplexId", "Bot", "UserId", "Kind");
+
+                    b.ToTable("bot_conversations", (string)null);
+                });
+
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.BroadcastMessage", b =>
                 {
                     b.Property<long>("SourceId")
@@ -781,6 +848,24 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
                         .WithMany()
                         .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.BotCommandReceipt", b =>
+                {
+                    b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("ComplexId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.BotConversation", b =>
+                {
+                    b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("ComplexId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

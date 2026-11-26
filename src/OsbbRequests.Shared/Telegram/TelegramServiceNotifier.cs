@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Amazon.SimpleSystemsManagement;
 
 namespace OsbbRequests.Shared.Telegram;
 
@@ -14,13 +13,6 @@ public sealed class TelegramServiceNotifier(HttpClient http, ISecretProvider sec
     string chatId = TelegramServiceNotifier.ServiceNotificationChatId, string sourceLabel = "Lambda", string logLocation = "CloudWatch") : IServiceNotifier
 {
     public const string ServiceNotificationChatId = "38627946";
-
-    public static TelegramServiceNotifier FromEnvironment(HttpClient http) => new(http,
-        new SsmSecretProvider(new AmazonSimpleSystemsManagementClient(),
-            Environment.GetEnvironmentVariable("SERVICE_BOT_TOKEN_PARAMETER") ?? "/shared/telegram/service-bot-token"),
-        Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME") ?? "unknown",
-        Environment.GetEnvironmentVariable("STAGE") ?? "unknown",
-        Environment.GetEnvironmentVariable("SERVICE_NOTIFICATION_CHAT_ID") ?? ServiceNotificationChatId);
 
     public async Task NotifyFailureAsync(string operation, Exception error, string? requestId = null, Action<string>? log = null)
     {

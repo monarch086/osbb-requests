@@ -3,11 +3,6 @@ using Amazon.SimpleSystemsManagement.Model;
 
 namespace OsbbRequests.Shared.Telegram;
 
-public interface ISecretProvider
-{
-    Task<string> GetAsync(CancellationToken cancellationToken);
-}
-
 public sealed class SsmSecretProvider(IAmazonSimpleSystemsManagement client, string parameterName) : ISecretProvider
 {
     private readonly SemaphoreSlim gate = new(1, 1);

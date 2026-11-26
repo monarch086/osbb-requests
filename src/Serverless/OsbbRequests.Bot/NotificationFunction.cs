@@ -17,7 +17,7 @@ public sealed class NotificationFunction
     {
         var telegram = new TelegramClient(Http, new SsmSecretProvider(new AmazonSimpleSystemsManagementClient(),
             RuntimeConfiguration.Required("BOT_TOKEN_PARAMETER")));
-        notifier = TelegramServiceNotifier.FromEnvironment(Http);
+        notifier = AwsTelegramServiceNotifier.FromEnvironment(Http);
         processor = new(new DynamoNotificationRepository(new AmazonDynamoDBClient(),
             RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), RuntimeConfiguration.Required("BUILDING_ID"), RuntimeConfiguration.Required("ADMINISTRATORS_TABLE"),
             RuntimeConfiguration.Required("RESIDENTS_TABLE")), telegram, notifier);

@@ -25,7 +25,7 @@ internal sealed class OwnerApartmentProjector(DataContext db)
 
     public async Task<bool> ProjectAsync(long complexId, string externalComplexId, long ownerId, Dictionary<string, AttributeValue> item, CancellationToken ct)
     {
-        var record = OwnerApartments.Read(item, externalComplexId, ownerId)
+        var record = DynamoOwnerApartments.Read(item, externalComplexId, ownerId)
             ?? throw new InvalidOperationException("Missing owner apartment payload.");
         var current = await Rows(complexId, ownerId).ToDictionaryAsync(row => row.ApartmentId, ct);
         var changed = false;

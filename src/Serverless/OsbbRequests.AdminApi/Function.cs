@@ -36,7 +36,7 @@ public sealed class Function
             Environment.GetEnvironmentVariable("COMPACT_RESIDENT_NAME_DIRECTORY") == "true");
         handler = new ApiHandler(new AdminAccountService(store, new CognitoIdentity(new AmazonCognitoIdentityProviderClient())), new PermissionService(store),
             new ResidentService(store), new RequestService(store, store), new MessageService(store), new StatisticsService(statistics));
-        notifier = TelegramServiceNotifier.FromEnvironment(Http);
+        notifier = AwsTelegramServiceNotifier.FromEnvironment(Http);
     }
     public Function(ApiHandler handler, IServiceNotifier? notifier = null, IStatisticsStore? statistics = null)
     { this.handler = handler; this.notifier = notifier; this.statistics = statistics; }

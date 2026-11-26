@@ -22,7 +22,7 @@ public sealed class Function
         new CommandQueue(new AmazonSQSClient(), RuntimeConfiguration.Required("COMMAND_QUEUE_URL")),
         RuntimeConfiguration.Required("TELEGRAM_BOT_USERNAME")))
     {
-        notifier = TelegramServiceNotifier.FromEnvironment(Http);
+        notifier = AwsTelegramServiceNotifier.FromEnvironment(Http);
     }
 
     public Function(WebhookHandler handler, IServiceNotifier? notifier = null)

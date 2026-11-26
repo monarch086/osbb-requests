@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../OsbbRequests.Postgres/OsbbRequests.Postgres.csproj" />
+    <ProjectReference Include="../OsbbRequests.Aws/OsbbRequests.Aws.csproj" />
     <ProjectReference Include="../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />
   </ItemGroup>
 

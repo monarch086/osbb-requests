@@ -33,7 +33,7 @@ public sealed partial class DynamoAdminStore
             foreach (var owner in batch)
             {
                 if (!rows.TryGetValue(OwnerApartments.Key(building, owner.UserId), out var row)) continue;
-                var record = OwnerApartments.Read(row, building, owner.UserId);
+                var record = DynamoOwnerApartments.Read(row, building, owner.UserId);
                 if (record?.RegistrationId != owner.Id) continue;
                 approved[owner.Id] = record.Items.Where(apartment => apartment.Status == ApartmentReviewStatus.Approved).ToList();
             }
@@ -104,7 +104,7 @@ public sealed partial class DynamoAdminStore
         var next = record with { Version = record.Version + 1, Items = record.Items.Select(value => value.Id == apartmentId ? reviewed : value).ToList() };
         var text = approved ? "Запит на додавання квартири підтверджено." : "Запит на додавання квартири відхилено.";
         await Transact([ActorCheck(actor),
-            new() { ConditionCheck = OwnerApartments.CheckProfile(table, building, profile.UserId, profile.Version) },
+            new() { ConditionCheck = DynamoOwnerApartments.CheckProfile(table, building, profile.UserId, profile.Version) },
             next.Save(table, record.Version),
             NotificationWrite(new ResidentNotification("apartment-" + item.Id, building, profile.UserId, null, null,
                 text + " Перевірте статус у розділі «Мої квартири».", now, RegistrationId: profile.Id))], ct);
@@ -114,7 +114,7 @@ public sealed partial class DynamoAdminStore
     {
         var table = residentsTable ?? throw new InvalidOperationException("Missing residents table.");
         var row = await Get(table, new() { ["pk"] = S(OwnerApartments.Key(building, userId)) }, ct);
-        return row is null ? null : OwnerApartments.Read(row, building, userId);
+        return row is null ? null : DynamoOwnerApartments.Read(row, building, userId);
     }
 
     private bool TryReviewOwner(Dictionary<string, AttributeValue> key, out long owner) =>

@@ -1,7 +1,8 @@
 using System.Runtime.InteropServices;
-using Amazon.DynamoDBv2;
-using Amazon.SimpleSystemsManagement;
-using OsbbRequests.Aws.Bot;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using OsbbRequests.DataImport.Storage;
+using OsbbRequests.Postgres.Bot;
 using OsbbRequests.CommandListener;
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Telegram;
@@ -21,31 +22,35 @@ Console.CancelKeyPress += (_, args) =>
 
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
 IServiceNotifier? notifier = null;
-AmazonSimpleSystemsManagementClient? secrets = null;
 try
 {
-    var tokenParameter = Required("BOT_TOKEN_PARAMETER");
+    var db = new PooledDbContextFactory<DataContext>(new DbContextOptionsBuilder<DataContext>()
+        .UseNpgsql(Required("POSTGRES_CONNECTION_STRING")).Options);
+    if (args is ["migrate"])
+    {
+        await using var context = await db.CreateDbContextAsync(shutdown.Token);
+        await context.Database.MigrateAsync(shutdown.Token);
+        Console.WriteLine("operation=migrate_postgres outcome=completed");
+        return 0;
+    }
+
+    var token = Required("TELEGRAM_BOT_TOKEN");
     var botUsername = Required("TELEGRAM_BOT_USERNAME").TrimStart('@');
     var complexId = Required("BUILDING_ID");
-    var commandTable = Required("COMMAND_DATA_TABLE");
-    var residentsTable = Required("RESIDENTS_TABLE");
     var approvalMode = ResidentApprovalConfiguration.Parse(Environment.GetEnvironmentVariable("RESIDENT_APPROVAL_MODE"));
+    var repository = await PostgresCommandRepository.ConnectAsync(db, complexId, botUsername, shutdown.Token, PostgresComplexId());
 
-    secrets = new AmazonSimpleSystemsManagementClient();
-    if (Environment.GetEnvironmentVariable("SERVICE_BOT_TOKEN_PARAMETER") is { Length: > 0 } serviceParameter)
-        notifier = new TelegramServiceNotifier(http, new SsmSecretProvider(secrets, serviceParameter),
+    if (Environment.GetEnvironmentVariable("SERVICE_BOT_TOKEN") is { Length: > 0 } serviceToken)
+        notifier = new TelegramServiceNotifier(http, new LocalSecret(serviceToken),
             "osbb-requests-command-listener", Environment.GetEnvironmentVariable("STAGE") ?? "local",
             Environment.GetEnvironmentVariable("SERVICE_NOTIFICATION_CHAT_ID") ?? TelegramServiceNotifier.ServiceNotificationChatId,
             sourceLabel: "Сервіс", logLocation: "журнал контейнера");
 
-    var telegram = new TelegramClient(http, new SsmSecretProvider(secrets, tokenParameter));
+    var telegram = new TelegramClient(http, new LocalSecret(token));
     var actualUsername = await telegram.GetBotUsernameAsync(shutdown.Token);
     if (!string.Equals(botUsername, actualUsername, StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException("The configured username does not match the bot token.");
 
-    using var dynamo = new AmazonDynamoDBClient();
-    var repository = new DynamoCommandRepository(dynamo, commandTable,
-        residentsTable: residentsTable, complexId: complexId, usePhoneIndex: true);
     var handler = new CommandHandler(repository, botUsername, complexId, residentApprovalMode: approvalMode);
     var processor = new TelegramCommandProcessor(repository, handler, telegram, complexId);
     var loop = new CommandPollingLoop(telegram, processor.ProcessAsync, botUsername);
@@ -66,13 +71,21 @@ catch (Exception error)
     return 1;
 }
 
-finally
-{
-    secrets?.Dispose();
-}
-
 static string Required(string name) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } value
     ? value : throw new ListenerConfigurationException(name);
+
+static long? PostgresComplexId()
+{
+    var value = Environment.GetEnvironmentVariable("POSTGRES_COMPLEX_ID");
+    if (string.IsNullOrEmpty(value)) return null;
+    if (long.TryParse(value, out var id) && id > 0) return id;
+    throw new ListenerConfigurationException("POSTGRES_COMPLEX_ID");
+}
+
+file sealed class LocalSecret(string value) : ISecretProvider
+{
+    public Task<string> GetAsync(CancellationToken cancellationToken) => Task.FromResult(value);
+}
 
 file sealed class ListenerConfigurationException(string variable) : Exception("Required listener configuration is missing.")
 {

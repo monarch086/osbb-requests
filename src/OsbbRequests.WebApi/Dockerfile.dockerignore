@@ -13,5 +13,9 @@
 !src/OsbbRequests.Domain/**
 !src/OsbbRequests.Postgres/
 !src/OsbbRequests.Postgres/**
+!src/OsbbRequests.CommandProcessor/
+!src/OsbbRequests.CommandProcessor/**
+!src/OsbbRequests.Shared/
+!src/OsbbRequests.Shared/**
 **/bin/
 **/obj/

@@ -469,7 +469,7 @@ public sealed partial class AdminAuthenticationTests
     {
         public DataContext Readout { get; } = new(CreateOptions(connectionString));
 
-        public static async Task<TestDatabase> CreateAsync()
+        public static async Task<TestDatabase> CreateAsync(bool useMigrations = false)
         {
             var server = Environment.GetEnvironmentVariable("OSBB_POSTGRES_TEST_CONNECTION")!;
             var name = "osbb_test_" + Guid.NewGuid().ToString("N");
@@ -478,7 +478,10 @@ public sealed partial class AdminAuthenticationTests
             var holder = new TestDatabase(connection.ConnectionString, name, server);
             try
             {
-                await holder.Readout.Database.EnsureCreatedAsync();
+                if (useMigrations)
+                    await holder.Readout.Database.MigrateAsync();
+                else
+                    await holder.Readout.Database.EnsureCreatedAsync();
                 var context = holder.Readout;
                 context.ImportSources.Add(new() { Id = 1, Region = "eu-central-1", Stage = "dev", AwsAccountId = "000000000000" });
                 context.Complexes.Add(new() { Id = 1, SourceId = 1, ExternalId = "osbb-requests-dev" });

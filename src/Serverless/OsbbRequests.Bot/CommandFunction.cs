@@ -39,7 +39,7 @@ public sealed class CommandFunction
         processor = new TelegramCommandProcessor(repository, handler, telegram, complexId);
         retryScheduler = new QueueRetryScheduler(new Amazon.SQS.AmazonSQSClient(),
             RuntimeConfiguration.Required("COMMAND_QUEUE_URL"));
-        notifier = TelegramServiceNotifier.FromEnvironment(Http);
+        notifier = AwsTelegramServiceNotifier.FromEnvironment(Http);
     }
 
     public CommandFunction(TelegramCommandProcessor processor, IQueueRetryScheduler? retryScheduler = null,

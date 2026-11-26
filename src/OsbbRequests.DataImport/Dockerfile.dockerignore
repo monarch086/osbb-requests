@@ -13,5 +13,9 @@
 !src/OsbbRequests.Postgres/**
 !src/OsbbRequests.Services/
 !src/OsbbRequests.Services/**
+!src/OsbbRequests.CommandProcessor/
+!src/OsbbRequests.CommandProcessor/**
+!src/OsbbRequests.Aws/
+!src/OsbbRequests.Aws/**
 **/bin/
 **/obj/

@@ -7,8 +7,8 @@
 !src/OsbbRequests.CommandListener/**
 !src/OsbbRequests.CommandProcessor/
 !src/OsbbRequests.CommandProcessor/**
-!src/OsbbRequests.Aws/
-!src/OsbbRequests.Aws/**
+!src/OsbbRequests.Postgres/
+!src/OsbbRequests.Postgres/**
 !src/OsbbRequests.Shared/
 !src/OsbbRequests.Shared/**
 !src/OsbbRequests.Services/

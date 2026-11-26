@@ -136,15 +136,8 @@ public sealed partial class PostgresAdminStore
         var phones = await db.ResidentPhones.Where(phone => ids.Contains(phone.ResidentId) && phone.IsPrimary)
             .ToDictionaryAsync(phone => phone.ResidentId, phone => phone.Phone, ct);
         var consents = await db.ResidentConsents.Where(consent => ids.Contains(consent.ResidentId)).ToDictionaryAsync(consent => consent.ResidentId, ct);
-        return rows.Select(r =>
-        {
-            var consent = consents.GetValueOrDefault(r.Id);
-            return new ResidentRegistration(r.RegistrationId ?? "", r.TelegramUserId, options.Complex, r.Stage, r.Version,
-                r.CreatedAt ?? DateTimeOffset.UnixEpoch, r.UpdatedAt ?? r.CreatedAt ?? DateTimeOffset.UnixEpoch,
-                phones.GetValueOrDefault(r.Id), r.FirstName, r.LastName, r.DecisionReason, r.BuildingNumber, r.ApartmentNumber,
-                r.PersonalDataDeleted, r.PersonalDataDeletedAt, r.ApprovedAt, r.Email, consent?.ConsentedAt, consent?.Version,
-                r.ResumeAfterConsent, r.ResidentType, r.TypeBeforeAddress, r.TypeChangeCount);
-        }).ToArray();
+        return rows.Select(row => ResidentProfileMapping.ToProfile(row, options.Complex,
+            phones.GetValueOrDefault(row.Id), consents.GetValueOrDefault(row.Id))).ToArray();
     }
 
     public Task<RegistrationApproval?> GetRegistrationApprovalAsync(string reference, CancellationToken ct) =>

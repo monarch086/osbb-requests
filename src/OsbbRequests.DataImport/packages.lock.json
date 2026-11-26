@@ -372,6 +372,22 @@
           "System.Composition.Runtime": "9.0.0"
         }
       },
+      "osbbrequests.aws": {
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.DynamoDBv2": "[4.0.108, )",
+          "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )",
+          "OsbbRequests.CommandProcessor": "[1.0.0, )",
+          "OsbbRequests.Services": "[1.0.0, )",
+          "OsbbRequests.Shared": "[1.0.0, )"
+        }
+      },
+      "osbbrequests.commandprocessor": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Shared": "[1.0.0, )"
+        }
+      },
       "osbbrequests.domain": {
         "type": "Project"
       },
@@ -381,6 +397,7 @@
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
           "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "OsbbRequests.CommandProcessor": "[1.0.0, )",
           "OsbbRequests.Services": "[1.0.0, )"
         }
       },
@@ -393,8 +410,6 @@
       "osbbrequests.shared": {
         "type": "Project",
         "dependencies": {
-          "AWSSDK.DynamoDBv2": "[4.0.108, )",
-          "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )",
           "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
           "OsbbRequests.Domain": "[1.0.0, )"
         }
