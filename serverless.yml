@@ -1037,11 +1037,23 @@ resources:
         Name: ${self:service}-${sls:stage}-frontend-router
         AutoPublish: true
         FunctionConfig:
-          Comment: Serve Angular routes from the SPA entry point
+          Comment: Redirect the legacy frontend host and serve Angular routes
           Runtime: cloudfront-js-2.0
         FunctionCode: |
           function handler(event) {
             var request = event.request;
+            var host = request.headers.host;
+            if (host && host.value === 'd2aeffc3h35yt5.cloudfront.net') {
+              var path = request.uri === '/index.html' ? '/' : request.uri;
+              return {
+                statusCode: 302,
+                statusDescription: 'Found',
+                headers: {
+                  location: { value: 'https://zeleniy-ostriv2.com' + path },
+                  'cache-control': { value: 'no-store' }
+                }
+              };
+            }
             if (/^\/(requests|residents|messages|administrators|statistics)\/?$/.test(request.uri)) {
               request.uri = '/index.html';
             }
