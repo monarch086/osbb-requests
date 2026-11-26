@@ -57,7 +57,7 @@ services:
       ASPNETCORE_HTTP_PORTS: '8080'
       Cognito__UserPoolId: ${OSBB_COGNITO_USER_POOL_ID:-}
       Cognito__ClientId: ${OSBB_COGNITO_CLIENT_ID:-}
-      ConnectionStrings__Postgres: ${OSBB_WEB_API_CONNECTION_STRING:?Set OSBB_WEB_API_CONNECTION_STRING}
+      ConnectionStrings__Postgres: ${OSBB_CONNECTION_STRING:?Set OSBB_CONNECTION_STRING}
       Postgres__ComplexId: ${OSBB_COMPLEX_ID:-osbb-requests-dev}
       Postgres__AccountId: ${OSBB_SOURCE_ACCOUNT_ID:-}
     ports:

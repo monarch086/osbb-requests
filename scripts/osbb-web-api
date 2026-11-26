@@ -5,7 +5,7 @@ project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$project_root/scripts/osbb-data-env.sh"
 cd "$project_root"
 import_database="${OSBB_IMPORT_DATABASE:?Set OSBB_IMPORT_DATABASE}"
-web_database="${OSBB_WEB_API_DATABASE:?Set OSBB_WEB_API_DATABASE}"
+web_database="${OSBB_DATABASE:?Set OSBB_DATABASE}"
 database_user="${OSBB_POSTGRES_USER:-osbb}"
 
 outputs="$(aws cloudformation describe-stacks --stack-name osbb-requests-dev --region eu-central-1 \

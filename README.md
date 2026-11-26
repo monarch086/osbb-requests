@@ -502,7 +502,7 @@ python3 scripts/verify-resident-phone-index.py --stage dev --region eu-central-1
 
 ## Локальний Web API
 
-Скрипт `./scripts/osbb-web-api` збирає та запускає в Compose адмінпанель на `http://127.0.0.1:8083` і Web API на `http://127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_web_api` з копії імпортованої `osbb-import`. Наступні запуски використовують наявну копію. Порти можна налаштувати через `OSBB_FRONTEND_PORT` та `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
+Скрипт `./scripts/osbb-web-api` збирає та запускає в Compose адмінпанель на `http://127.0.0.1:8083` і Web API на `http://127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_dev` з копії імпортованої `osbb-import`. Наступні запуски використовують наявну копію. Порти можна налаштувати через `OSBB_FRONTEND_PORT` та `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
 
 ```bash
 ./scripts/osbb-web-api
@@ -517,7 +517,7 @@ curl --fail http://127.0.0.1:8082/health
 
 Усі адміністративні маршрути читають і зберігають дані у PostgreSQL. Для нових редагувань історія заявки відображає ті самі поля аудиту, що й хмарний API. Cognito використовується для перевірки токенів і підтвердженого email при першому вході. AWS credentials потрібні скрипту на хості для CloudFormation. У контейнер вони не передаються, а образ Web API не містить клієнта DynamoDB. Роль `IsSuperAdmin` береться з імпортованого профілю і доступна через API лише для читання.
 
-Щотижневий імпортер оновлює `osbb-import`. Робоча база `osbb_web_api` зберігає власні зміни, історію й події `LOCAL_PENDING`. Чинний Telegram-воркер обробляє події DynamoDB, тож локальні зміни й сповіщення не передаються в бот. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_web_api ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
+Щотижневий імпортер оновлює `osbb-import`. Робоча база `osbb_dev` зберігає власні зміни, історію й події `LOCAL_PENDING`. Чинний Telegram-воркер обробляє події DynamoDB, тож локальні зміни й сповіщення не передаються в бот. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_dev ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
 
 ## Локальна PostgreSQL та імпорт DynamoDB (експериментально)
 
@@ -530,7 +530,9 @@ docker compose --env-file .env.data.local -f compose.data.yml up -d
 ./scripts/osbb-data migrate
 ```
 
-Для наявного `.env.data.local` додайте відсутні змінні з шаблону, зберігши поточний пароль. `OSBB_IMPORT_DATABASE` і `OSBB_WEB_API_DATABASE` задають назви баз. Рядки `OSBB_IMPORT_HOST_CONNECTION_STRING`, `OSBB_IMPORT_DOCKER_CONNECTION_STRING` та `OSBB_WEB_API_CONNECTION_STRING` використовують ці назви для CLI на хості, контейнера імпорту і контейнера Web API відповідно.
+Для наявного `.env.data.local` додайте відсутні змінні з шаблону, зберігши поточний пароль. `OSBB_IMPORT_DATABASE` і `OSBB_DATABASE` задають назви баз. Рядки `OSBB_IMPORT_HOST_CONNECTION_STRING`, `OSBB_IMPORT_DOCKER_CONNECTION_STRING` та `OSBB_CONNECTION_STRING` використовують ці назви для CLI на хості, контейнера імпорту і контейнера Web API відповідно.
+
+Під час оновлення наявного стека з базою `osbb_web_api` зробіть її бекап, зупиніть контейнер Web API та закрийте інші підключення до цієї бази. Зі службової бази `postgres` виконайте `ALTER DATABASE osbb_web_api RENAME TO osbb_dev`. Оновіть назви змінних у файлі середовища за шаблоном і запустіть `./scripts/osbb-web-api`. Перейменування до запуску зберігає локальні зміни в робочій базі.
 
 Для іншого середовища скопіюйте шаблон, наприклад у `.env.data.staging`. Скрипти `osbb-data`, `osbb-data-weekly` і `osbb-web-api` за замовчуванням читають `.env.data.local`. Альтернативний файл можна вибрати через `OSBB_DATA_ENV_FILE=.env.data.staging ./scripts/osbb-web-api`. У прямих командах Compose передайте той самий файл через `--env-file`. Для окремого стека на тому самому хості задайте у файлі власний `COMPOSE_PROJECT_NAME` та вільні порти.
 
