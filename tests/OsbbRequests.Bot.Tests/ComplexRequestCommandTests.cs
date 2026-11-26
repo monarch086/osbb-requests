@@ -1,5 +1,5 @@
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using Xunit;
@@ -151,7 +151,7 @@ public sealed class ComplexRequestCommandTests
         var repository = new MemoryRepository();
         for (var i = 1; i <= 6; i++) repository.Requests.Add(Request(i));
         var telegram = new FakeTelegram { Fail = true };
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Message(1, "/complex"), default));
         var cursor = Assert.Single(repository.ComplexCursors);
         var receipt = repository.Replies[1];
@@ -168,7 +168,7 @@ public sealed class ComplexRequestCommandTests
         var repository = new MemoryRepository { FailCommit = true };
         for (var i = 1; i <= 6; i++) repository.Requests.Add(Request(i));
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Message(1, "/complex"), default));
         Assert.Empty(repository.ComplexCursors);
         Assert.Empty(repository.Replies);
@@ -386,7 +386,7 @@ public sealed class ComplexRequestCommandTests
         var repository = new MemoryRepository();
         repository.Requests.Add(Request());
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         await processor.ProcessAsync(Message(1, "/delete 7"), default);
         telegram.Fail = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Message(2, "Так"), default));

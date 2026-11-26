@@ -9,7 +9,8 @@
 ## Контекст і структура
 
 - Продукт: Telegram-бот ОСББ та вебпанель ЖК «Зелений острів 2»: чотири будинки 4Б, 4В, 4Г та 4Д по 25 поверхів. У текстах рівня всього ЖК використовуйте «комплекс»; «будинок» - лише для конкретного будинку.
-- `src/Serverless/OsbbRequests.Bot` - webhook, обробка команд із SQS, реєстрація мешканців і Telegram-клієнт.
+- `src/Serverless/OsbbRequests.Bot` - Lambda-обгортка бота: webhook, черга SQS, доставка сповіщень і адаптери DynamoDB.
+- `src/OsbbRequests.CommandProcessor` - спільна обробка команд, сценарії бота, контракти сховища й Telegram-клієнт.
 - `src/Serverless/OsbbRequests.AdminApi` - Cognito-автентифікація, адміністративні операції та доступ до DynamoDB.
 - `src/OsbbRequests.WebApi` - локальний ASP.NET Core API в Docker.
 - `src/OsbbRequests.Aws` - адаптери DynamoDB для Lambda.

@@ -1,0 +1,29 @@
+using OsbbRequests.Domain.Models;
+
+namespace OsbbRequests.CommandProcessor.Models;
+
+public enum ReplyKeyboard
+{
+    RequestContact,
+    Remove,
+    RequestScope,
+    RequestFloor,
+    RequestCategory,
+    RequestEntrance,
+    RegistrationBuilding,
+    ProfileDeleteConfirmation,
+    OptionalEmail,
+    PersonalDataConsent,
+    ResidentType,
+    OwnerRequestCategory,
+    KeyType,
+    MainGuest,
+    MainResident,
+    PageNavigation,
+    Cancel,
+    KeyNext,
+    KeyFinish,
+    OwnerApartments
+}
+
+public sealed record RegistrationChange(ResidentRegistration Value, int? ExpectedVersion, bool AutomaticallyApproved = false);

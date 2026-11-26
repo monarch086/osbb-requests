@@ -1,6 +1,6 @@
 using OsbbRequests.Domain;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
 using Xunit;
 
@@ -164,7 +164,7 @@ public sealed class KeyOrderTests
         await Send(repo, 2, RequestCategories.KeyOrder);
         await Send(repo, 3, "Магніт");
         await Send(repo, 4, "0671234567");
-        var processor = new CommandProcessor(repo, new CommandHandler(repo, "Bot", "building"), new FakeTelegram());
+        var processor = new TelegramCommandProcessor(repo, new CommandHandler(repo, "Bot", "building"), new FakeTelegram());
         await processor.ProcessAsync(Message(5, "Завершити створення заявки"), default);
         await processor.ProcessAsync(Message(5, "Завершити створення заявки"), default);
         Assert.Single(repo.Requests);

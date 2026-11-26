@@ -1,3 +1,4 @@
+using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.Shared.Telegram;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain;
@@ -11,10 +12,10 @@ using Amazon.DynamoDBv2.Model;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
 using Amazon.Runtime;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Bot.Persistence;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Bot.Webhook;
 using Xunit;
 
@@ -541,7 +542,7 @@ public sealed class InfrastructureTests
         using var http = new HttpClient(new HttpStub(_ => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status)
         { Content = new StringContent(body) })));
         var repository = new MemoryRepository();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
             new TelegramClient(http, new FakeSecret("SECRET")));
         var logs = new List<string>();
         var response = await new CommandFunction(processor).FunctionHandler(
@@ -567,7 +568,7 @@ public sealed class InfrastructureTests
     {
         using var http = new HttpClient(new HttpStub(_ => throw new HttpRequestException("https://api.telegram.org/botSECRET/sendMessage")));
         var repository = new MemoryRepository();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
             new TelegramClient(http, new FakeSecret("SECRET")));
         var logs = new List<string>();
         await new CommandFunction(processor).FunctionHandler(new SQSEvent { Records = [Record("failed", 100)] }, ContextProxy.Create(logs));
@@ -599,7 +600,7 @@ public sealed class InfrastructureTests
     public async Task SuccessfulRetryLogsOnlySafeMessageIdentifierAndReceiveCount()
     {
         var repository = new MemoryRepository();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
         var record = Record("message-id", 100);
         record.Attributes = new Dictionary<string, string> { ["ApproximateReceiveCount"] = "2" };
         var logs = new List<string>();
@@ -618,7 +619,7 @@ public sealed class InfrastructureTests
     {
         using var http = new HttpClient(new HttpStub(_ => throw new HttpRequestException("SECRET")));
         var repository = new MemoryRepository();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
             new TelegramClient(http, new FakeSecret("SECRET")));
         var record = Record("message-id", 100);
         record.Attributes = new Dictionary<string, string> { ["ApproximateReceiveCount"] = "2" };
@@ -634,7 +635,7 @@ public sealed class InfrastructureTests
     public async Task FirstSuccessfulAttemptDoesNotGenerateRetryLog()
     {
         var repository = new MemoryRepository();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
         var record = Record("message-id", 100);
         record.Attributes = new Dictionary<string, string> { ["ApproximateReceiveCount"] = "1" };
         var logs = new List<string>();
@@ -661,7 +662,7 @@ public sealed class InfrastructureTests
     public async Task FifoBatchStopsAtFirstFailureAndReturnsRemainingRecords(bool serviceFails)
     {
         var repository = new MemoryRepository { FailCommit = true };
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), new FakeTelegram());
         var input = new SQSEvent
         {
             Records = [Record("first", 100), Record("second", 101)]
@@ -699,7 +700,7 @@ public sealed class InfrastructureTests
         {
             Content = new StringContent("{\"ok\":false,\"parameters\":{\"retry_after\":400}}")
         })));
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"),
             new TelegramClient(http, new FakeSecret("token")));
         var retry = new FakeRetryScheduler { Fail = deferFails };
         var notifier = new RecordingServiceNotifier(fail: true);
@@ -717,7 +718,7 @@ public sealed class InfrastructureTests
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), telegram);
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), telegram);
         var function = new CommandFunction(processor);
         var input = new SQSEvent { Records = [Record("first", 100)] };
         Assert.Empty((await function.FunctionHandler(input, ContextProxy.Create())).BatchItemFailures);

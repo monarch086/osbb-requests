@@ -2,8 +2,8 @@ using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
@@ -18,7 +18,7 @@ public sealed class ResidentProfileTests
     private static readonly ResidentRegistration Original = new("reference", 42, "building", RegistrationStage.Approved, 6,
         Now.AddDays(-10), Now.AddDays(-9), "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "12", Email: "old@example.com", ResidentType: ResidentType.Owner, ConsentAt: Now.AddDays(-10), ConsentVersion: "1");
     private static CommandEnvelope Message(long id, string text, TelegramContact? contact = null) => new(id, 42, 42, text, contact);
-    private static (MemoryRepository Repo, CommandProcessor Processor) Setup()
+    private static (MemoryRepository Repo, TelegramCommandProcessor Processor) Setup()
     {
         var repo = new MemoryRepository();
         repo.Registrations[42] = Original;
@@ -395,7 +395,7 @@ public sealed class ResidentProfileTests
     {
         var (repo, _) = Setup();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building", new Clock()), telegram, "building");
+        var processor = new TelegramCommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building", new Clock()), telegram, "building");
         repo.Requests.Add(new(7, 42, "building", "інше", "", "Текст заявки", Now.AddHours(-1)));
         await processor.ProcessAsync(Message(1, "/delete_profile"), default);
         await processor.ProcessAsync(Message(2, ResidentProfileService.Confirmation), default);

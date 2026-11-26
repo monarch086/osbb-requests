@@ -4,7 +4,7 @@ using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Bot.Notifications;
 using OsbbRequests.Aws;

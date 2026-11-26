@@ -1,5 +1,5 @@
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 using Xunit;
@@ -12,7 +12,7 @@ public sealed class ResidentAccountTests
     private static readonly ResidentRegistration Profile = new("reference", 42, "building", RegistrationStage.Approved, 6,
         Now, Now, "+380500000000", "Олена", "Ковальчук", BuildingNumber: "4Б", ApartmentNumber: "1", ResidentType: ResidentType.Owner, ConsentAt: Now, ConsentVersion: "1");
     private static CommandEnvelope Message(long id, string text) => new(id, 42, 42, text);
-    private static (MemoryRepository Repo, CommandProcessor Processor) Setup(ResidentRegistration profile)
+    private static (MemoryRepository Repo, TelegramCommandProcessor Processor) Setup(ResidentRegistration profile)
     {
         var repo = new MemoryRepository();
         repo.Registrations[42] = profile;

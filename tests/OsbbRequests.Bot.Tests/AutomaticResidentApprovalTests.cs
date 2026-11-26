@@ -3,8 +3,8 @@ using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Bot.Persistence;
 using OsbbRequests.Domain.Models;
 using Xunit;
@@ -23,7 +23,7 @@ public sealed class AutomaticResidentApprovalTests
     {
         var repo = new MemoryRepository();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building"), telegram, "building");
+        var processor = new TelegramCommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building"), telegram, "building");
         await processor.ProcessAsync(Message(1, "/start"), default);
         await processor.ProcessAsync(Message(1001, RegistrationService.ConsentButton), default);
         Assert.Contains("автоматично", telegram.Messages[^1].Text);
@@ -57,7 +57,7 @@ public sealed class AutomaticResidentApprovalTests
     {
         var repo = new MemoryRepository();
         repo.Registrations[99] = Approved with { Stage = RegistrationStage.AwaitingResidentType, ApprovedAt = null };
-        var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building"), new FakeTelegram());
+        var processor = new TelegramCommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building"), new FakeTelegram());
         await processor.ProcessAsync(Message(1, "некоректно"), default);
         Assert.Equal(RegistrationStage.AwaitingResidentType, repo.Registrations[99].Stage);
         var selection = Message(2, choice);
@@ -99,7 +99,7 @@ public sealed class AutomaticResidentApprovalTests
     {
         var repo = new MemoryRepository();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building", residentApprovalMode: mode), telegram, "building");
+        var processor = new TelegramCommandProcessor(repo, new CommandHandler(repo, "OsbbBot", "building", residentApprovalMode: mode), telegram, "building");
         await processor.ProcessAsync(Message(1, "/start"), default);
         await processor.ProcessAsync(Message(2, RegistrationService.ConsentButton), default);
         await processor.ProcessAsync(Message(3, "", new("+380671234567", 99)), default);

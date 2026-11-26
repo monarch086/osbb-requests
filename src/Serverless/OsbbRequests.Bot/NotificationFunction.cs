@@ -4,7 +4,7 @@ using Amazon.DynamoDBv2;
 using Amazon.Lambda.Core;
 using Amazon.SimpleSystemsManagement;
 using OsbbRequests.Bot.Notifications;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Telegram;
 
 namespace OsbbRequests.Bot;
 

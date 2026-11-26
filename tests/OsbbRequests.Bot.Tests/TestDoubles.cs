@@ -1,10 +1,10 @@
+using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.Shared.Telegram;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain;
 using System.Globalization;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Bot.Persistence;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Bot.Webhook;
 
 namespace OsbbRequests.Bot.Tests;

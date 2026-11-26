@@ -1,6 +1,6 @@
 using System.Text.Json;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using Xunit;
@@ -85,7 +85,7 @@ public sealed class RequestEntranceTests
     public async Task EntranceStepAndFinalizationRemainIdempotent()
     {
         var repository = new MemoryRepository();
-        var processor = new CommandProcessor(repository, Handler(repository), new FakeTelegram());
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), new FakeTelegram());
         foreach (var (id, text) in new[] { (1, "/new"), (5, "інше"), (2, "Будинок 4В"), (3, "2"), (4, "12"), (6, "Не працює освітлення") })
         {
             await processor.ProcessAsync(Message(id, text), default);

@@ -2,9 +2,9 @@ using OsbbRequests.Domain.Models;
 using System.Net;
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Bot.Webhook;
 using Xunit;
 
@@ -13,11 +13,11 @@ namespace OsbbRequests.Bot.Tests;
 public sealed class RegistrationTests
 {
     private static CommandEnvelope Message(long id, string text = "", TelegramContact? contact = null) => new(id, 99, 99, text, contact);
-    private static (MemoryRepository Repository, FakeTelegram Telegram, CommandProcessor Processor) Create()
+    private static (MemoryRepository Repository, FakeTelegram Telegram, TelegramCommandProcessor Processor) Create()
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
-        return (repository, telegram, new CommandProcessor(repository,
+        return (repository, telegram, new TelegramCommandProcessor(repository,
             new CommandHandler(repository, "OsbbBot", "building", residentApprovalMode: ResidentApprovalMode.Manual), telegram));
     }
 

@@ -1,5 +1,5 @@
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
 using Xunit;
 
@@ -125,7 +125,7 @@ public sealed class RequestLookupTests
         var repository = new MemoryRepository();
         repository.Requests.Add(Request());
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         await processor.ProcessAsync(Message(1, "/request"), default);
         telegram.Fail = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Message(2, "7"), default));

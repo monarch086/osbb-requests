@@ -1,6 +1,6 @@
 using OsbbRequests.Domain.Models;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain;
 using Xunit;
 
@@ -164,7 +164,7 @@ public sealed class CommandTests
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         var command = Command("/new 4В | 12 | сантехніка | Протікає труба");
         await processor.ProcessAsync(command, CancellationToken.None);
         await processor.ProcessAsync(command, CancellationToken.None);
@@ -178,7 +178,7 @@ public sealed class CommandTests
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram { Fail = true };
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         var command = Command("/new 4В | 12 | сантехніка | Протікає труба");
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(command, CancellationToken.None));
         Assert.Single(repository.Requests);
@@ -195,7 +195,7 @@ public sealed class CommandTests
     {
         var repository = new MemoryRepository { FailCommit = true };
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Command("/help"), CancellationToken.None));
         Assert.Empty(telegram.Messages);
     }
@@ -206,7 +206,7 @@ public sealed class CommandTests
         var repository = new MemoryRepository();
         repository.Replies[100] = new StoredReply(100, 99, 99, "Чужі дані", false);
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(Command("/help"), CancellationToken.None));
         Assert.Empty(telegram.Messages);
     }

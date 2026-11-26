@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Shared.Telegram;
 using Xunit;
 

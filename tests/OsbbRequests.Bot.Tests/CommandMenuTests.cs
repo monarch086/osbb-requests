@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.CommandProcessor.Telegram;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -69,7 +69,7 @@ public sealed class CommandMenuTests
         var repository = new MemoryRepository();
         if (!registered) repository.Residents.Clear();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), telegram, "building");
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "OsbbBot", "building"), telegram, "building");
         var command = new CommandEnvelope(1, 42, 42, "/help");
         await processor.ProcessAsync(command, default);
         await processor.ProcessAsync(command, default);

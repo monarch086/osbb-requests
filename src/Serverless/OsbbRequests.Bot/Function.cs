@@ -4,7 +4,6 @@ using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using Amazon.SimpleSystemsManagement;
 using Amazon.SQS;
-using OsbbRequests.Bot.Telegram;
 using OsbbRequests.Bot.Webhook;
 
 [assembly: LambdaSerializer(typeof(DefaultLambdaJsonSerializer))]

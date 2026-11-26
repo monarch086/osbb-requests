@@ -4,25 +4,26 @@ using Amazon.DynamoDBv2;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
 using Amazon.SimpleSystemsManagement;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Bot.Persistence;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Telegram;
 
 namespace OsbbRequests.Bot;
 
 public sealed class CommandFunction
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
-    private readonly CommandProcessor processor;
+    private readonly TelegramCommandProcessor processor;
     private readonly IQueueRetryScheduler? retryScheduler;
     private readonly IServiceNotifier? notifier;
 
     public CommandFunction()
     {
+        var complexId = RuntimeConfiguration.Required("BUILDING_ID");
         var repository = new DynamoCommandRepository(new AmazonDynamoDBClient(),
             RuntimeConfiguration.Required("COMMAND_DATA_TABLE"), residentsTable: RuntimeConfiguration.Required("RESIDENTS_TABLE"),
-            complexId: RuntimeConfiguration.Required("BUILDING_ID"),
+            complexId: complexId,
             usePhoneIndex: Environment.GetEnvironmentVariable("PHONE_LOOKUP_MODE") switch
             {
                 null or "Directory" => false,
@@ -32,15 +33,16 @@ public sealed class CommandFunction
         var secrets = new SsmSecretProvider(new AmazonSimpleSystemsManagementClient(),
             RuntimeConfiguration.Required("BOT_TOKEN_PARAMETER"));
         var telegram = new TelegramClient(Http, secrets);
-        processor = new CommandProcessor(repository,
-            new CommandHandler(repository, RuntimeConfiguration.Required("TELEGRAM_BOT_USERNAME"),
-                RuntimeConfiguration.Required("BUILDING_ID"), residentApprovalMode: ResidentApprovalConfiguration.Parse(Environment.GetEnvironmentVariable("RESIDENT_APPROVAL_MODE"))), telegram, RuntimeConfiguration.Required("BUILDING_ID"));
+        var approvalMode = ResidentApprovalConfiguration.Parse(Environment.GetEnvironmentVariable("RESIDENT_APPROVAL_MODE"));
+        var handler = new CommandHandler(repository, RuntimeConfiguration.Required("TELEGRAM_BOT_USERNAME"),
+            complexId, residentApprovalMode: approvalMode);
+        processor = new TelegramCommandProcessor(repository, handler, telegram, complexId);
         retryScheduler = new QueueRetryScheduler(new Amazon.SQS.AmazonSQSClient(),
             RuntimeConfiguration.Required("COMMAND_QUEUE_URL"));
         notifier = TelegramServiceNotifier.FromEnvironment(Http);
     }
 
-    public CommandFunction(CommandProcessor processor, IQueueRetryScheduler? retryScheduler = null,
+    public CommandFunction(TelegramCommandProcessor processor, IQueueRetryScheduler? retryScheduler = null,
         IServiceNotifier? notifier = null)
     {
         this.processor = processor;

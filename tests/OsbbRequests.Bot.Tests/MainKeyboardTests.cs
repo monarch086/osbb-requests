@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Domain.Models;
 using Xunit;
 
@@ -71,7 +71,7 @@ public sealed class MainKeyboardTests
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, new CommandHandler(repository, "Bot", "building"), telegram, "building");
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "Bot", "building"), telegram, "building");
         await processor.ProcessAsync(new(1, 42, 42, "/new"), default);
         await processor.ProcessAsync(new(4, 42, 42, "Інше"), default);
         await processor.ProcessAsync(new(2, 42, 42, "4Б"), default);
@@ -123,7 +123,7 @@ public sealed class MainKeyboardTests
         var repo = new MemoryRepository();
         repo.Residents.Remove(42);
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repo, new CommandHandler(repo, "Bot", "building"), telegram, "building");
+        var processor = new TelegramCommandProcessor(repo, new CommandHandler(repo, "Bot", "building"), telegram, "building");
         await processor.ProcessAsync(new(1, 42, 42, "/start"), default);
         await processor.ProcessAsync(new(2, 42, 42, "Скасувати"), default);
         Assert.Equal(ReplyKeyboard.MainGuest, telegram.Keyboards[^1]);
@@ -136,7 +136,7 @@ public sealed class MainKeyboardTests
         repo.Residents.Remove(42);
         repo.Drafts[42] = new(42, "building", RequestDraftStage.Description, 1);
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repo, new CommandHandler(repo, "Bot", "building"), telegram, "building");
+        var processor = new TelegramCommandProcessor(repo, new CommandHandler(repo, "Bot", "building"), telegram, "building");
         await processor.ProcessAsync(new(1, 42, 42, "Довідка: контакти диспетчерів"), default);
         Assert.Contains("Телефони диспетчерів", telegram.Messages[^1].Text);
         Assert.Equal(ReplyKeyboard.MainGuest, telegram.Keyboards[^1]);

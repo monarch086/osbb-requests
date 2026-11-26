@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.Postgres", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.Cognito", "src\OsbbRequests.Cognito\OsbbRequests.Cognito.csproj", "{19110563-FEBD-4053-B430-9BA782FB014B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.CommandProcessor", "src\OsbbRequests.CommandProcessor\OsbbRequests.CommandProcessor.csproj", "{5CCFC6E5-F02E-46A3-B225-563575484892}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -215,6 +217,18 @@ Global
 		{19110563-FEBD-4053-B430-9BA782FB014B}.Release|x64.Build.0 = Release|Any CPU
 		{19110563-FEBD-4053-B430-9BA782FB014B}.Release|x86.ActiveCfg = Release|Any CPU
 		{19110563-FEBD-4053-B430-9BA782FB014B}.Release|x86.Build.0 = Release|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Debug|x64.Build.0 = Debug|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Debug|x86.Build.0 = Debug|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Release|x64.ActiveCfg = Release|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Release|x64.Build.0 = Release|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Release|x86.ActiveCfg = Release|Any CPU
+		{5CCFC6E5-F02E-46A3-B225-563575484892}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -5,7 +5,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 using OsbbRequests.Bot.Persistence;
-using OsbbRequests.Bot.Commands;
+using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using Xunit;

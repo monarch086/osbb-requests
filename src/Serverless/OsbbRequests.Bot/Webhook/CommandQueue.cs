@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Models;
 
 namespace OsbbRequests.Bot.Webhook;
 

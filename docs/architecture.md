@@ -5,7 +5,7 @@
 Проєкти Lambda розташовані в `src/Serverless`. Чотири функції пакуються у два ZIP-артефакти.
 
 - `OsbbRequests.Bot.Function` - HTTP webhook, перевірка секрету та публікація в SQS.
-- `OsbbRequests.Bot.CommandFunction` - обробка команд із FIFO-черги.
+- `OsbbRequests.Bot.CommandFunction` - адаптер FIFO-черги до бібліотеки обробки команд.
 - `OsbbRequests.Bot.NotificationFunction` - щохвилинна доставка автору заявки з транзакційного outbox.
 - `OsbbRequests.AdminApi.Function` - публічний `GET /health` і захищені Cognito JWT маршрути `/admin/*`.
 
@@ -13,7 +13,9 @@ Webhook читає тільки свій SSM parameter і має лише `sqs:S
 
 `WebhookHandler` перевіряє secret до десеріалізації. До черги потрапляють тільки update ID, user ID, chat ID і текст або власний контакт для реєстрації; групові повідомлення, редагування, боти, вкладення без тексту/контакту та сторонні адресовані команди ігноруються. Повні Telegram payload не зберігаються.
 
-`CommandHandler` маршрутизує команди й перевіряє доступ до комплексу. `CommandProcessor` забезпечує порядок: читання receipt → сценарій → атомарний commit → доставка → delivered. `DynamoCommandRepository` інкапсулює сховище. `TelegramClient` надсилає plain text через довгоживучий HttpClient із 10-секундним timeout; кожен виклик отримує cancellation token.
+Бібліотека `OsbbRequests.CommandProcessor` містить `TelegramCommandMapper`, сценарії бота, контракти сховища та Telegram-клієнт. `CommandHandler` маршрутизує команди й перевіряє доступ до комплексу. `TelegramCommandProcessor.ProcessAsync` приймає `CommandEnvelope` і виконує читання receipt → сценарій → атомарний commit → доставка → delivered. `TelegramClient` надсилає plain text через довгоживучий HttpClient із 10-секундним timeout і передає cancellation token для кожного виклику.
+
+Lambda-проєкт підключає `DynamoCommandRepository`, завантажує конфігурацію й секрети з AWS та обробляє часткові збої пакета SQS. Локальний слухач зможе підключити ту саму бібліотеку зі своєю реалізацією `ICommandRepository`.
 
 ## Ключі DynamoDB
 

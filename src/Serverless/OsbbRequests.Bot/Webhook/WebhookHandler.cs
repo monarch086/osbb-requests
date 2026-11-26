@@ -3,9 +3,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Bot.Telegram;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.CommandProcessor.Telegram;
 
 namespace OsbbRequests.Bot.Webhook;
 
@@ -37,25 +36,8 @@ public sealed class WebhookHandler(ISecretProvider secretProvider, ICommandQueue
             return Response(200);
         }
 
-        if (update?.UpdateId is not (>= 0) || update.Message is not
-            {
-                From: { IsBot: false, Id: > 0 } from,
-                Chat: { Type: "private", Id: > 0 } chat
-            } message || from.Id != chat.Id)
-            return Response(200);
-
-        var text = message.Text ?? "";
-        if (text.Length > 4096 || message.Contact?.PhoneNumber?.Length > 64 ||
-            string.IsNullOrWhiteSpace(text) && message.Contact is null)
-            return Response(200);
-
-        // Commands explicitly addressed to another bot are ignored.
-        if (text.StartsWith('/') && text.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries)[0].Contains('@') &&
-            BotCommand.Parse(text, botUsername) is null)
-            return Response(200);
-
-        await queue.EnqueueAsync(new CommandEnvelope(update.UpdateId.Value, from.Id, chat.Id, text, message.Contact,
-            message.ReplyToMessage?.MessageId), cancellationToken);
+        if (TelegramCommandMapper.FromUpdate(update, botUsername) is { } command)
+            await queue.EnqueueAsync(command, cancellationToken);
         return Response(200);
     }
 

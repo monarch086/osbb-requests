@@ -1,5 +1,5 @@
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain;
 using Xunit;
 
@@ -181,7 +181,7 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         foreach (var (id, text) in new[] { (1, "/new"), (3, "інше"), (2, "Весь комплекс") })
         {
             await processor.ProcessAsync(Message(id, text), default);

@@ -1,6 +1,6 @@
 using System.Globalization;
 using Amazon.DynamoDBv2.Model;
-using OsbbRequests.Bot.Models;
+using OsbbRequests.CommandProcessor.Models;
 
 namespace OsbbRequests.Bot.Persistence;
 

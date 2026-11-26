@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" />
-    <EmbeddedResource Include="Telegram/command-menu.json" />
+    <ProjectReference Include="../../OsbbRequests.CommandProcessor/OsbbRequests.CommandProcessor.csproj" />
     <ProjectReference Include="../../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="3.0.1" />
     <PackageReference Include="Amazon.Lambda.SQSEvents" Version="2.2.0" />
