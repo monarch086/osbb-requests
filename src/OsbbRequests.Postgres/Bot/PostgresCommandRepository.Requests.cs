@@ -68,7 +68,11 @@ public sealed partial class PostgresCommandRepository
         await using var db = await factory.CreateDbContextAsync(ct);
         var message = ResidentNotification.MessageKey(userId, messageId);
         var key = ResidentNotification.Partition(complex) + "\u001f" + message;
-        var data = await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId && row.Key == key)
+        var localKey = scope.ReplyKey(userId, messageId);
+        var now = clock.GetUtcNow();
+        var data = await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId &&
+                row.Key == localKey && row.ExpiresAt > now).Select(row => row.Data).SingleOrDefaultAsync(ct);
+        data ??= await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId && row.Key == key)
             .Select(row => row.Data).SingleOrDefaultAsync(ct);
         if (data is null) return null;
         using var json = JsonDocument.Parse(data);

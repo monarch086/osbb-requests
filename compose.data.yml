@@ -1,3 +1,13 @@
+x-telegram-environment: &telegram-environment
+  POSTGRES_CONNECTION_STRING: ${OSBB_CONNECTION_STRING:?Set OSBB_CONNECTION_STRING}
+  POSTGRES_COMPLEX_ID: ${OSBB_LISTENER_POSTGRES_COMPLEX_ID:-}
+  STAGE: ${OSBB_LISTENER_STAGE:-local}
+  TELEGRAM_BOT_TOKEN: ${OSBB_LISTENER_BOT_TOKEN:-}
+  TELEGRAM_BOT_USERNAME: ${OSBB_LISTENER_BOT_USERNAME:-}
+  BUILDING_ID: ${OSBB_LISTENER_COMPLEX_ID:-${OSBB_COMPLEX_ID:-osbb-requests-dev}}
+  SERVICE_BOT_TOKEN: ${OSBB_LISTENER_SERVICE_BOT_TOKEN:-}
+  SERVICE_NOTIFICATION_CHAT_ID: ${OSBB_LISTENER_SERVICE_NOTIFICATION_CHAT_ID:-38627946}
+
 services:
   postgres:
     image: postgres:17
@@ -55,15 +65,19 @@ services:
     profiles: [command-listener]
     restart: 'on-failure:3'
     environment:
-      POSTGRES_CONNECTION_STRING: ${OSBB_CONNECTION_STRING:?Set OSBB_CONNECTION_STRING}
-      POSTGRES_COMPLEX_ID: ${OSBB_LISTENER_POSTGRES_COMPLEX_ID:-}
-      STAGE: ${OSBB_LISTENER_STAGE:-local}
-      TELEGRAM_BOT_TOKEN: ${OSBB_LISTENER_BOT_TOKEN:-}
-      TELEGRAM_BOT_USERNAME: ${OSBB_LISTENER_BOT_USERNAME:-}
-      BUILDING_ID: ${OSBB_LISTENER_COMPLEX_ID:-${OSBB_COMPLEX_ID:-osbb-requests-dev}}
+      <<: *telegram-environment
       RESIDENT_APPROVAL_MODE: ${OSBB_LISTENER_RESIDENT_APPROVAL_MODE:-Automatic}
-      SERVICE_BOT_TOKEN: ${OSBB_LISTENER_SERVICE_BOT_TOKEN:-}
-      SERVICE_NOTIFICATION_CHAT_ID: ${OSBB_LISTENER_SERVICE_NOTIFICATION_CHAT_ID:-38627946}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  jobs:
+    image: osbb-requests-jobs:local
+    build:
+      context: .
+      dockerfile: src/OsbbRequests.Jobs/Dockerfile
+    profiles: [jobs]
+    restart: 'on-failure:3'
+    environment: *telegram-environment
     depends_on:
       postgres:
         condition: service_healthy

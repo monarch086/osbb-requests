@@ -21,28 +21,24 @@ public sealed partial class PostgresCommandRepository : ICommandRepository
     private readonly string complex;
     private readonly string bot;
     private readonly TimeProvider clock;
+    private readonly PostgresBotScope scope;
 
-    private PostgresCommandRepository(IDbContextFactory<DataContext> factory, Complex scope, string bot, TimeProvider clock)
+    private PostgresCommandRepository(IDbContextFactory<DataContext> factory, PostgresBotScope scope, TimeProvider clock)
     {
         this.factory = factory;
-        complexId = scope.Id;
+        this.scope = scope;
+        complexId = scope.ComplexId;
         sourceId = scope.SourceId;
-        complex = scope.ExternalId;
-        this.bot = bot.ToLowerInvariant();
+        complex = scope.Complex;
+        bot = scope.Bot;
         this.clock = clock;
     }
 
     public static async Task<PostgresCommandRepository> ConnectAsync(IDbContextFactory<DataContext> factory, string complex, string bot,
         CancellationToken ct, long? postgresComplexId = null, TimeProvider? clock = null)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var matches = await db.Complexes.AsNoTracking().Where(row => row.ExternalId == complex &&
-            (postgresComplexId == null || row.Id == postgresComplexId)).Take(2).ToListAsync(ct);
-        if (matches.Count != 1)
-            throw new InvalidOperationException("Expected one PostgreSQL complex.");
-        if ((await db.Database.GetPendingMigrationsAsync(ct)).Any())
-            throw new InvalidOperationException("Apply the PostgreSQL migrations before starting the bot.");
-        return new(factory, matches[0], bot, clock ?? TimeProvider.System);
+        var scope = await PostgresBotScope.LoadAsync(factory, complex, bot, ct, postgresComplexId);
+        return new(factory, scope, clock ?? TimeProvider.System);
     }
 
     public Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken ct) => ReadStateAsync<RequestDraft>(userId, Draft, ct);

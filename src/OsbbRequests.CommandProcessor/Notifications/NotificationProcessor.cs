@@ -1,7 +1,7 @@
 using OsbbRequests.Shared.Telegram;
 using OsbbRequests.CommandProcessor.Telegram;
 
-namespace OsbbRequests.Bot.Notifications;
+namespace OsbbRequests.CommandProcessor.Notifications;
 
 public sealed class NotificationProcessor(INotificationRepository repository, ITelegramClient telegram,
     IServiceNotifier? notifier = null, TimeProvider? timeProvider = null)

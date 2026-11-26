@@ -41,6 +41,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.CommandProcess
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.CommandListener", "src\OsbbRequests.CommandListener\OsbbRequests.CommandListener.csproj", "{E5C78016-A19E-455D-9A65-168C3592957D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OsbbRequests.Jobs", "src\OsbbRequests.Jobs\OsbbRequests.Jobs.csproj", "{8877459F-2756-470A-ACF7-6F35218F9190}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -243,6 +245,18 @@ Global
 		{E5C78016-A19E-455D-9A65-168C3592957D}.Release|x64.Build.0 = Release|Any CPU
 		{E5C78016-A19E-455D-9A65-168C3592957D}.Release|x86.ActiveCfg = Release|Any CPU
 		{E5C78016-A19E-455D-9A65-168C3592957D}.Release|x86.Build.0 = Release|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Debug|x64.Build.0 = Debug|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Debug|x86.Build.0 = Debug|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Release|x64.ActiveCfg = Release|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Release|x64.Build.0 = Release|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Release|x86.ActiveCfg = Release|Any CPU
+		{8877459F-2756-470A-ACF7-6F35218F9190}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

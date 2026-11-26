@@ -518,7 +518,20 @@ docker compose --env-file .env.data.local -f compose.data.yml logs -f command-li
 docker compose --env-file .env.data.local -f compose.data.yml stop command-listener
 ```
 
-Для одного токена запускайте один слухач. Якщо Telegram повертає `409` через активний webhook або інший процес опитування, слухач завершується. Нові сповіщення з локальної адмінпанелі й бота записуються в `notifications` зі станом `LOCAL_PENDING`. Їхня доставка потребує окремого PostgreSQL-воркера.
+Для одного токена запускайте один слухач. Якщо Telegram повертає `409` через активний webhook або інший процес опитування, слухач завершується. Нові сповіщення з локальної адмінпанелі й бота записуються в `notifications` зі станом `LOCAL_PENDING`. Їх доставляє сервіс `jobs` із тією самою локальною конфігурацією Telegram.
+
+### Локальна доставка сповіщень
+
+Застосуйте міграції до робочої бази й запустіть `jobs`. Після запуску воркер обробляє також сповіщення, які вже очікують у PostgreSQL.
+
+```bash
+docker compose --env-file .env.data.local -f compose.data.yml build command-listener jobs
+docker compose --env-file .env.data.local -f compose.data.yml run --rm command-listener migrate
+docker compose --env-file .env.data.local -f compose.data.yml up -d command-listener jobs
+docker compose --env-file .env.data.local -f compose.data.yml logs -f jobs
+```
+
+Hangfire створює службову схему `hangfire` в цій PostgreSQL і щохвилини запускає доставку. Воркер бере до 25 завдань за запуск, відправляє повідомлення від імені налаштованого бота, враховує підписки адміністраторів і розбиває розсилки на сторінки. Тимчасові помилки повторюються, а відповідь Telegram `429` відкладає доставку на вказаний час. Налаштування читання команд через long polling і доставки через Hangfire використовують той самий бот і комплекс.
 
 ## Локальний Web API
 
@@ -537,7 +550,7 @@ curl --fail http://127.0.0.1:8082/health
 
 Усі адміністративні маршрути читають і зберігають дані у PostgreSQL. Для нових редагувань історія заявки відображає ті самі поля аудиту, що й хмарний API. Cognito використовується для перевірки токенів і підтвердженого email при першому вході. AWS credentials потрібні скрипту на хості для CloudFormation. У контейнер вони не передаються, а образ Web API не містить клієнта DynamoDB. Роль `IsSuperAdmin` береться з імпортованого профілю і доступна через API лише для читання.
 
-Щотижневий імпортер оновлює `osbb-import`. Робоча база `osbb_dev` зберігає власні зміни, історію й події `LOCAL_PENDING`. Локальний слухач читає актуальні зміни з `osbb_dev`. Для доставки подій `LOCAL_PENDING` потрібен окремий воркер. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_dev ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
+Щотижневий імпортер оновлює `osbb-import`. Робоча база `osbb_dev` зберігає власні зміни, історію й події `LOCAL_PENDING`. Локальний слухач читає актуальні зміни з `osbb_dev`. Події `LOCAL_PENDING` доставляє окремий контейнер `jobs`. Локальний API показує статистику DynamoDB зі знімка. Для бекапу робочої бази можна виконати `OSBB_POSTGRES_DB=osbb_dev ./scripts/osbb-data backup`. [План реалізації](docs/web-api-implementation-plan.md)
 
 ## Локальна PostgreSQL та імпорт DynamoDB (експериментально)
 

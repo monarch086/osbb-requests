@@ -357,6 +357,12 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Property<string>("Key")
                         .HasColumnType("text");
 
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AudienceAfter")
+                        .HasColumnType("text");
+
                     b.Property<long>("ComplexId")
                         .HasColumnType("bigint");
 
@@ -364,11 +370,29 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<DateTimeOffset?>("DueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Lease")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("SourceId", "Key");
+
+                    b.HasIndex("ComplexId", "DueAt")
+                        .HasFilter("\"Kind\" = 'LOCAL_PENDING'");
+
+                    b.HasIndex("ComplexId", "ExpiresAt")
+                        .HasFilter("\"ExpiresAt\" IS NOT NULL");
 
                     b.HasIndex("SourceId", "ComplexId");
 

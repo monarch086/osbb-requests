@@ -1,3 +1,4 @@
+using OsbbRequests.CommandProcessor.Notifications;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
 using OsbbRequests.Domain.Models;

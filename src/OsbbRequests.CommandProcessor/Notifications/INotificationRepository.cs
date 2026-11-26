@@ -1,6 +1,6 @@
 using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.Bot.Notifications;
+namespace OsbbRequests.CommandProcessor.Notifications;
 
 public sealed record NotificationWorkItem(string SortKey, ResidentNotification Notification, int Attempts, Dictionary<string, string>? AudienceCursor = null);
 public interface INotificationRepository

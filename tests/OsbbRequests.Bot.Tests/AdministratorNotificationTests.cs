@@ -1,3 +1,4 @@
+using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.Services;
 using System.Text.Json;
 using Amazon;
