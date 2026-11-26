@@ -23,7 +23,12 @@ if stack['StackStatus'] not in ('CREATE_COMPLETE', 'UPDATE_COMPLETE'):
 outputs = {row['OutputKey']: row['OutputValue'] for row in stack['Outputs']}
 run(['npm', 'run', 'build', '--prefix', str(frontend)])
 dist = frontend / 'dist' / 'osbb-admin' / 'browser'
-config = {'apiUrl': outputs['HttpApiUrl'].rstrip('/'), 'clientId': outputs['UserPoolClientId'], 'userPoolId': outputs['UserPoolId']}
+config = {
+    'apiUrl': outputs['HttpApiUrl'].rstrip('/'),
+    'clientId': outputs['UserPoolClientId'],
+    'userPoolId': outputs['UserPoolId'],
+    'environment': args.stage,
+}
 (dist / 'assets' / 'app-config.json').write_text(json.dumps(config) + '\n')
 # Upload immutable assets first and keep previous hashed assets for existing browser sessions.
 run(['aws', 's3', 'sync', str(dist), 's3://' + outputs['FrontendBucketName'], '--region', args.region,

@@ -506,16 +506,16 @@ python3 scripts/verify-resident-phone-index.py --stage dev --region eu-central-1
 
 Контейнер `command-listener` запускається за окремим профілем Compose і отримує повідомлення через Telegram `getUpdates`. Він використовує ту саму робочу базу `OSBB_DATABASE` (типово `osbb_dev`) і рядок підключення `OSBB_CONNECTION_STRING`, що й локальна адмінпанель. Імпортер продовжує оновлювати окрему базу `osbb-import`.
 
-У приватному `.env.data.local` задайте `OSBB_LISTENER_BOT_TOKEN` і `OSBB_LISTENER_BOT_USERNAME` бота без webhook. За потреби задайте окремий `OSBB_LISTENER_SERVICE_BOT_TOKEN` для сервісних сповіщень про зупинку. За замовчуванням слухач використовує комплекс локальної адмінпанелі. `OSBB_LISTENER_COMPLEX_ID` задає інший зовнішній ID комплексу, а `OSBB_LISTENER_POSTGRES_COMPLEX_ID` дає змогу вибрати конкретний рядок у `complexes`, якщо зовнішній ID повторюється.
+У приватному `.env.data.dev` задайте `OSBB_LISTENER_BOT_TOKEN` і `OSBB_LISTENER_BOT_USERNAME` бота без webhook. За потреби задайте окремий `OSBB_LISTENER_SERVICE_BOT_TOKEN` для сервісних сповіщень про зупинку. За замовчуванням слухач використовує комплекс локальної адмінпанелі. `OSBB_LISTENER_COMPLEX_ID` задає інший зовнішній ID комплексу, а `OSBB_LISTENER_POSTGRES_COMPLEX_ID` дає змогу вибрати конкретний рядок у `complexes`, якщо зовнішній ID повторюється.
 
 Після ініціалізації робочої бази застосуйте міграції в її контейнерному оточенні й запустіть слухач.
 
 ```bash
-docker compose --env-file .env.data.local -f compose.data.yml build command-listener
-docker compose --env-file .env.data.local -f compose.data.yml run --rm command-listener migrate
-docker compose --env-file .env.data.local -f compose.data.yml up -d command-listener
-docker compose --env-file .env.data.local -f compose.data.yml logs -f command-listener
-docker compose --env-file .env.data.local -f compose.data.yml stop command-listener
+docker compose --env-file .env.data.dev -f compose.data.yml build command-listener
+docker compose --env-file .env.data.dev -f compose.data.yml run --rm command-listener migrate
+docker compose --env-file .env.data.dev -f compose.data.yml up -d command-listener
+docker compose --env-file .env.data.dev -f compose.data.yml logs -f command-listener
+docker compose --env-file .env.data.dev -f compose.data.yml stop command-listener
 ```
 
 Для одного токена запускайте один слухач. Якщо Telegram повертає `409` через активний webhook або інший процес опитування, слухач завершується. Нові сповіщення з локальної адмінпанелі й бота записуються в `notifications` зі станом `LOCAL_PENDING`. Їх доставляє сервіс `jobs` із тією самою локальною конфігурацією Telegram.
@@ -525,28 +525,28 @@ docker compose --env-file .env.data.local -f compose.data.yml stop command-liste
 Застосуйте міграції до робочої бази й запустіть `jobs`. Після запуску воркер обробляє також сповіщення, які вже очікують у PostgreSQL.
 
 ```bash
-docker compose --env-file .env.data.local -f compose.data.yml build command-listener jobs
-docker compose --env-file .env.data.local -f compose.data.yml run --rm command-listener migrate
-docker compose --env-file .env.data.local -f compose.data.yml up -d command-listener jobs
-docker compose --env-file .env.data.local -f compose.data.yml logs -f jobs
+docker compose --env-file .env.data.dev -f compose.data.yml build command-listener jobs
+docker compose --env-file .env.data.dev -f compose.data.yml run --rm command-listener migrate
+docker compose --env-file .env.data.dev -f compose.data.yml up -d command-listener jobs
+docker compose --env-file .env.data.dev -f compose.data.yml logs -f jobs
 ```
 
 Hangfire створює службову схему `hangfire` в цій PostgreSQL і щохвилини запускає доставку. Воркер бере до 25 завдань за запуск, відправляє повідомлення від імені налаштованого бота, враховує підписки адміністраторів і розбиває розсилки на сторінки. Тимчасові помилки повторюються, а відповідь Telegram `429` відкладає доставку на вказаний час. Налаштування читання команд через long polling і доставки через Hangfire використовують той самий бот і комплекс.
 
 ## Локальний Web API
 
-Скрипт `./scripts/osbb-web-api` збирає та запускає в Compose адмінпанель на `http://127.0.0.1:8083` і Web API на `http://127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_dev` з копії імпортованої `osbb-import`. Наступні запуски використовують наявну копію. Порти можна налаштувати через `OSBB_FRONTEND_PORT` та `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.local`.
+Скрипт `./scripts/osbb-web-api` збирає та запускає в Compose адмінпанель на `http://127.0.0.1:8083` і Web API на `http://127.0.0.1:8082`. Він читає публічні ідентифікатори Cognito з CloudFormation `dev` і під час першого запуску створює робочу базу `osbb_dev` з копії імпортованої `osbb-import`. Наступні запуски використовують наявну копію. Порти можна налаштувати через `OSBB_FRONTEND_PORT` та `OSBB_WEB_API_PORT`. Для вибору джерела PostgreSQL, якщо імпортовано більше одного AWS-акаунта для комплексу, задайте `OSBB_SOURCE_ACCOUNT_ID` у `.env.data.dev`.
 
 ```bash
 ./scripts/osbb-web-api
 curl --fail http://127.0.0.1:8082/health
 ```
 
-Образ адмінпанелі має тег `osbb-requests-frontend:local`. Nginx віддає Angular і під час запуску підставляє Cognito ID в `/assets/app-config.json`. Запити `/admin/*` надходять до локального Web API через той самий origin. Для окремої збірки образу виконайте `docker compose --env-file .env.data.local -f compose.data.yml build frontend`.
+Образ адмінпанелі має тег `osbb-requests-frontend:local`. Nginx віддає Angular і під час запуску підставляє Cognito ID і `OSBB_ENVIRONMENT` в `/assets/app-config.json`. Для `dev` адмінпанель показує оранжеву стрічку над заголовком на всіх сторінках. Для `prod` стрічка прихована. Запити `/admin/*` надходять до локального Web API через той самий origin. Для окремої збірки образу виконайте `docker compose --env-file .env.data.dev -f compose.data.yml build frontend`.
 
 Для запитів до локального Web API з JSON-тілом використовуйте `Content-Type: application/json`. Максимальний розмір тіла адміністративного запиту становить 30 003 байти.
 
-Для доступу з іншої машини в локальній мережі задайте `OSBB_FRONTEND_BIND` у `.env.data.local` як LAN-адресу хоста, наприклад `192.168.0.41`, і повторіть запуск. Відкрийте панель за локальним іменем хоста, наприклад `http://nuc.local:8083/`. HTTP для локального імені `.local` дозволений для запитів до API через той самий origin.
+Для доступу з іншої машини в локальній мережі задайте `OSBB_FRONTEND_BIND` у `.env.data.dev` як LAN-адресу хоста, наприклад `192.168.0.41`, і повторіть запуск. Відкрийте панель за локальним іменем хоста, наприклад `http://nuc.local:8083/`. HTTP для локального імені `.local` дозволений для запитів до API через той самий origin.
 
 Усі адміністративні маршрути читають і зберігають дані у PostgreSQL. Для нових редагувань історія заявки відображає ті самі поля аудиту, що й хмарний API. Cognito використовується для перевірки токенів і підтвердженого email при першому вході. AWS credentials потрібні скрипту на хості для CloudFormation. У контейнер вони не передаються, а образ Web API не містить клієнта DynamoDB. Роль `IsSuperAdmin` береться з імпортованого профілю і доступна через API лише для читання.
 
@@ -554,39 +554,39 @@ curl --fail http://127.0.0.1:8082/health
 
 ## Локальна PostgreSQL та імпорт DynamoDB (експериментально)
 
-Compose-стек `compose.data.yml` запускає PostgreSQL 17 на `127.0.0.1:5433` із постійним локальним томом. Назви баз і рядки підключення зберігаються у файлі середовища. Для першого локального запуску створіть приватний `.env.data.local` із шаблону `.env.data.example` і запустіть базу:
+Compose-стек `compose.data.yml` запускає PostgreSQL 17 на `127.0.0.1:5433` із постійним локальним томом. Назви баз і рядки підключення зберігаються у файлі середовища. Для першого локального запуску створіть приватний `.env.data.dev` із шаблону `.env.data.example` і запустіть базу:
 
 ```bash
 umask 077
-python3 -c 'import secrets; from pathlib import Path; Path(".env.data.local").open("x").write(Path(".env.data.example").read_text().replace("replace-with-the-postgres-password", secrets.token_hex(24)))'
-docker compose --env-file .env.data.local -f compose.data.yml up -d
+python3 -c 'import secrets; from pathlib import Path; Path(".env.data.dev").open("x").write(Path(".env.data.example").read_text().replace("replace-with-the-postgres-password", secrets.token_hex(24)))'
+docker compose --env-file .env.data.dev -f compose.data.yml up -d
 ./scripts/osbb-data migrate
 ```
 
-Для наявного `.env.data.local` додайте відсутні змінні з шаблону, зберігши поточний пароль. `OSBB_IMPORT_DATABASE` і `OSBB_DATABASE` задають назви баз. Рядки `OSBB_IMPORT_HOST_CONNECTION_STRING`, `OSBB_IMPORT_DOCKER_CONNECTION_STRING` та `OSBB_CONNECTION_STRING` використовують ці назви для CLI на хості, контейнера імпорту і контейнера Web API відповідно.
+Для наявного `.env.data.dev` додайте відсутні змінні з шаблону, зберігши поточний пароль. `OSBB_IMPORT_DATABASE` і `OSBB_DATABASE` задають назви баз. Рядки `OSBB_IMPORT_HOST_CONNECTION_STRING`, `OSBB_IMPORT_DOCKER_CONNECTION_STRING` та `OSBB_CONNECTION_STRING` використовують ці назви для CLI на хості, контейнера імпорту і контейнера Web API відповідно.
 
 Під час оновлення наявного стека з базою `osbb_web_api` зробіть її бекап, зупиніть контейнер Web API та закрийте інші підключення до цієї бази. Зі службової бази `postgres` виконайте `ALTER DATABASE osbb_web_api RENAME TO osbb_dev`. Оновіть назви змінних у файлі середовища за шаблоном і запустіть `./scripts/osbb-web-api`. Перейменування до запуску зберігає локальні зміни в робочій базі.
 
-Для іншого середовища скопіюйте шаблон, наприклад у `.env.data.staging`. Скрипти `osbb-data`, `osbb-data-weekly` і `osbb-web-api` за замовчуванням читають `.env.data.local`. Альтернативний файл можна вибрати через `OSBB_DATA_ENV_FILE=.env.data.staging ./scripts/osbb-web-api`. У прямих командах Compose передайте той самий файл через `--env-file`. Для окремого стека на тому самому хості задайте у файлі власний `COMPOSE_PROJECT_NAME` та вільні порти.
+Для майбутнього prod скопіюйте шаблон у `.env.data.prod` і задайте `OSBB_ENVIRONMENT=prod` разом із власними налаштуваннями. Для кожного іншого середовища також використовуйте окремий файл. Скрипти `osbb-data`, `osbb-data-weekly` і `osbb-web-api` за замовчуванням читають `.env.data.dev`. Альтернативний файл можна вибрати через `OSBB_DATA_ENV_FILE=.env.data.staging ./scripts/osbb-web-api`. У прямих командах Compose передайте той самий файл через `--env-file`. Для окремого стека на тому самому хості задайте у файлі власний `COMPOSE_PROJECT_NAME` та вільні порти.
 
 Якщо наявний том ще використовує стару назву бази `osbb`, дочекайтеся завершення імпорту та закрийте підключення до неї. Створіть бекап, перейменуйте базу з підключення до службової бази `postgres` і оновіть контейнер.
 
 ```bash
 OSBB_POSTGRES_DB=osbb ./scripts/osbb-data backup
-docker compose --env-file .env.data.local -f compose.data.yml exec -T postgres \
+docker compose --env-file .env.data.dev -f compose.data.yml exec -T postgres \
   psql -U osbb -d postgres -v ON_ERROR_STOP=1 -c 'ALTER DATABASE osbb RENAME TO "osbb-import";'
-docker compose --env-file .env.data.local -f compose.data.yml up -d --wait postgres
+docker compose --env-file .env.data.dev -f compose.data.yml up -d --wait postgres
 ```
 
 Після перейменування задайте `OSBB_IMPORT_DATABASE=osbb-import` у файлі середовища. Змінну `OSBB_POSTGRES_DB` можна передати окремій команді `backup`, щоб вибрати іншу базу.
 
-Не перегенеровуйте пароль для вже ініціалізованого тому: PostgreSQL застосовує його під час першого створення бази. Для повторних запусків використовуйте наявний `.env.data.local`. Команди виконуються на хості; для AWS використовується стандартний ланцюг credentials SDK, а джерелу потрібні read-only дозволи `dynamodb:DescribeTable`, `dynamodb:Scan`, `dynamodb:GetItem` для чотирьох таблиць обраного stage. У стек також входить Adminer — вебінтерфейс PostgreSQL на [http://127.0.0.1:8081/?pgsql=postgres&db=osbb-import](http://127.0.0.1:8081/?pgsql=postgres&db=osbb-import). При вході виберіть PostgreSQL, сервер `postgres`, користувача `osbb` і базу `osbb-import`; пароль — значення `OSBB_POSTGRES_PASSWORD` із `.env.data.local`. Адреса сервера налаштована через Docker-мережу; пароль у конфігурацію Adminer не передається. За замовчуванням інтерфейс доступний лише на localhost; адресу та порт можна змінити через `OSBB_ADMINER_BIND` і `OSBB_ADMINER_PORT` у `.env.data.local`, після чого повторно виконати `docker compose --env-file .env.data.local -f compose.data.yml up -d`. Наприклад, `OSBB_ADMINER_BIND=192.168.0.41` відкриває доступ через цю мережеву адресу. HTTP не шифрує пароль і дані, тому використовуйте лише довірену мережу або захищений тунель. Adminer дає змогу змінювати дані, тому для перегляду надавайте доступ лише довіреним користувачам хоста.
+Не перегенеровуйте пароль для вже ініціалізованого тому: PostgreSQL застосовує його під час першого створення бази. Для повторних запусків використовуйте наявний `.env.data.dev`. Команди виконуються на хості; для AWS використовується стандартний ланцюг credentials SDK, а джерелу потрібні read-only дозволи `dynamodb:DescribeTable`, `dynamodb:Scan`, `dynamodb:GetItem` для чотирьох таблиць обраного stage. У стек також входить Adminer — вебінтерфейс PostgreSQL на [http://127.0.0.1:8081/?pgsql=postgres&db=osbb-import](http://127.0.0.1:8081/?pgsql=postgres&db=osbb-import). При вході виберіть PostgreSQL, сервер `postgres`, користувача `osbb` і базу `osbb-import`; пароль — значення `OSBB_POSTGRES_PASSWORD` із `.env.data.dev`. Адреса сервера налаштована через Docker-мережу; пароль у конфігурацію Adminer не передається. За замовчуванням інтерфейс доступний лише на localhost; адресу та порт можна змінити через `OSBB_ADMINER_BIND` і `OSBB_ADMINER_PORT` у `.env.data.dev`, після чого повторно виконати `docker compose --env-file .env.data.dev -f compose.data.yml up -d`. Наприклад, `OSBB_ADMINER_BIND=192.168.0.41` відкриває доступ через цю мережеву адресу. HTTP не шифрує пароль і дані, тому використовуйте лише довірену мережу або захищений тунель. Adminer дає змогу змінювати дані, тому для перегляду надавайте доступ лише довіреним користувачам хоста.
 
 Для ручного запуску через Compose зберіть і запустіть одноразовий контейнер `importer`:
 
 ```bash
 OSBB_IMPORTER_UID="$(id -u)" OSBB_IMPORTER_GID="$(id -g)" \
-  docker compose --env-file .env.data.local -f compose.data.yml \
+  docker compose --env-file .env.data.dev -f compose.data.yml \
   run --rm --build -T importer import --stage dev --region eu-central-1
 ```
 
@@ -607,13 +607,13 @@ OSBB_IMPORTER_UID="$(id -u)" OSBB_IMPORTER_GID="$(id -g)" \
 Команда запускає `pg_dump` у контейнері PostgreSQL, перевіряє каталог архіву через `pg_restore --list` і зберігає файл `backups/osbb-<UTC-дата>-<суфікс>.dump` із правами `0600`. Довільне каталогове призначення можна задати змінною `OSBB_BACKUP_DIR`. Невдалий запуск не залишає частковий файл. Копія містить схему та дані однієї бази, зокрема історію EF Core; ролі й інші глобальні об’єкти всього кластера PostgreSQL до `pg_dump` не входять. Відновлюйте копію в окрему порожню базу, попередньо перевіривши її призначення:
 
 ```bash
-docker compose --env-file .env.data.local -f compose.data.yml exec -T postgres createdb -U osbb osbb_restore
-docker compose --env-file .env.data.local -f compose.data.yml exec -T postgres pg_restore -U osbb -d osbb_restore --exit-on-error --no-owner --no-acl < backups/НАЗВА-ФАЙЛУ.dump
+docker compose --env-file .env.data.dev -f compose.data.yml exec -T postgres createdb -U osbb osbb_restore
+docker compose --env-file .env.data.dev -f compose.data.yml exec -T postgres pg_restore -U osbb -d osbb_restore --exit-on-error --no-owner --no-acl < backups/НАЗВА-ФАЙЛУ.dump
 ```
 
 Резервна копія містить персональні та потенційно історичні дані. Каталог `backups/` виключено з Git; для іншого розташування оператор має забезпечити захист і виключення з Git самостійно. Копії автоматично не видаляються. Архів є узгодженим знімком однієї бази на час `pg_dump`, але якщо в цей час виконується імпорт, він може містити лише частину результатів імпорту.
 
-Щонеділі о 04:00 за `Europe/Kyiv` користувацький таймер `systemd` запускає `scripts/osbb-data-weekly`. Скрипт чекає готовності PostgreSQL, збирає Docker-образ із поточного коду й запускає одноразовий контейнер для імпорту `dev` із `eu-central-1`. Після успішного імпорту створюється бекап. Контейнер `importer` залишається у стеку в стані `Exited` після завершення. Його статус і логи можна переглянути в Portainer, увімкнувши відображення зупинених контейнерів. Статус і повідомлення завдання також доступні через `systemctl --user status osbb-data-weekly.service` та `journalctl --user -u osbb-data-weekly.service`. Завданню потрібні доступ до Docker, робочий профіль AWS і checkout у `~/projects/osbb-requests`. Для налаштувань профілю й каталогу AWS планове завдання читає `.env.data.local`. Після перезавантаження таймер працює без активного входу за умови ввімкненого linger. Параметр `Persistent=true` запускає пропущене завдання після відновлення хоста.
+Щонеділі о 04:00 за `Europe/Kyiv` користувацький таймер `systemd` запускає `scripts/osbb-data-weekly`. Скрипт чекає готовності PostgreSQL, збирає Docker-образ із поточного коду й запускає одноразовий контейнер для імпорту `dev` із `eu-central-1`. Після успішного імпорту створюється бекап. Контейнер `importer` залишається у стеку в стані `Exited` після завершення. Його статус і логи можна переглянути в Portainer, увімкнувши відображення зупинених контейнерів. Статус і повідомлення завдання також доступні через `systemctl --user status osbb-data-weekly.service` та `journalctl --user -u osbb-data-weekly.service`. Завданню потрібні доступ до Docker, робочий профіль AWS і checkout у `~/projects/osbb-requests`. Для налаштувань профілю й каталогу AWS планове завдання читає `.env.data.dev`. Після перезавантаження таймер працює без активного входу за умови ввімкненого linger. Параметр `Persistent=true` запускає пропущене завдання після відновлення хоста.
 
 Для встановлення таймера на інший відповідно налаштований хост:
 
@@ -644,15 +644,15 @@ loginctl enable-linger "$USER"
 
 **Обмеження:** це початкова схема, не повністю нормалізована модель. Таблиця `source_records` містить JSON-представлення джерельних записів, за винятком додаткових квартир власників. Квартири імпортуються в `resident_apartments` по одному рядку на квартиру з окремими колонками для адреси, статусу, часу подання, часу рішення та адміністратора. Перший імпорт після оновлення прибирає попередні JSON-копії цих записів із `source_records`. Окремі таблиці містять заявки та ключі, історію заявок і мешканців, поточні телефони, згоди й membership, повідомлення та сповіщення, аудити, доступи й налаштування адміністраторів, а також статистику. Частина складних даних у цих таблицях зберігається в JSONB; інші службові записи залишаються в `source_records`. Історія мешканців імпортується з актуальної таблиці мешканців, а не з історичних дублів у `command-data`. DynamoDB `Scan` не створює атомарного знімка між записами або таблицями; одночасні зміни можуть тимчасово давати розбіжності, повторіть імпорт після завершення змін. JSON-представлення не зберігає всі відмінності типів DynamoDB (зокрема між множинами й масивами), тому не використовуйте його для зворотного відновлення DynamoDB. Система TTL та фонова доставка в PostgreSQL не реалізовані. Це не резервна копія і не готова заміна працюючого backend.
 
-Локальна база містить персональні дані, включно з історичними записами й можливими старими дублями з `command-data`. Захистіть доступ до хоста та Docker volume; після видалення інформації в боті локальна копія оновлюється лише після повторного імпорту. Не додавайте пароль або дані до Git. Команда `docker compose --env-file .env.data.local -f compose.data.yml down` зупиняє стек, зберігаючи том.
+Локальна база містить персональні дані, включно з історичними записами й можливими старими дублями з `command-data`. Захистіть доступ до хоста та Docker volume; після видалення інформації в боті локальна копія оновлюється лише після повторного імпорту. Не додавайте пароль або дані до Git. Команда `docker compose --env-file .env.data.dev -f compose.data.yml down` зупиняє стек, зберігаючи том.
 
-Для створення міграції експортуйте змінні потрібного середовища, наприклад `set -a; source .env.data.local; set +a`. Потім виконайте `dotnet tool restore` і `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.DataImport --output-dir Storage/Migrations`. Команда `migrate` застосовує міграції. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
+Для створення міграції експортуйте змінні потрібного середовища, наприклад `set -a; source .env.data.dev; set +a`. Потім виконайте `dotnet tool restore` і `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.DataImport --output-dir Storage/Migrations`. Команда `migrate` застосовує міграції. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
 
 Перевірку імпорту синтетичними даними можна виконати на окремій тестовій базі:
 
 ```bash
-docker compose --env-file .env.data.local -f compose.data.yml exec -T postgres createdb -U osbb osbb_import_test
-set -a; source .env.data.local; set +a
+docker compose --env-file .env.data.dev -f compose.data.yml exec -T postgres createdb -U osbb osbb_import_test
+set -a; source .env.data.dev; set +a
 dotnet run --project tests/OsbbRequests.DataImport.Smoke
 ```
 

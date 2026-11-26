@@ -1,5 +1,5 @@
 # Sourced by local data commands. The environment file is trusted shell input.
-data_env_file="${OSBB_DATA_ENV_FILE:-$project_root/.env.data.local}"
+data_env_file="${OSBB_DATA_ENV_FILE:-$project_root/.env.data.dev}"
 if [[ ! -f "$data_env_file" ]]; then
   printf 'Відсутній файл налаштувань %s.\n' "$data_env_file" >&2
   exit 1

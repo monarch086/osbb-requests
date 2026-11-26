@@ -1,3 +1,6 @@
+@if (auth.environment === 'dev') {
+  <div class="environment-banner w-100 px-3 py-1 text-center fw-semibold">Середовище: dev</div>
+}
 <header class="topbar navbar bg-white border-bottom px-3 py-3">
   <a class="brand" [routerLink]="saving ? null : '/requests'"
     ><span class="brand-mark">ЗО2</span

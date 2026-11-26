@@ -105,7 +105,8 @@ services:
       context: src/Frontend
     profiles: [web-api]
     environment:
-      NGINX_ENVSUBST_FILTER: ^OSBB_COGNITO_
+      NGINX_ENVSUBST_FILTER: '^OSBB_(COGNITO_|ENVIRONMENT$)'
+      OSBB_ENVIRONMENT: ${OSBB_ENVIRONMENT:-prod}
       OSBB_COGNITO_USER_POOL_ID: ${OSBB_COGNITO_USER_POOL_ID:-}
       OSBB_COGNITO_CLIENT_ID: ${OSBB_COGNITO_CLIENT_ID:-}
     ports:

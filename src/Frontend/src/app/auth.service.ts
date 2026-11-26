@@ -14,6 +14,7 @@ export class AuthService {
 
   readonly user$ = new BehaviorSubject<SignedInUser | null>(null);
   config?: AppConfig;
+  environment?: string;
 
   async initialize(): Promise<void> {
     if (!isPlatformBrowser(this.platformId)) {
@@ -28,6 +29,7 @@ export class AuthService {
       );
     }
     const config = (await response.json()) as AppConfig;
+    this.environment = config.environment;
     if (!config.apiUrl || !config.clientId || !config.userPoolId) {
       throw new UserFacingError('Доступ до облікового запису поки недоступний. Спробуйте пізніше.');
     }

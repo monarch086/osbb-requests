@@ -5,7 +5,7 @@ server {
     location = /assets/app-config.json {
         default_type application/json;
         add_header Cache-Control "no-store";
-        return 200 '{"apiUrl":"/","clientId":"${OSBB_COGNITO_CLIENT_ID}","userPoolId":"${OSBB_COGNITO_USER_POOL_ID}"}';
+        return 200 '{"apiUrl":"/","clientId":"${OSBB_COGNITO_CLIENT_ID}","userPoolId":"${OSBB_COGNITO_USER_POOL_ID}","environment":"${OSBB_ENVIRONMENT}"}';
     }
 
     location /admin/ {
