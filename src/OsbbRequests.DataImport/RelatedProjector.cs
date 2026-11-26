@@ -56,6 +56,7 @@ internal sealed class RelatedProjector(DataContext db, ComplexDirectory complexe
         admin.Email = AttributeText(item, "Email");
         admin.DisplayName = AttributeText(item, "DisplayName");
         admin.IsActive = item.GetValueOrDefault("IsActive")?.BOOL == true;
+        admin.IsSuperAdmin = Flag(item, "IsSuperAdmin", false);
         admin.Version = int.Parse(item.GetValueOrDefault("Version")?.N ?? "0", CultureInfo.InvariantCulture);
         admin.CreatedAt = Date(AttributeText(item, "CreatedAt"));
         admin.UpdatedAt = Date(AttributeText(item, "UpdatedAt"));

@@ -62,7 +62,7 @@ var permissions = await db.AdministratorPermissions.SingleAsync(x => x.SourceId 
 var settings = await db.AdministratorNotificationSettings.SingleAsync(x => x.SourceId == sourceId);
 var administrator = await db.Administrators.SingleAsync(x => x.SourceId == sourceId);
 if (administrator.Email != "admin@example.test" || administrator.DisplayName != "Адміністратор" ||
-    !administrator.IsActive || administrator.Version != 1 || administrator.UpdatedAt is not null ||
+    !administrator.IsActive || !administrator.IsSuperAdmin || administrator.Version != 1 || administrator.UpdatedAt is not null ||
     administrator.CreatedAt != new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
     throw new Exception("Administrator columns were not imported");
 var membership = await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId);
@@ -87,7 +87,7 @@ if (!settings.NewResidents || settings.NewApartmentRegistrations)
 administrator = await db.Administrators.SingleAsync(x => x.SourceId == sourceId);
 membership = await db.ResidentMemberships.SingleAsync(x => x.SourceId == sourceId);
 var reviewAt = new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero);
-if (administrator.IsActive || administrator.Version != 2 || administrator.UpdatedAt != reviewAt ||
+if (administrator.IsActive || administrator.IsSuperAdmin || administrator.Version != 2 || administrator.UpdatedAt != reviewAt ||
     membership.Active || membership.ComplexId != complexId || membership.ReviewedBy != "admin@example.test" ||
     membership.ReviewedAt != reviewAt || membership.RegistrationId is not null)
     throw new Exception("Administrator or membership columns were not updated");
@@ -301,6 +301,7 @@ sealed class FakeDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), 
                 ["NotifyNewRequests"] = new() { BOOL = true },
                 ["NotifyNewResidents"] = new() { BOOL = true }
             };
+            if (!AccessRevoked) admin["IsSuperAdmin"] = new() { BOOL = true };
             if (AccessRevoked) admin["UpdatedAt"] = new("2026-01-03T00:00:00Z");
             if (ApartmentNotifications is { } value) admin["NotifyNewApartmentRegistrations"] = new() { BOOL = value };
             items.Add(admin);

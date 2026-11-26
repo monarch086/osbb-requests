@@ -18,13 +18,9 @@ public sealed partial class PostgresAdminStore
         if (admin is null) return null;
         var privileges = await db.AdministratorPermissions.FindAsync([currentScope.SourceId, userId], ct);
         var settings = await db.AdministratorNotificationSettings.FindAsync([currentScope.SourceId, userId], ct);
-        var snapshot = await db.SourceRecords.Where(row => row.SourceId == currentScope.SourceId && row.Table == "administrators" && row.Key == userId)
-            .Select(row => row.Data).SingleOrDefaultAsync(ct);
-        using var original = snapshot is null ? null : JsonDocument.Parse(snapshot);
-        var super = original is not null && original.RootElement.TryGetProperty("IsSuperAdmin", out var value) && value.ValueKind == JsonValueKind.True;
         var permissions = privileges is null ? PagePermissions.Legacy :
             new PagePermissions(privileges.ComplexRequests, privileges.KeyOrders, privileges.RegisteredResidents, privileges.PendingResidents, privileges.Messages);
-        return new(userId, admin.Email ?? "", admin.DisplayName ?? admin.Email ?? "", admin.IsActive, super, admin.Version,
+        return new(userId, admin.Email ?? "", admin.DisplayName ?? admin.Email ?? "", admin.IsActive, admin.IsSuperAdmin, admin.Version,
             settings?.TelegramChatId, settings?.NewResidents == true, settings?.NewRequests == true, settings?.NewAdministrators == true,
             permissions, settings?.NewKeyOrders == true, settings?.NewApartmentRegistrations == true);
     }
