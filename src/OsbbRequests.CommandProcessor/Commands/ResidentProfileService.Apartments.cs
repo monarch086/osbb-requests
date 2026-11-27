@@ -1,6 +1,6 @@
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Domain.Residents;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
@@ -17,13 +17,13 @@ public sealed partial class ResidentProfileService
     private async Task<List<(string Address, string Number)>> AccountsAsync(ResidentRegistration current, CancellationToken ct)
     {
         var accounts = new List<(string Address, string Number)>();
-        if (TryAccount(current, out var primary))
+        if (PersonalAccountNumber.TryCreate(current.BuildingNumber, current.ApartmentNumber, out var primary))
             accounts.Add(($"Будинок {current.BuildingNumber}, кв. {current.ApartmentNumber}", primary));
         var stored = await ApartmentsAsync(current, ct);
         foreach (var apartment in stored?.Items ?? [])
         {
             if (apartment.Status != ApartmentReviewStatus.Approved) continue;
-            var number = FormattableString.Invariant($"000219{apartment.BuildingNumber.ToLowerInvariant()}{apartment.ApartmentNumber:D3}");
+            var number = PersonalAccountNumber.Format(apartment.BuildingNumber, apartment.ApartmentNumber);
             if (accounts.All(account => account.Number != number)) accounts.Add((apartment.Address, number));
         }
         return accounts;
@@ -31,7 +31,7 @@ public sealed partial class ResidentProfileService
 
     private static CommandOutcome ApartmentMenu(ResidentRegistration profile, OwnerApartments? stored)
     {
-        var text = ValidBuilding(profile.BuildingNumber) && TryApartment(profile.ApartmentNumber, out var primary)
+        var text = PersonalAccountNumber.IsBuilding(profile.BuildingNumber) && PersonalAccountNumber.TryParseApartment(profile.ApartmentNumber, out var primary)
             ? $"Основна адреса: будинок {profile.BuildingNumber}, кв. {primary}.\n\nДодаткові квартири"
             : "Додаткові квартири";
         foreach (var apartment in stored?.Items ?? [])
@@ -67,18 +67,18 @@ public sealed partial class ResidentProfileService
             var building = command.Text.Trim();
             if (building.StartsWith("Будинок ", StringComparison.OrdinalIgnoreCase)) building = building[8..].Trim();
             building = building.ToUpperInvariant();
-            if (command.Contact is not null || !ValidBuilding(building))
+            if (command.Contact is not null || !PersonalAccountNumber.IsBuilding(building))
                 return new("Оберіть будинок додаткової квартири.", Keyboard: ReplyKeyboard.RegistrationBuilding);
             return new("Введіть номер квартири від 1 до 999.", Keyboard: ReplyKeyboard.Cancel,
                 ProfileDialog: new(dialog with { Draft = current with { BuildingNumber = building }, Version = dialog.Version + 1 }, dialog.Version));
         }
-        if (command.Contact is not null || !TryApartment(command.Text, out var number))
+        if (command.Contact is not null || !PersonalAccountNumber.TryParseApartment(command.Text, out var number))
             return new("Введіть номер квартири від 1 до 999.", Keyboard: ReplyKeyboard.Cancel);
 
         var existing = await repository.GetOwnerApartmentsAsync(current.UserId, ct);
         var items = existing?.RegistrationId == current.Id ? existing.Items : [];
         var address = dialog.Draft.BuildingNumber!;
-        if ((current.BuildingNumber == address && TryApartment(current.ApartmentNumber, out var primary) && number == primary) ||
+        if ((current.BuildingNumber == address && PersonalAccountNumber.TryParseApartment(current.ApartmentNumber, out var primary) && number == primary) ||
             items.Any(item => item.BuildingNumber == address && item.ApartmentNumber == number))
         {
             return Close(dialog, "Ця квартира вже є у вашому профілі. Відкрийте «Мої квартири», щоб перевірити її статус.");

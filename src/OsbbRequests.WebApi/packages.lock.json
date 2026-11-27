@@ -337,6 +337,7 @@
       "osbbrequests.commandprocessor": {
         "type": "Project",
         "dependencies": {
+          "OsbbRequests.Domain": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )"
         }
       },
@@ -361,8 +362,7 @@
       "osbbrequests.shared": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
-          "OsbbRequests.Domain": "[1.0.0, )"
+          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )"
         }
       }
     },

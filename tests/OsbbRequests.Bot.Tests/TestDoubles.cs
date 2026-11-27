@@ -56,8 +56,8 @@ internal sealed class MemoryRepository : ICommandRepository
     public Task<RequestLookup?> GetRequestLookupAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Lookups.GetValueOrDefault(userId));
     public Dictionary<long, RequestDraft> Drafts { get; } = [];
     public Task<RequestDraft?> GetRequestDraftAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(Drafts.GetValueOrDefault(userId));
-    public Dictionary<long, OsbbRequests.Shared.Residents.OwnerApartments> ApartmentRecords { get; } = [];
-    public Task<OsbbRequests.Shared.Residents.OwnerApartments?> GetOwnerApartmentsAsync(long userId, CancellationToken ct) =>
+    public Dictionary<long, OsbbRequests.Domain.Models.OwnerApartments> ApartmentRecords { get; } = [];
+    public Task<OsbbRequests.Domain.Models.OwnerApartments?> GetOwnerApartmentsAsync(long userId, CancellationToken ct) =>
         Task.FromResult(ApartmentRecords.GetValueOrDefault(userId));
     public Dictionary<long, ResidentProfileDialog> ProfileDialogs { get; } = [];
     public Task<ResidentProfileDialog?> GetProfileDialogAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(ProfileDialogs.GetValueOrDefault(userId));

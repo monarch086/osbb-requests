@@ -5,6 +5,7 @@ using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Domain.Residents;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
@@ -109,7 +110,7 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             return Prompt(next.Stage) with { Registration = submitted with { Value = next } };
         }
         if (approvalMode != ResidentApprovalMode.Automatic || outcome.Registration?.Value.Stage != RegistrationStage.Pending ||
-            outcome.Registration.Value.ResidentType is not (ResidentType.FamilyMember or ResidentType.Tenant))
+            !ResidentRegistrationPolicy.CanApproveAutomatically(outcome.Registration.Value.ResidentType))
         {
             return outcome;
         }

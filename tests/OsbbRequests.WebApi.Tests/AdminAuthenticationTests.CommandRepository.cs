@@ -5,7 +5,6 @@ using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Postgres.Bot;
-using OsbbRequests.Shared.Residents;
 using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <EmbeddedResource Include="Telegram/command-menu.json" />
+    <ProjectReference Include="../OsbbRequests.Domain/OsbbRequests.Domain.csproj" />
     <ProjectReference Include="../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />
   </ItemGroup>
 </Project>
