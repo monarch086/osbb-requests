@@ -41,9 +41,11 @@ try
     var repository = await PostgresCommandRepository.ConnectAsync(db, complexId, botUsername, shutdown.Token, PostgresComplexId());
 
     if (Environment.GetEnvironmentVariable("SERVICE_BOT_TOKEN") is { Length: > 0 } serviceToken)
+    {
         notifier = new TelegramServiceNotifier(http, new LocalSecret(serviceToken),
             "osbb-requests-command-listener", Environment.GetEnvironmentVariable("STAGE") ?? "local",
             Environment.GetEnvironmentVariable("SERVICE_NOTIFICATION_CHAT_ID") ?? TelegramServiceNotifier.ServiceNotificationChatId);
+    }
 
     var telegram = new TelegramClient(http, new LocalSecret(token));
     var actualUsername = await telegram.GetBotUsernameAsync(shutdown.Token);

@@ -122,8 +122,10 @@ public sealed partial class PostgresCommandRepository : ICommandRepository
         if (outcome.PageNavigation is { } nav)
             await WriteStateAsync(db, command, nav.Value.UserId, nav.Value.ComplexId, Navigation, nav.Value.Version, nav.ExpectedVersion, nav.Value, ct);
         if (outcome.Pagination is { } cursor)
+        {
             await WriteStateAsync(db, command, cursor.UserId, cursor.ComplexId, Cursor(cursor.Token), 1, null, cursor.Before,
                 ct, clock.GetUtcNow().AddDays(30));
+        }
     }
 
     private async Task WriteStateAsync<T>(DataContext db, CommandEnvelope command, long user, string externalComplex,
@@ -133,7 +135,10 @@ public sealed partial class PostgresCommandRepository : ICommandRepository
         var state = await db.BotConversations.FindAsync([complexId, bot, user, kind], ct);
         if (kind.StartsWith("cursor:", StringComparison.Ordinal) &&
             state is not null && state.ExpiresAt > clock.GetUtcNow())
+        {
             throw new InvalidOperationException("Cursor token is already used.");
+        }
+
         if (expected is not null && expected != state?.Version)
             throw new InvalidOperationException("Bot conversation changed.");
         if (state is null)

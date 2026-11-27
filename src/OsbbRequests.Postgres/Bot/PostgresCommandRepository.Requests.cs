@@ -90,7 +90,10 @@ public sealed partial class PostgresCommandRepository
         CheckOwner(command, request.OwnerId, request.BuildingId);
         if (request.Id != command.UpdateId || !ComplexLayout.IsValidRequest(request.Category, request.Scope,
             request.BuildingNumber, request.Floor, request.Entrance))
+        {
             throw new InvalidOperationException("Invalid new request.");
+        }
+
         await RequireMembershipAsync(db, command.UserId, ct);
         if (request.Category == RequestCategories.KeyOrder)
             await ValidateKeyOrderAsync(db, request, profileVersion, ct);
@@ -115,6 +118,7 @@ public sealed partial class PostgresCommandRepository
             KeyQuantity = request.KeyQuantity
         });
         if (request.KeyItems is { } keys)
+        {
             db.RequestKeyItems.AddRange(keys.Select((key, index) => new RequestKeyItem
             {
                 SourceId = sourceId,
@@ -124,6 +128,8 @@ public sealed partial class PostgresCommandRepository
                 Type = key.Type,
                 Phone = PhoneNumber.Normalize(key.Phone)
             }));
+        }
+
         var audit = CreateRequestEvent(request.Id, "EVENT#CREATED", request.CreatedAt);
         audit.ActorId = request.OwnerId;
         audit.Status = request.Status.ToString();
@@ -141,7 +147,10 @@ public sealed partial class PostgresCommandRepository
         var owner = await ResidentAsync(db, request.OwnerId, ct);
         if (owner is not { Stage: RegistrationStage.Approved, ResidentType: ResidentType.Owner, PersonalDataDeleted: false } ||
             owner.Version != profileVersion || request.Visibility != RequestVisibility.Private || request.KeyQuantity is not >= 1)
+        {
             throw new InvalidOperationException("Invalid key order authorization.");
+        }
+
         if (request.KeyItems is not { } keys)
         {
             if (request.KeyType is not ("Магніт" or "Перепустка")) throw new InvalidOperationException("Invalid key type.");
@@ -154,7 +163,9 @@ public sealed partial class PostgresCommandRepository
         {
             if (item.Type is not ("Магніт" or "Перепустка") || !PhoneNumber.TryNormalize(item.Phone, out var phone) ||
                 !phones.Add(phone!))
+            {
                 throw new InvalidOperationException("Invalid key order item.");
+            }
         }
         var matching = await ApprovedPhones(db).Where(row => phones.Contains(row.Phone)).Select(row => row.Phone).Distinct().CountAsync(ct);
         if (matching != phones.Count)
@@ -183,7 +194,10 @@ public sealed partial class PostgresCommandRepository
         await RequireMembershipAsync(db, command.UserId, ct);
         if (string.IsNullOrWhiteSpace(comment.Text) || comment.Text.Length > 1000 ||
             await FindRequestAsync(db, command.UserId, comment.RequestId, ct) is null)
+        {
             throw new InvalidOperationException("Invalid resident comment.");
+        }
+
         var audit = CreateRequestEvent(comment.RequestId, FormattableString.Invariant($"EVENT#UPDATE#{command.UpdateId}"), comment.CreatedAt);
         audit.ActorId = command.UserId;
         audit.Action = "ResidentComment";

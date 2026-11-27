@@ -34,13 +34,19 @@ public sealed partial class PostgresAdminStore
             await CheckActor(db, area, actor, ct);
             if (change.Version is null or < 0 || change.SerialNumber is { Length: > 25 } ||
                 (change.Remove ? change.Type is not null || change.SerialNumber is not null : change.Type is not ("Магніт" or "Перепустка")))
+            {
                 throw Error(AdminFailure.InvalidInput, "Оберіть тип ключа та вкажіть серійний номер до 25 символів за наявності.");
+            }
+
             var row = await Requests(db, area).SingleOrDefaultAsync(row => row.OwnerId == ownerId && row.RequestId == requestId, ct)
                 ?? throw Error(AdminFailure.NotFound, "Заявку не знайдено.");
             var keys = await KeyRows(db, row).ToListAsync(ct);
             if (row.Version != change.Version || row.Category != RequestCategories.KeyOrder || row.Status != RequestStatus.Completed ||
                 index < 0 || index >= keys.Count)
+            {
                 throw Error(AdminFailure.Conflict, "Замовлення або ключ змінено. Оновіть список.");
+            }
+
             var selected = keys[index];
             var previous = new ResidentKeyDetails(selected.Type, selected.SerialNumber);
             var next = change.Remove ? null : new ResidentKeyDetails(change.Type!, string.IsNullOrWhiteSpace(change.SerialNumber) ? null : change.SerialNumber.Trim());

@@ -215,9 +215,12 @@ public sealed class ComplexRequestCommandTests
     {
         var repository = new MemoryRepository();
         for (var id = 1; id <= 13; id++)
+        {
             repository.Requests.Add(Request(id, owner: 999, visibility: id % 3 == 0 ? RequestVisibility.Private : RequestVisibility.Public)
                 with
             { Description = ($"Опис{id}:").PadRight(2000, 'О') });
+        }
+
         var seen = new List<long>();
         var command = "/complex";
         for (var update = 1; update <= 15; update++)

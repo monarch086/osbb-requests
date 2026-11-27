@@ -116,7 +116,9 @@ public sealed partial class AdminAuthenticationTests
         Assert.Equal(expected, response.StatusCode);
         Assert.Equal(1, accounts.Reads);
         if (expected == HttpStatusCode.Forbidden)
+        {
             Assert.Equal("Недостатньо прав для зміни сповіщень.", await ReadErrorAsync(response));
+        }
         else
         {
             Assert.Equal("Некоректні дані запиту.", await ReadErrorAsync(response));

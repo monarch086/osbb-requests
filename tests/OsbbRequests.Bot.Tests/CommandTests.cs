@@ -137,8 +137,11 @@ public sealed class CommandTests
     {
         var repository = new MemoryRepository();
         for (var i = 1; i <= 11; i++)
+        {
             repository.Requests.Add(new MaintenanceRequest(i, 42, "building", "місця загального користування",
                 new string('М', 200), new string('О', 2000), DateTimeOffset.UtcNow));
+        }
+
         repository.Requests.Add(new MaintenanceRequest(99, 99, "building", "інше", "Секретне місце", "Чужі дані",
             DateTimeOffset.UtcNow));
         var page = await Handler(repository).HandleAsync(Command("/my"), CancellationToken.None);

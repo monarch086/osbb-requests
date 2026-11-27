@@ -16,6 +16,8 @@ csharp_using_directive_placement = outside_namespace
 dotnet_diagnostic.IDE0065.severity = warning
 csharp_style_namespace_declarations = file_scoped
 dotnet_diagnostic.IDE0161.severity = warning
+csharp_prefer_braces = when_multiline
+dotnet_diagnostic.IDE0011.severity = warning
 
 [*.{csproj,props}]
 indent_size = 2

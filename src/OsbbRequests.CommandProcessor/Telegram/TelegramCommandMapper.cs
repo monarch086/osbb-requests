@@ -12,7 +12,9 @@ public static class TelegramCommandMapper
                 UpdateId: >= 0,
                 Message: { From: { IsBot: false, Id: > 0 } from, Chat: { Type: "private" } chat } message
             } || from.Id != chat.Id)
+        {
             return null;
+        }
 
         var text = message.Text ?? "";
         if (!HasSupportedContent(text, message.Contact) || IsAddressedToAnotherBot(text, botUsername))

@@ -36,7 +36,10 @@ public sealed class RequestCreationService(ICommandRepository repository, string
                 (withEntrance && !TryEntrance(parts[1], out entrance)) ||
                 !TryFloor(parts[floorIndex], out var floor) || !ComplexLayout.IsValid(scope, building, floor, entrance) ||
                 !ValidCategory(parts[floorIndex + 1]) || parts[floorIndex + 2].Length is < 10 or > 2000)
+            {
                 return new(Usage);
+            }
+
             if (building == "4Б") entrance = 1;
             return Finish(command, new(command.UserId, complexId, RequestDraftStage.Description, current?.Version ?? 0,
                 scope, building, floor, CanonicalCategory(parts[floorIndex + 1])!, Entrance: entrance), current?.Version, parts[floorIndex + 2]);
@@ -97,8 +100,11 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     private static CommandOutcome SelectCategory(RequestDraft draft, string text, bool owner)
     {
         if (text.Equals(RequestCategories.KeyOrder, StringComparison.OrdinalIgnoreCase))
+        {
             return owner ? Advance(draft, draft with { Category = RequestCategories.KeyOrder, Stage = RequestDraftStage.KeyType }, owner)
                 : Prompt(draft);
+        }
+
         if (!ValidCategory(text)) return Prompt(draft, owner);
         return Advance(draft, draft with
         {
@@ -193,7 +199,10 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         var items = draft.KeyItems;
         if (draft.Category != RequestCategories.KeyOrder || items is null || items.Count is < 1 or > 30 ||
             items.Any(item => item.Type is not ("Магніт" or "Перепустка") || !PhoneNumber.TryNormalize(item.Phone, out _)))
+        {
             throw new InvalidOperationException("Incomplete key order.");
+        }
+
         var unique = items.DistinctBy(item => PhoneNumber.Normalize(item.Phone), StringComparer.Ordinal).ToArray();
         if (unique.Length != items.Count)
         {

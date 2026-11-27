@@ -50,7 +50,10 @@ internal static class CognitoAuthentication
                         if (identity?.FindFirst("token_use")?.Value != "access" ||
                             identity.FindFirst("client_id")?.Value != config.ClientId ||
                             string.IsNullOrWhiteSpace(identity.FindFirst("sub")?.Value))
+                        {
                             context.Fail("Invalid Cognito access token claims.");
+                        }
+
                         return Task.CompletedTask;
                     }
                 };

@@ -13,7 +13,9 @@ internal sealed class AdminAccessHandler(AdminAccountService accounts)
     {
         if (context.HasFailed || context.User.Identity?.IsAuthenticated != true || !CognitoAuthentication.HasAdminScope(context.User) ||
             context.User.FindFirstValue("sub") is not { } userId)
+        {
             return;
+        }
 
         try
         {

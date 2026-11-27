@@ -159,7 +159,10 @@ public sealed class ResidentService(IResidentStore store)
         var registration = await GetRegistrationAsync(reference, ct);
         if (registration.Stage == RegistrationStage.Pending ? !actor.EffectivePermissions.PendingResidents :
             registration.Stage == RegistrationStage.Approved ? !actor.EffectivePermissions.RegisteredResidents : true)
+        {
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду історії.");
+        }
+
         return await store.RegistrationHistoryAsync(reference, cursor, ct);
     }
 

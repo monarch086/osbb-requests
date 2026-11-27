@@ -20,7 +20,9 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         {
             if (result.ValueKind == JsonValueKind.Array && result.Deserialize<TelegramUpdate[]>() is { } updates &&
                 updates.All(update => update?.UpdateId is >= 0 and < long.MaxValue))
+            {
                 return updates;
+            }
         }
         catch (JsonException)
         {
@@ -34,7 +36,10 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         var result = await CallAsync(TelegramOperation.GetMe, "getMe", new { }, cancellationToken);
         if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty("username", out var username) &&
             username.ValueKind == JsonValueKind.String && username.GetString() is { Length: > 0 } value)
+        {
             return value;
+        }
+
         throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, operation: TelegramOperation.GetMe);
     }
 
@@ -55,16 +60,22 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             ["link_preview_options"] = new { is_disabled = true }
         };
         if (keyboard == ReplyKeyboard.RequestContact)
+        {
             payload["reply_markup"] = new
             {
                 keyboard = new[] { new[] { new { text = "Поділитися номером телефону", request_contact = true } }, new[] { new { text = "Скасувати", request_contact = false } } },
                 resize_keyboard = true,
                 one_time_keyboard = true
             };
+        }
         else if (keyboard == ReplyKeyboard.PageNavigation)
+        {
             payload["reply_markup"] = new { keyboard = new[] { new[] { new { text = "Скасувати" }, new { text = "Далі" } } }, resize_keyboard = true, one_time_keyboard = false };
+        }
         else if (keyboard == ReplyKeyboard.Cancel)
+        {
             payload["reply_markup"] = new { keyboard = new[] { new[] { new { text = "Скасувати" } } }, resize_keyboard = true, one_time_keyboard = false };
+        }
         else if (keyboard is ReplyKeyboard.MainGuest or ReplyKeyboard.MainResident)
         {
             var rows = CommandMenu.ForResident(keyboard == ReplyKeyboard.MainResident)
@@ -94,7 +105,9 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             payload["reply_markup"] = new { keyboard = rows.Append(new[] { "Скасувати" }).Select(row => row.Select(text => new { text }).ToArray()).ToArray(), resize_keyboard = true, one_time_keyboard = true };
         }
         else if (keyboard == ReplyKeyboard.Remove)
+        {
             payload["reply_markup"] = new { remove_keyboard = true };
+        }
         // No parse_mode: all resident content is plain text, never Telegram HTML.
         var sent = await CallAsync(TelegramOperation.SendMessage, "sendMessage", payload, cancellationToken);
         return sent.ValueKind == JsonValueKind.Object && sent.TryGetProperty("message_id", out var id) &&
@@ -108,12 +121,15 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         lock (configuredMenus)
             if (!force && configuredMenus.TryGetValue(chatId, out var current) && current == registered) return;
         foreach (var language in new[] { "", "uk" })
+        {
             await CallAsync(TelegramOperation.SetCommandMenu, "setMyCommands", new
             {
                 scope = new { type = "chat", chat_id = chatId },
                 language_code = language,
                 commands = CommandMenu.ForCommandMenu().Select(item => new { command = item.Command, description = item.Description }).ToArray()
             }, cancellationToken, requireTrueResult: true);
+        }
+
         lock (configuredMenus)
         {
             // Bound the menu cache; a cache miss only repeats an idempotent menu update.
@@ -144,20 +160,32 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
                 var details = await ReadErrorResponseAsync(response.Content, cancellationToken);
                 if (operation is TelegramOperation.SendMessage or TelegramOperation.SetCommandMenu &&
                     response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden)
+                {
                     throw new TelegramRecipientUnavailableException((int)response.StatusCode, operation, details);
+                }
+
                 throw new TelegramApiException(TelegramFailureCategory.HttpError, (int)response.StatusCode, operation, response: details);
             }
             using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
                 cancellationToken: cancellationToken);
             if (body.RootElement.ValueKind != JsonValueKind.Object)
+            {
                 throw new TelegramApiException(TelegramFailureCategory.InvalidResponse, (int)response.StatusCode, operation,
                     response: TelegramErrorResponse.Read(body.RootElement));
+            }
+
             if (!body.RootElement.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
+            {
                 throw new TelegramApiException(TelegramFailureCategory.ApiRejected, (int)response.StatusCode, operation,
                     response: TelegramErrorResponse.Read(body.RootElement));
+            }
+
             if (requireTrueResult && (!body.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.True))
+            {
                 throw new TelegramApiException(TelegramFailureCategory.UnconfirmedResult, (int)response.StatusCode, operation,
                     response: TelegramErrorResponse.Read(body.RootElement));
+            }
+
             return body.RootElement.TryGetProperty("result", out var value) ? value.Clone() : default;
         }
         catch (HttpRequestException error)

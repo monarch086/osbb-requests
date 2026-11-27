@@ -97,21 +97,29 @@ internal sealed class MemoryRepository : ICommandRepository
         {
             if (ApartmentRecords.GetValueOrDefault(command.UserId)?.Version != apartment.ExpectedVersion ||
                 Registrations.GetValueOrDefault(command.UserId)?.Version != apartment.ProfileVersion)
+            {
                 throw new InvalidOperationException("Apartment update conflict.");
+            }
+
             ApartmentRecords[command.UserId] = apartment.Value;
         }
         if (outcome.PageNavigation is { } nav && PageNavigations.GetValueOrDefault(command.UserId)?.Version != nav.ExpectedVersion)
             throw new InvalidOperationException("Page navigation conflict.");
         if (outcome.Pagination is { } cursor && (cursor.UserId != command.UserId ||
             ComplexCursors.ContainsKey((cursor.UserId, cursor.ComplexId, cursor.Token))))
+        {
             throw new InvalidOperationException("Pagination conflict.");
+        }
+
         if (outcome.Deletion is { } deletion)
         {
             var target = Requests.SingleOrDefault(r => r.OwnerId == command.UserId && r.Id == deletion.Id);
             if (deletion.OwnerId != command.UserId || !Residents.Contains(command.UserId) || target is null ||
                 target.BuildingId != deletion.ComplexId || target.Status != RequestStatus.New ||
                 RequestVersions.GetValueOrDefault(target.Id, 1) != deletion.ExpectedVersion)
+            {
                 throw new InvalidOperationException("Deletion conflict.");
+            }
         }
         if (outcome.ProfileDialog is { } profileDialog && ProfileDialogs.GetValueOrDefault(command.UserId)?.Version != profileDialog.ExpectedVersion)
             throw new InvalidOperationException("Profile dialog conflict.");

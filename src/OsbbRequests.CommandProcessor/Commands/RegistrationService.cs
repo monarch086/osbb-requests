@@ -31,12 +31,15 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
     public async Task<CommandOutcome> StartAsync(long userId, CancellationToken cancellationToken)
     {
         if (await repository.IsResidentAsync(userId, buildingId, cancellationToken))
+        {
             return new CommandOutcome("Доступ до ЖК «Зелений острів 2» надано.\n\n" +
                 "У боті можна:\n" +
                 "• створити заявку та відстежувати її статус;\n" +
                 "• переглянути поточні заявки комплексу;\n" +
                 "• отримувати сповіщення про зміни своєї заявки;\n" +
                 "• змінити або видалити свої персональні дані.", Keyboard: ReplyKeyboard.Remove);
+        }
+
         var current = await repository.GetRegistrationAsync(userId, cancellationToken);
         if (current is { Stage: RegistrationStage.Pending })
             return Status(current);
@@ -107,7 +110,10 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
         }
         if (approvalMode != ResidentApprovalMode.Automatic || outcome.Registration?.Value.Stage != RegistrationStage.Pending ||
             outcome.Registration.Value.ResidentType is not (ResidentType.FamilyMember or ResidentType.Tenant))
+        {
             return outcome;
+        }
+
         var change = outcome.Registration;
         var approved = change.Value with { Stage = RegistrationStage.Approved, ApprovedAt = change.Value.UpdatedAt };
         return new CommandOutcome("Реєстрацію завершено! Вам автоматично надано доступ до бота ЖК «Зелений острів 2».\n\n" +
@@ -134,8 +140,11 @@ public sealed partial class RegistrationService(ICommandRepository repository, s
             case RegistrationStage.AwaitingPhone:
                 if (envelope.Contact is not { UserId: { } contactOwner, PhoneNumber: { } phone } ||
                     contactOwner != envelope.UserId || !TryPhone(phone, out var normalized))
+                {
                     return new CommandOutcome("Надішліть власний номер кнопкою «Поділитися номером телефону». " +
                         "Чужий контакт або номер, введений текстом, не підходить.", Keyboard: ReplyKeyboard.RequestContact);
+                }
+
                 next = current with { Phone = normalized, Stage = RegistrationStage.AwaitingFirstName };
                 break;
             case RegistrationStage.AwaitingFirstName:

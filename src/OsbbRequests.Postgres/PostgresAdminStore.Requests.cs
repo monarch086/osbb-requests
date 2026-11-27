@@ -42,12 +42,19 @@ public sealed partial class PostgresAdminStore
         if (filters.Section == "keys") query = query.Where(row => row.Category == RequestCategories.KeyOrder);
         if (filters.Section == "complex") query = query.Where(row => row.Category != RequestCategories.KeyOrder);
         if (filters.Floor is { } floor) query = query.Where(row => row.Floor == floor);
-        if (filters.Target == "Complex") query = query.Where(row => row.Scope == RequestScope.Complex);
+        if (filters.Target == "Complex")
+        {
+            query = query.Where(row => row.Scope == RequestScope.Complex);
+        }
         else if (filters.Target == "Unspecified")
+        {
             query = query.Where(row => row.Scope != RequestScope.Complex && (row.Scope != RequestScope.Building ||
                 row.BuildingNumber == null || !ComplexLayout.BuildingNumbers.Contains(row.BuildingNumber)));
+        }
         else if (filters.Target is { Length: > 8 } target)
+        {
             query = query.Where(row => row.Scope == RequestScope.Building && row.BuildingNumber == target.Substring(8));
+        }
         if (Boundary(filters.From, TimeOnly.MinValue) is { } start) query = query.Where(row => row.CreatedAt >= start);
         if (Boundary(filters.To, TimeOnly.MaxValue) is { } end) query = query.Where(row => row.CreatedAt <= end);
         if (!string.IsNullOrWhiteSpace(filters.Search))

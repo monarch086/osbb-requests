@@ -80,7 +80,10 @@ public sealed partial class ResidentProfileService
         var address = dialog.Draft.BuildingNumber!;
         if ((current.BuildingNumber == address && TryApartment(current.ApartmentNumber, out var primary) && number == primary) ||
             items.Any(item => item.BuildingNumber == address && item.ApartmentNumber == number))
+        {
             return Close(dialog, "Ця квартира вже є у вашому профілі. Відкрийте «Мої квартири», щоб перевірити її статус.");
+        }
+
         if (items.Count >= OwnerApartments.MaxAdditional)
             return Close(dialog, $"До профілю можна додати до {OwnerApartments.MaxAdditional} квартир.");
         var apartment = new OwnerApartment(Guid.NewGuid().ToString("N"), address, number, now);

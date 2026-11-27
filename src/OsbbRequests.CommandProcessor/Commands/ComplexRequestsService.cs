@@ -19,7 +19,10 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
             if (before is null) return new("Цю сторінку не знайдено. Почніть перегляд із /complex.");
         }
         else if (arguments.Length > 0 && !TryCursor(arguments, out before))
+        {
             return new("Скористайтеся /complex або командою наступної сторінки зі списку заявок комплексу.");
+        }
+
         var page = await repository.ListPublicRequestsAsync(complexId, before, ct);
         var token = RandomNumberGenerator.GetString(ComplexRequestCursor.Alphabet, 10);
         string? nextBefore = null;
@@ -72,7 +75,10 @@ public sealed class ComplexRequestsService(ICommandRepository repository, string
             var parts = decoded.Split('#');
             if (parts.Length != 2 || !DateTimeOffset.TryParseExact(parts[0], "O", CultureInfo.InvariantCulture,
                 DateTimeStyles.None, out _) || !long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id < 0)
+            {
                 return false;
+            }
+
             before = decoded;
             return true;
         }

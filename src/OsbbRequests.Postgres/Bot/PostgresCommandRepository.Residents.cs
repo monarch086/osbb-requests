@@ -126,8 +126,11 @@ public sealed partial class PostgresCommandRepository
     {
         var phone = value.Phone is null || value.PersonalDataDeleted ? null : PhoneNumber.Normalize(value.Phone);
         if (!isNew)
+        {
             await db.ResidentPhones.Where(number => number.ResidentId == row.Id &&
                 (value.PersonalDataDeleted || number.IsPrimary && number.Phone != phone)).ExecuteDeleteAsync(ct);
+        }
+
         if (phone is null) return;
         var primary = isNew ? null : await db.ResidentPhones.FindAsync([row.Id, phone], ct);
         if (primary is null)
@@ -163,7 +166,9 @@ public sealed partial class PostgresCommandRepository
             string.IsNullOrWhiteSpace(value.Phone) || string.IsNullOrWhiteSpace(value.FirstName) || string.IsNullOrWhiteSpace(value.LastName) ||
             !ComplexLayout.BuildingNumbers.Contains(value.BuildingNumber, StringComparer.Ordinal) ||
             !int.TryParse(value.ApartmentNumber, out var apartment) || apartment is < 1 or > 999)
+        {
             throw new InvalidOperationException("Automatic approval requires a completed family member or tenant registration.");
+        }
     }
 
     private async Task ApproveAsync(DataContext db, Resident row, ResidentRegistration profile, CancellationToken ct)
@@ -214,7 +219,10 @@ public sealed partial class PostgresCommandRepository
         var apartment = value.Items.Single(item => item.Id == submission.ApartmentId && item.Status == ApartmentReviewStatus.Pending);
         if (await rows.AnyAsync(row => row.BuildingNumber == apartment.BuildingNumber && row.ApartmentNumber == apartment.ApartmentNumber &&
             row.Status != ApartmentReviewStatus.Rejected, ct))
+        {
             throw new InvalidOperationException("Apartment has already been submitted.");
+        }
+
         db.ResidentApartments.Add(new()
         {
             ComplexId = complexId,

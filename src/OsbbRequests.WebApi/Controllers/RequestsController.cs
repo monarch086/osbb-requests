@@ -51,7 +51,10 @@ public sealed class RequestsController(RequestService requests) : ControllerBase
     {
         if (!long.TryParse(owner, NumberStyles.None, CultureInfo.InvariantCulture, out var ownerId) || ownerId <= 0 ||
             !long.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var requestId))
+        {
             throw new AdminOperationException(AdminFailure.NotFound, "Сторінку не знайдено.");
+        }
+
         return requests.GetManagedRequestAsync(actor, ownerId, requestId, ct);
     }
 }

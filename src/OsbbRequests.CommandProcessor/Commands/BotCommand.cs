@@ -12,7 +12,9 @@ public sealed record BotCommand(string Name, string Arguments)
         var parts = token.Split('@');
         if (parts.Length > 2 || parts.Length == 2 &&
             !string.Equals(parts[1], botUsername, StringComparison.OrdinalIgnoreCase))
+        {
             return null;
+        }
 
         if (parts[0].Length == 0)
             return null;

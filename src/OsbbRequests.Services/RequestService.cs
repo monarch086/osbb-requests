@@ -65,7 +65,11 @@ public sealed class RequestService(IRequestStore store, IAdministratorDirectory 
         if (change.Version != current.Version) throw new AdminOperationException(AdminFailure.Conflict, "Заявку змінено. Оновіть список.");
         if (!Enum.TryParse<RequestStatus>(change.Status, out var status) || !Enum.IsDefined(status) ||
             !Enum.TryParse<RequestVisibility>(change.Visibility, out var visibility) || !Enum.IsDefined(visibility) ||
-            change.Priority is not ("Low" or "Normal" or "High" or "Urgent")) throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректні параметри заявки.");
+            change.Priority is not ("Low" or "Normal" or "High" or "Urgent"))
+        {
+            throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректні параметри заявки.");
+        }
+
         if (current.Request.Category == RequestCategories.KeyOrder && visibility != RequestVisibility.Private)
             throw new AdminOperationException(AdminFailure.InvalidInput, "Замовлення ключів має бути приватним.");
         if (change.Resolution?.Length > 1000) throw new AdminOperationException(AdminFailure.InvalidInput, "Пояснення має містити не більше 1000 символів.");
@@ -83,7 +87,10 @@ public sealed class RequestService(IRequestStore store, IAdministratorDirectory 
         {
             if (current.Request.Category != RequestCategories.KeyOrder || keyItems is null || change.KeySerialNumbers.Count != keyItems.Count ||
                 change.KeySerialNumbers.Any(serial => serial is { Length: > 25 }))
+            {
                 throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректні серійні номери ключів (до 25 символів). ");
+            }
+
             keyItems = keyItems.Select((item, index) => item with { SerialNumber = string.IsNullOrWhiteSpace(change.KeySerialNumbers[index]) ? null : change.KeySerialNumbers[index]!.Trim() }).ToArray();
         }
         var next = current.Request with
@@ -129,7 +136,10 @@ public sealed class RequestService(IRequestStore store, IAdministratorDirectory 
         {
             if (!int.TryParse(floorText, NumberStyles.None, CultureInfo.InvariantCulture, out var floorNumber) ||
                 floorNumber is < ComplexLayout.EntranceFloor or > ComplexLayout.FloorCount)
+            {
                 throw new AdminOperationException(AdminFailure.InvalidInput, "Оберіть «Парадне» або поверх від 1 до 25.");
+            }
+
             floor = floorNumber;
         }
         var section = search.Section;
@@ -137,7 +147,10 @@ public sealed class RequestService(IRequestStore store, IAdministratorDirectory 
             throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректний розділ заявок.");
         if (section == "complex" && !actor.EffectivePermissions.ComplexRequests || section == "keys" && !actor.EffectivePermissions.KeyOrders ||
             section is null && !(actor.EffectivePermissions.ComplexRequests && actor.EffectivePermissions.KeyOrders))
+        {
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду заявок.");
+        }
+
         return new RequestFilters(statuses, search.Category, search.Search, from, to, target, floor, section);
     }
 

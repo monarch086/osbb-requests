@@ -59,7 +59,10 @@ public sealed class Notification
     {
         if (!Key.StartsWith(LocalPrefix, StringComparison.Ordinal) || Key.Length == LocalPrefix.Length ||
             OwnerId is not { } owner || Text is not { } text || CreatedAt is not { } created)
+        {
             throw new InvalidOperationException("Missing notification delivery fields.");
+        }
+
         return new(Key[LocalPrefix.Length..], complex, owner, RequestId, RequestVersion, text, created,
             AdministratorEvent, AdministratorId, ResidentBroadcastId, RegistrationId);
     }

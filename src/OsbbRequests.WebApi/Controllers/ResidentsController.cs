@@ -45,7 +45,10 @@ public sealed class ResidentsController(ResidentService residents) : ControllerB
         if (!long.TryParse(owner, NumberStyles.None, CultureInfo.InvariantCulture, out var ownerId) || ownerId <= 0 ||
             !long.TryParse(request, NumberStyles.None, CultureInfo.InvariantCulture, out var requestId) ||
             !int.TryParse(index, NumberStyles.None, CultureInfo.InvariantCulture, out var position))
+        {
             throw new AdminOperationException(AdminFailure.InvalidInput, "Некоректний ключ.");
+        }
+
         await residents.UpdateResidentKeyAsync(HttpContext.GetAdminActor(), ownerId, requestId, position, change, ct);
         return AdminResponses.Saved();
     }

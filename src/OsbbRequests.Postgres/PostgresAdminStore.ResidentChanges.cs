@@ -70,7 +70,10 @@ public sealed partial class PostgresAdminStore
             var row = await FindResidentForWriteAsync(db, current, reference, ct);
             if (row.Version != version || row.Stage != RegistrationStage.Pending &&
                 (first is null || row.Stage != RegistrationStage.Approved || row.PersonalDataDeleted))
+            {
                 throw Error(AdminFailure.Conflict, "Дані мешканця змінено. Оновіть список.");
+            }
+
             var nextType = Enum.Parse<ResidentType>(type);
             var firstChanged = first is not null && first != row.FirstName;
             var lastChanged = last is not null && last != row.LastName;

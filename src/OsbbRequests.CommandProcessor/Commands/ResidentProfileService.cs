@@ -110,9 +110,12 @@ public sealed partial class ResidentProfileService(ICommandRepository repository
                 : Close(dialog, "Список квартир змінився. Відкрийте особовий рахунок ще раз.");
         }
         if (dialog.Action == ProfileAction.Account)
+        {
             return OwnerApartments.CanManage(current)
                 ? Close(dialog, "Відкрийте «Мої квартири», щоб подати адресу на перевірку.")
                 : ContinueAccount(dialog, current, command, now);
+        }
+
         var outcome = RegistrationService.Advance(dialog.Draft ?? throw new InvalidOperationException("Missing profile draft."), command, now);
         if (outcome.Registration is not { } change) return outcome;
         if (current?.ResidentType is ResidentType.Employee or ResidentType.Owner && dialog.Draft?.Stage == RegistrationStage.AwaitingLastName && change.Value.Stage == RegistrationStage.AwaitingBuilding)
@@ -151,15 +154,21 @@ public sealed partial class ResidentProfileService(ICommandRepository repository
             if (command.Contact is not null || !ValidBuilding(number)) return AccountPrompt(draft.Stage);
             draft = draft with { BuildingNumber = number };
             if (!TryApartment(draft.ApartmentNumber, out _))
+            {
                 return AccountPrompt(RegistrationStage.AwaitingApartment) with
                 { ProfileDialog = new(dialog with { Draft = draft with { Stage = RegistrationStage.AwaitingApartment }, Version = dialog.Version + 1 }, dialog.Version) };
+            }
         }
         else if (draft.Stage == RegistrationStage.AwaitingApartment)
         {
             if (command.Contact is not null || !TryApartment(command.Text, out var apartment)) return AccountPrompt(draft.Stage);
             draft = draft with { ApartmentNumber = apartment.ToString(CultureInfo.InvariantCulture) };
         }
-        else throw new InvalidOperationException("Unknown account step.");
+        else
+        {
+            throw new InvalidOperationException("Unknown account step.");
+        }
+
         var profile = current with
         {
             BuildingNumber = draft.BuildingNumber,

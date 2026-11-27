@@ -58,7 +58,10 @@ public sealed partial class PostgresAdminStore
             rows = rows.Skip(offset).Take(PageSize).ToList();
         }
         else
+        {
             rows = await SortResidents(query, pending, direction).Skip(offset).Take(PageSize).ToListAsync(ct);
+        }
+
         return new(await ToProfilesAsync(db, rows, ct), actual, PageSize, total, counts);
     }
 
@@ -68,7 +71,10 @@ public sealed partial class PostgresAdminStore
         if ((building is not (null or "" or "Unspecified") && !ComplexLayout.BuildingNumbers.Contains(building)) ||
             (residentType is not (null or "") && !Enum.GetNames<ResidentType>().Contains(residentType)) ||
             sort is not (null or "" or "registeredAt" or "lastName") || direction is not (null or "" or "asc" or "desc"))
+        {
             throw Error(AdminFailure.InvalidInput, "Некоректні параметри списку мешканців.");
+        }
+
         var query = ResidentRows(db, current, pending);
         if (building == "Unspecified") query = query.Where(row => row.BuildingNumber == null || row.BuildingNumber == "");
         else if (!string.IsNullOrEmpty(building)) query = query.Where(row => row.BuildingNumber == building);

@@ -29,7 +29,10 @@ public sealed class NotificationProcessor(INotificationRepository repository, IT
                 }
                 if (item.Notification.OwnerId > 0 && item.Notification.AdministratorEvent is null && item.Notification.AdministratorId is null &&
                     item.Notification.Id.StartsWith("registration-", StringComparison.Ordinal))
+                {
                     await telegram.SetCommandMenuAsync(item.Notification.OwnerId, registered: true, ct, force: true);
+                }
+
                 var text = item.Notification.RequestId is not null && item.Notification.AdministratorId is null
                     ? item.Notification.Text + "\n\nЩоб відповісти, скористайтеся функцією «Відповісти» на це повідомлення."
                     : item.Notification.Text;
