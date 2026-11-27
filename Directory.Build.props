@@ -4,6 +4,9 @@
     <RuntimeIdentifiers>linux-arm64</RuntimeIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- CI checks IDE0005 with dotnet format. Keep XML documentation generation optional. -->
+    <NoWarn>$(NoWarn);EnableGenerateDocumentationFile</NoWarn>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
