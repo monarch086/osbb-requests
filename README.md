@@ -648,6 +648,8 @@ loginctl enable-linger "$USER"
 
 Міграція `RemoveDuplicateLegacyRegistrations` видаляє з `source_records` дублікати старих профілів, подій реєстрації та записів про доступ. Знімки реєстрацій `META` та записи з відмінностями зберігаються. Очищення виконується один раз під час застосування міграції.
 
+Міграція `RemoveObsoleteImportedRecords` одноразово прибирає з `source_records` доставлені відповіді старого Telegram-бота, стан пагінації та службові записи каталогу DynamoDB. Сирі копії сповіщень видаляються лише за наявності точного відповідника в `notifications`. Для відновлення видалених сирих записів потрібен резервний знімок бази.
+
 Для створення міграції експортуйте змінні потрібного середовища, наприклад `set -a; source .env.data.dev; set +a`. Потім виконайте `dotnet tool restore` і `dotnet ef migrations add Назва --project src/OsbbRequests.Postgres --startup-project src/OsbbRequests.DataImport --output-dir Storage/Migrations`. Команда `migrate` застосовує міграції. Не змінюйте й не видаляйте том для очищення без окремого рішення оператора.
 
 Перевірку імпорту синтетичними даними можна виконати на окремій тестовій базі:
