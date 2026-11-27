@@ -505,19 +505,51 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Property<string>("Key")
                         .HasColumnType("text");
 
+                    b.Property<string>("Action")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Actor")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("ActorId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTimeOffset?>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Data")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
+                    b.Property<int?>("Entrance")
+                        .HasColumnType("integer");
 
                     b.Property<string>("EventKey")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("Floor")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("HasEntrance")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasFloor")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasResolution")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("PreviousStatus")
+                        .HasColumnType("text");
+
                     b.Property<long>("RequestId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("Resolution")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Target")
+                        .HasColumnType("text");
 
                     b.HasKey("SourceId", "Key");
 
@@ -715,6 +747,9 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Property<string>("Actor")
                         .HasColumnType("text");
 
+                    b.Property<string>("ApprovalMode")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset?>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -724,21 +759,35 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Property<string>("CurrentKeyType")
                         .HasColumnType("text");
 
-                    b.Property<string>("Data")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
+                    b.Property<string>("Decision")
+                        .HasColumnType("text");
 
                     b.Property<string>("EventKey")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool?>("FirstNameChanged")
+                        .HasColumnType("boolean");
+
                     b.Property<long?>("KeyRequestId")
                         .HasColumnType("bigint");
+
+                    b.Property<bool?>("LastNameChanged")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NewType")
+                        .HasColumnType("text");
 
                     b.Property<string>("PreviousKeySerialNumber")
                         .HasColumnType("text");
 
                     b.Property<string>("PreviousKeyType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PreviousType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Reason")
                         .HasColumnType("text");
 
                     b.Property<string>("RegistrationId")
@@ -990,6 +1039,54 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                         .HasForeignKey("SourceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.OwnsOne("OsbbRequests.DataImport.Storage.RequestEventSnapshot", "Snapshot", b1 =>
+                        {
+                            b1.Property<long>("SourceId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<string>("Key")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("AssignedTo")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasColumnType("text");
+
+                            b1.Property<int?>("Entrance")
+                                .HasColumnType("integer");
+
+                            b1.Property<int?>("Floor")
+                                .HasColumnType("integer");
+
+                            b1.Property<bool>("HasEntrance")
+                                .HasColumnType("boolean");
+
+                            b1.Property<bool?>("KeySerialNumbersChanged")
+                                .HasColumnType("boolean");
+
+                            b1.Property<DateOnly?>("PlannedDate")
+                                .HasColumnType("date");
+
+                            b1.Property<string>("Priority")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("Scope")
+                                .HasColumnType("text");
+
+                            b1.Property<int>("Visibility")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("SourceId", "Key");
+
+                            b1.ToTable("request_event_snapshots", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("SourceId", "Key");
+                        });
+
+                    b.Navigation("Snapshot");
                 });
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.RequestKeyItem", b =>

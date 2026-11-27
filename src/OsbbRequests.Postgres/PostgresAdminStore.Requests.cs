@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
@@ -131,15 +130,8 @@ public sealed partial class PostgresAdminStore
             row.Entrance = next.Entrance;
             row.Version++;
             var now = DateTimeOffset.UtcNow;
-            AddRequestEvent(db, row, now, new
-            {
-                actor = actor.Email,
-                createdAt = now,
-                previousStatus = current.Request.Status.ToString(),
-                status = next.Status.ToString(),
-                resolution = comment,
-                changes = RequestAudit.SerializeChanges(current.Request, next)
-            });
+            AddRequestEvent(db, row, now, actor.Email, current.Request.Status, comment,
+                RequestEventSnapshot.Capture(current.Request, next));
             Enqueue(db, area, ResidentNotification.Create(current.Request, next, row.Version, now, comment));
         }, ct);
 
@@ -151,17 +143,35 @@ public sealed partial class PostgresAdminStore
                 .OrderByDescending(row => row.CreatedAt).ThenByDescending(row => row.EventKey).Take(100).ToListAsync(ct);
             var profile = await ResidentByUserAsync(db, current, request.OwnerId, ct);
             var creator = profile?.HasDeletedPersonalData == true ? "Мешканець видалив свої дані" : profile is null ? "Мешканець" : ResidentName(profile);
-            return rows.Select(row =>
-            {
-                using var data = JsonDocument.Parse(row.Data);
-                var item = data.RootElement.EnumerateObject().Where(property => property.Name is not ("pk" or "sk" or "actorId"))
-                    .ToDictionary(property => property.Name, property => property.Value.ValueKind == JsonValueKind.String ? property.Value.GetString()! :
-                        property.Value.ValueKind == JsonValueKind.Number ? property.Value.GetRawText() : "");
-                if (row.EventKey == "EVENT#CREATED") { item["action"] = "Created"; item["actor"] = creator; }
-                else if (item.GetValueOrDefault("action") == "ResidentComment") item["actor"] = creator;
-                return item;
-            }).ToArray();
+            return rows.Select(row => HistoryItem(row, creator)).ToArray();
         }, ct);
+
+    private static Dictionary<string, string> HistoryItem(RequestEvent row, string creator)
+    {
+        var item = new Dictionary<string, string>();
+        AddHistoryValue(item, "action", row.EventKey == "EVENT#CREATED" ? "Created" : row.Action);
+        AddHistoryValue(item, "actor", row.EventKey == "EVENT#CREATED" || row.Action == "ResidentComment" ? creator : row.Actor);
+        AddHistoryValue(item, "createdAt", row.CreatedAt?.ToString("O", CultureInfo.InvariantCulture));
+        AddHistoryValue(item, "status", row.Status);
+        AddHistoryValue(item, "previousStatus", row.PreviousStatus);
+        AddHistoryValue(item, "target", row.Target);
+        AddHistoryValue(item, "changes", row.Snapshot?.SerializeForHistory());
+        AddHistoryValue(item, "resolution", HistoryValue(row.HasResolution, row.Resolution));
+        var (floorField, entranceField) = row.Key.StartsWith("LOCAL#", StringComparison.Ordinal)
+            ? ("Floor", "Entrance") : ("floor", "entrance");
+        AddHistoryValue(item, floorField,
+            HistoryValue(row.HasFloor, row.Floor?.ToString(CultureInfo.InvariantCulture)));
+        AddHistoryValue(item, entranceField,
+            HistoryValue(row.HasEntrance, row.Entrance?.ToString(CultureInfo.InvariantCulture)));
+        return item;
+    }
+
+    private static void AddHistoryValue(Dictionary<string, string> item, string field, string? value)
+    {
+        if (value is not null) item[field] = value;
+    }
+
+    private static string? HistoryValue(bool present, string? value) => present ? value ?? "" : null;
 
     private static IQueryable<StoredRequest> Requests(DataContext db, Scope current) =>
         db.Requests.Where(row => row.SourceId == current.SourceId && row.ComplexId == current.ComplexId);
@@ -179,7 +189,8 @@ public sealed partial class PostgresAdminStore
             row.KeyQuantity, items.Length == 0 ? null : items), row.Version);
     }
 
-    private static void AddRequestEvent(DataContext db, StoredRequest row, DateTimeOffset now, object data)
+    private static void AddRequestEvent(DataContext db, StoredRequest row, DateTimeOffset now, string actor,
+        RequestStatus previousStatus, string? resolution = null, RequestEventSnapshot? snapshot = null)
     {
         var key = EventKey();
         db.RequestEvents.Add(new()
@@ -189,7 +200,12 @@ public sealed partial class PostgresAdminStore
             Key = key,
             EventKey = key,
             CreatedAt = now,
-            Data = JsonSerializer.Serialize(data)
+            Actor = actor,
+            Status = row.Status.ToString(),
+            PreviousStatus = previousStatus.ToString(),
+            Resolution = resolution,
+            HasResolution = snapshot is not null,
+            Snapshot = snapshot
         });
     }
 }

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain.Admin;
@@ -45,7 +44,8 @@ public sealed partial class PostgresAdminStore
             EventKey = "EVENT#DECIDED",
             Actor = actor.Email,
             CreatedAt = now,
-            Data = JsonSerializer.Serialize(new { actor = actor.Email, createdAt = now, decision = row.Stage.ToString(), reason = row.DecisionReason })
+            Decision = row.Stage.ToString(),
+            Reason = row.DecisionReason
         });
         if (decision.Approved)
             Enqueue(db, current, ResidentNotification.RegistrationApproved((await ToProfilesAsync(db, [row], ct))[0]));
@@ -109,7 +109,10 @@ public sealed partial class PostgresAdminStore
             EventKey = "EVENT#TYPE#" + key,
             Actor = change.Actor,
             CreatedAt = change.CreatedAt,
-            Data = JsonSerializer.Serialize(change),
+            PreviousType = change.PreviousType,
+            NewType = change.NewType,
+            FirstNameChanged = change.FirstNameChanged,
+            LastNameChanged = change.LastNameChanged,
             KeyRequestId = details?.RequestId,
             PreviousKeyType = details?.Previous.Type,
             PreviousKeySerialNumber = details?.Previous.SerialNumber,

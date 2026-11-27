@@ -80,7 +80,7 @@ public sealed partial class PostgresAdminStore
                 profile.TypeChangeCount++;
                 AddResidentHistory(db, area, profile, new(null, null, actor.Email, now, KeyChange: details));
             }
-            AddRequestEvent(db, row, now, new { actor = actor.Email, status = row.Status.ToString(), previousStatus = row.Status.ToString(), createdAt = now });
+            AddRequestEvent(db, row, now, actor.Email, row.Status);
         }, ct);
 
     private static string KeyPhone(string phone) => PhoneNumber.TryNormalize(phone, out var normalized) ? normalized! : phone;

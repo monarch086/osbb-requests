@@ -129,15 +129,15 @@ public sealed partial class PostgresCommandRepository
                 Type = key.Type,
                 Phone = PhoneNumber.Normalize(key.Phone)
             }));
-        AddRequestEvent(db, request.Id, "EVENT#CREATED", request.CreatedAt, new
-        {
-            actorId = request.OwnerId,
-            createdAt = request.CreatedAt,
-            status = request.Status.ToString(),
-            target = ComplexLayout.Target(request.Scope, request.BuildingNumber),
-            request.Floor,
-            request.Entrance
-        });
+        var audit = CreateRequestEvent(request.Id, "EVENT#CREATED", request.CreatedAt);
+        audit.ActorId = request.OwnerId;
+        audit.Status = request.Status.ToString();
+        audit.Target = ComplexLayout.Target(request.Scope, request.BuildingNumber);
+        audit.Floor = request.Floor;
+        audit.HasFloor = true;
+        audit.Entrance = request.Entrance;
+        audit.HasEntrance = true;
+        db.RequestEvents.Add(audit);
         Enqueue(db, AdministratorNotifications.NewRequest(request));
     }
 
@@ -175,7 +175,11 @@ public sealed partial class PostgresCommandRepository
             throw new InvalidOperationException("Request changed before deletion.");
         db.Requests.Remove(row);
         var now = clock.GetUtcNow();
-        AddRequestEvent(db, deletion.Id, "EVENT#DELETED", now, new { actorId = command.UserId, createdAt = now, action = "Deleted", previousStatus = "New" });
+        var audit = CreateRequestEvent(deletion.Id, "EVENT#DELETED", now);
+        audit.ActorId = command.UserId;
+        audit.Action = "Deleted";
+        audit.PreviousStatus = "New";
+        db.RequestEvents.Add(audit);
     }
 
     private async Task AddCommentAsync(DataContext db, CommandEnvelope command, ResidentComment comment, CancellationToken ct)
@@ -185,20 +189,23 @@ public sealed partial class PostgresCommandRepository
         if (string.IsNullOrWhiteSpace(comment.Text) || comment.Text.Length > 1000 ||
             await FindRequestAsync(db, command.UserId, comment.RequestId, ct) is null)
             throw new InvalidOperationException("Invalid resident comment.");
-        AddRequestEvent(db, comment.RequestId, FormattableString.Invariant($"EVENT#UPDATE#{command.UpdateId}"), comment.CreatedAt,
-            new { actorId = command.UserId, createdAt = comment.CreatedAt, action = "ResidentComment", resolution = comment.Text });
+        var audit = CreateRequestEvent(comment.RequestId, FormattableString.Invariant($"EVENT#UPDATE#{command.UpdateId}"), comment.CreatedAt);
+        audit.ActorId = command.UserId;
+        audit.Action = "ResidentComment";
+        audit.Resolution = comment.Text;
+        audit.HasResolution = true;
+        db.RequestEvents.Add(audit);
     }
 
-    private void AddRequestEvent(DataContext db, long requestId, string eventKey, DateTimeOffset time, object data) =>
-        db.RequestEvents.Add(new()
+    private RequestEvent CreateRequestEvent(long requestId, string eventKey, DateTimeOffset time) =>
+        new()
         {
             SourceId = sourceId,
             Key = FormattableString.Invariant($"LOCAL#{complexId}#{requestId}#{eventKey}"),
             RequestId = requestId,
             EventKey = eventKey,
-            CreatedAt = time,
-            Data = JsonSerializer.Serialize(data)
-        });
+            CreatedAt = time
+        };
 
     private IQueryable<Request> Requests(DataContext db) => db.Requests.Where(row => row.SourceId == sourceId && row.ComplexId == complexId);
 

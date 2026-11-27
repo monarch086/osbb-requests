@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
@@ -145,11 +144,8 @@ public sealed partial class PostgresAdminStore
         {
             var decision = await ResidentEvents(db, current, reference).Where(row => row.EventKey == "EVENT#DECIDED")
                 .OrderByDescending(row => row.CreatedAt).FirstOrDefaultAsync(ct);
-            if (decision?.Actor is { Length: > 0 } actor)
-            {
-                using var data = JsonDocument.Parse(decision.Data);
-                if (String(data.RootElement, "decision") == "Approved") return new(actor, decision.CreatedAt, actor == "system");
-            }
+            if (decision is { Decision: "Approved", Actor: { Length: > 0 } actor })
+                return new(actor, decision.CreatedAt, actor == "system");
             var membership = await db.ResidentMemberships.FirstOrDefaultAsync(row => row.SourceId == current.SourceId &&
                 row.ComplexId == current.ComplexId && row.RegistrationId == reference && row.Active, ct);
             return membership?.ReviewedBy is { } reviewer ? new(reviewer, membership.ReviewedAt, reviewer == "system") : null;
@@ -161,11 +157,7 @@ public sealed partial class PostgresAdminStore
             var offset = Offset(cursor);
             var rows = await ResidentEvents(db, current, reference).Where(row => row.EventKey.StartsWith("EVENT#TYPE#"))
                 .OrderByDescending(row => row.CreatedAt).ThenByDescending(row => row.EventKey).Skip(offset).Take(PageSize + 1).ToListAsync(ct);
-            var items = rows.Take(PageSize).Select(row =>
-            {
-                using var data = JsonDocument.Parse(row.Data);
-                return JsonSerializer.Deserialize<ResidentTypeChange>(String(data.RootElement, "payload") ?? row.Data)!;
-            }).ToArray();
+            var items = rows.Take(PageSize).Select(row => row.ToHistory()).ToArray();
             return new Page<ResidentTypeChange>(items, NextCursor(offset, rows.Count));
         }, ct);
 

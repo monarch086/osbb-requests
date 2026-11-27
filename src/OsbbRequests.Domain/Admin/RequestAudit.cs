@@ -16,8 +16,10 @@ public static class RequestAudit
             next.BuildingNumber,
             next.Floor,
             next.Entrance,
-            KeySerialNumbersChanged = !Enumerable.SequenceEqual(
-                previous.KeyItems?.Select(key => key.SerialNumber) ?? [],
-                next.KeyItems?.Select(key => key.SerialNumber) ?? [])
+            KeySerialNumbersChanged = KeySerialNumbersChanged(previous, next)
         });
+
+    public static bool KeySerialNumbersChanged(MaintenanceRequest previous, MaintenanceRequest next) =>
+        !Enumerable.SequenceEqual(previous.KeyItems?.Select(key => key.SerialNumber) ?? [],
+            next.KeyItems?.Select(key => key.SerialNumber) ?? []);
 }

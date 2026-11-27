@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.DataImport.Storage;
@@ -186,7 +185,8 @@ public sealed partial class PostgresCommandRepository
             EventKey = "EVENT#DECIDED",
             Actor = "system",
             CreatedAt = profile.ApprovedAt,
-            Data = JsonSerializer.Serialize(new { actor = "system", decision = "Approved", approvalMode = "Automatic", createdAt = profile.ApprovedAt })
+            Decision = "Approved",
+            ApprovalMode = "Automatic"
         });
     }
 

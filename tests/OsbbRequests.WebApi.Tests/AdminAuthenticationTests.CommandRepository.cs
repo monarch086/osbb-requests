@@ -48,7 +48,7 @@ public sealed partial class AdminAuthenticationTests
         Assert.Null(await repository.GetRequestAsync(42, 33, default));
         var events = await database.Readout.RequestEvents.Where(row => row.RequestId == 33).ToListAsync();
         Assert.Equal(3, events.Count);
-        Assert.Contains(events, row => row.Data.Contains("ResidentComment", StringComparison.Ordinal));
+        Assert.Contains(events, row => row is { Action: "ResidentComment", Resolution: "Деталі заявки", ActorId: 42 });
         Assert.Equal(2, await database.Readout.Notifications.CountAsync(row => row.Kind == "LOCAL_PENDING"));
     }
 

@@ -79,8 +79,24 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
         });
         model.Entity<Administrator>(e => { e.ToTable("administrators"); e.HasKey(x => new { x.SourceId, x.UserId }); });
         model.Entity<RequestKeyItem>(e => { e.ToTable("request_key_items"); e.HasKey(x => new { x.SourceId, x.OwnerId, x.RequestId, x.Position }); e.HasIndex(x => x.Phone); e.HasOne<Request>().WithMany().HasForeignKey(x => new { x.SourceId, x.OwnerId, x.RequestId }).OnDelete(DeleteBehavior.Cascade); });
-        model.Entity<RequestEvent>(e => { e.ToTable("request_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.HasIndex(x => new { x.SourceId, x.RequestId, x.CreatedAt }); e.Property(x => x.Data).HasColumnType("jsonb"); });
-        model.Entity<ResidentEvent>(e => { e.ToTable("resident_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.HasIndex(x => new { x.SourceId, x.RegistrationId }); e.Property(x => x.Data).HasColumnType("jsonb"); });
+        model.Entity<RequestEvent>(e =>
+        {
+            e.ToTable("request_events");
+            e.HasKey(x => new { x.SourceId, x.Key });
+            e.HasIndex(x => new { x.SourceId, x.RequestId, x.CreatedAt });
+            e.OwnsOne(x => x.Snapshot, snapshot =>
+            {
+                snapshot.ToTable("request_event_snapshots");
+                snapshot.WithOwner().HasForeignKey("SourceId", "Key");
+                snapshot.HasKey("SourceId", "Key");
+            });
+        });
+        model.Entity<ResidentEvent>(e =>
+        {
+            e.ToTable("resident_events");
+            e.HasKey(x => new { x.SourceId, x.Key });
+            e.HasIndex(x => new { x.SourceId, x.RegistrationId });
+        });
         model.Entity<ResidentPhone>(e =>
         {
             e.ToTable("resident_phones");
@@ -134,7 +150,8 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.ToTable("complexes");
             e.HasIndex(x => new { x.SourceId, x.ExternalId }).IsUnique();
         });
-        foreach (var entity in model.Model.GetEntityTypes().Where(type => type.FindProperty(nameof(ImportRun.SourceId)) is not null))
+        foreach (var entity in model.Model.GetEntityTypes().Where(type =>
+                     !type.IsOwned() && type.FindProperty(nameof(ImportRun.SourceId)) is not null))
         {
             model.Entity(entity.ClrType).HasOne(typeof(ImportSource), null).WithMany()
                 .HasForeignKey(nameof(ImportRun.SourceId)).OnDelete(DeleteBehavior.Restrict);
