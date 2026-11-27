@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;
@@ -31,7 +32,7 @@ public sealed partial class AdminAuthenticationTests
                                        'reviewedAt','2026-10-02T00:00:00Z'),'test',now(),2);
             """);
 
-        await context.Database.MigrateAsync();
+        await migrator.MigrateAsync("20261127140733_NormalizeLegacyRegistrationHistory");
 
         var statistic = await context.SourceRecords.SingleAsync(row => row.Table == "statistics");
         Assert.EndsWith("GET /different", statistic.Key, StringComparison.Ordinal);
@@ -46,8 +47,15 @@ public sealed partial class AdminAuthenticationTests
         context.ChangeTracker.Clear();
         await migrator.MigrateAsync("20261127140605_RemoveProjectedSourceRecords");
         Assert.Equal(2, await context.SourceRecords.CountAsync(row => row.Table == "command-data"));
+        await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync("20261127150535_DropEmptySourceRecords"));
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM source_records");
         await context.Database.MigrateAsync();
         Assert.Equal(1, await context.ResidentRegistrationSnapshots.CountAsync());
         Assert.Equal(1, await context.ResidentMembershipHistory.CountAsync());
+        Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.source_records')::text AS \"Value\"").SingleAsync());
+        await migrator.MigrateAsync("20261127140733_NormalizeLegacyRegistrationHistory");
+        Assert.Empty(await context.SourceRecords.ToListAsync());
+        await context.Database.MigrateAsync();
+        Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.source_records')::text AS \"Value\"").SingleAsync());
     }
 }

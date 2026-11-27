@@ -487,14 +487,6 @@ public sealed partial class AdminAuthenticationTests
                 context.ImportSources.Add(new() { Id = 1, Region = "eu-central-1", Stage = "dev", AwsAccountId = "000000000000" });
                 context.Complexes.Add(new() { Id = 1, SourceId = 1, ExternalId = "osbb-requests-dev" });
                 context.Administrators.Add(new() { SourceId = 1, UserId = "test-user", Email = "admin@example.invalid", IsActive = true, IsSuperAdmin = true, Version = 9 });
-                context.SourceRecords.Add(new()
-                {
-                    SourceId = 1,
-                    Table = "administrators",
-                    Key = "test-user",
-                    Hash = "fixture",
-                    Data = "{\"IsSuperAdmin\":true}"
-                });
                 context.Requests.Add(new()
                 {
                     SourceId = 1,
