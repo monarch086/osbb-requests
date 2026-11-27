@@ -1,8 +1,8 @@
-using OsbbRequests.Shared.Telegram;
 using System.Net;
 using System.Text.Json;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Telegram;
+using OsbbRequests.Shared.Telegram;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;

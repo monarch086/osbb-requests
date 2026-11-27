@@ -1,6 +1,6 @@
-using OsbbRequests.Domain;
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using Xunit;
 

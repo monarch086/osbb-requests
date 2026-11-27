@@ -1,8 +1,8 @@
 using System.Globalization;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
-using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.CommandProcessor.Commands;

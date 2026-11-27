@@ -1,10 +1,10 @@
-using OsbbRequests.Domain.Models;
-using OsbbRequests.Domain;
 using System.Globalization;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
