@@ -29,66 +29,6 @@
         "resolved": "3.0.2",
         "contentHash": "oXbusR6iPq0xlqoikjdLvzh+wQDkMv9If58myz9MEzldS4nIcp442Btgs2sWbYWV+caEluMe2pQCZ0hUZgPiow=="
       },
-      "Amazon.Lambda.APIGatewayEvents": {
-        "type": "Transitive",
-        "resolved": "3.0.1",
-        "contentHash": "+gTGEtrcoCBRtCgcqEl3AlFrYrQY4pFreL22KkmpvXaNX1Lwlrbgk/crEcfuD3Q0wO2AspsJ3xMMj7pJxDYTKA=="
-      },
-      "Amazon.Lambda.Core": {
-        "type": "Transitive",
-        "resolved": "3.3.0",
-        "contentHash": "CZKlX8ZDMi6aKPo5lPAjmsJFDXNJHX00aiiYeRQOEszP8cjx6qklBvTPj4qpr4dlp3YYQjmB87CqAiWV7vk2fA=="
-      },
-      "Amazon.Lambda.Serialization.SystemTextJson": {
-        "type": "Transitive",
-        "resolved": "3.0.1",
-        "contentHash": "QsHygaMyxQdgh5NPs5GGyBjK6mqQr5nv8rpqlrWC5+e1k7sVx+2xwDHv493S5IMw461S/PyHfjkUDjIQU5ArSA==",
-        "dependencies": {
-          "Amazon.Lambda.Core": "3.3.0"
-        }
-      },
-      "Amazon.Lambda.SQSEvents": {
-        "type": "Transitive",
-        "resolved": "2.2.0",
-        "contentHash": "RyYLgEa6nh+VJrCfTDKxvTLS1+eLDIIDyHgwDY3TR1WQz1+UeDIcccOJvoDk2nmjkSA0TfWJmZX9Ld0ySf57lA=="
-      },
-      "AWSSDK.CognitoIdentityProvider": {
-        "type": "Transitive",
-        "resolved": "4.0.100",
-        "contentHash": "8s82hGjCU56k7gappogu1oW/DDw753OliWFuHbup0yq2adRKZhFalbrre5E3yUloU+sPmXpN4cnadxMg7u97+w==",
-        "dependencies": {
-          "AWSSDK.Core": "[4.0.100, 5.0.0)"
-        }
-      },
-      "AWSSDK.Core": {
-        "type": "Transitive",
-        "resolved": "4.0.102.12",
-        "contentHash": "/wJwMdRT5e9AbqRFfeazbyAbAZijYMDGlLDGAc07Ob2tPdeEUE0dC0zISIdtdWtCu0lV+oWf3qcsevpd7ejn9g=="
-      },
-      "AWSSDK.DynamoDBv2": {
-        "type": "Transitive",
-        "resolved": "4.0.108",
-        "contentHash": "l5PBp75Qh5Kzc3zX072foJNOXHVoHMYdk4OWGcQntxmzZd1ykGpAJNp3ticokiAGSxzP5VuuYmoMsyG1mo/QcQ==",
-        "dependencies": {
-          "AWSSDK.Core": "[4.0.102.12, 5.0.0)"
-        }
-      },
-      "AWSSDK.SimpleSystemsManagement": {
-        "type": "Transitive",
-        "resolved": "4.0.104.5",
-        "contentHash": "aATtsXjOlLc582voXpVnzuKsBdxXLix5x3PEIq1/54wlo2NdzIC1br3JHs2GwYW7iuLOmKrWAg5N2bh+JQEjWg==",
-        "dependencies": {
-          "AWSSDK.Core": "[4.0.102.12, 5.0.0)"
-        }
-      },
-      "AWSSDK.SQS": {
-        "type": "Transitive",
-        "resolved": "4.0.100.19",
-        "contentHash": "/B2TxNITG6oNgebLQocRO2PoVMd0PRPksMKceewP8aFwG3k6PDfG06vYsM9csiPoi3TpmNoD7pb/1uUrhC1uTw==",
-        "dependencies": {
-          "AWSSDK.Core": "[4.0.102.12, 5.0.0)"
-        }
-      },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
         "resolved": "17.13.0",
@@ -313,50 +253,6 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "osbbrequests.adminapi": {
-        "type": "Project",
-        "dependencies": {
-          "AWSSDK.DynamoDBv2": "[4.0.108, )",
-          "Amazon.Lambda.APIGatewayEvents": "[3.0.1, )",
-          "Amazon.Lambda.Core": "[3.3.0, )",
-          "Amazon.Lambda.Serialization.SystemTextJson": "[3.0.1, )",
-          "OsbbRequests.Aws": "[1.0.0, )",
-          "OsbbRequests.Cognito": "[1.0.0, )",
-          "OsbbRequests.Shared": "[1.0.0, )"
-        }
-      },
-      "osbbrequests.aws": {
-        "type": "Project",
-        "dependencies": {
-          "AWSSDK.DynamoDBv2": "[4.0.108, )",
-          "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )",
-          "OsbbRequests.CommandProcessor": "[1.0.0, )",
-          "OsbbRequests.Services": "[1.0.0, )",
-          "OsbbRequests.Shared": "[1.0.0, )"
-        }
-      },
-      "osbbrequests.bot": {
-        "type": "Project",
-        "dependencies": {
-          "AWSSDK.DynamoDBv2": "[4.0.108, )",
-          "AWSSDK.SQS": "[4.0.100.19, )",
-          "AWSSDK.SimpleSystemsManagement": "[4.0.104.5, )",
-          "Amazon.Lambda.APIGatewayEvents": "[3.0.1, )",
-          "Amazon.Lambda.Core": "[3.3.0, )",
-          "Amazon.Lambda.SQSEvents": "[2.2.0, )",
-          "Amazon.Lambda.Serialization.SystemTextJson": "[3.0.1, )",
-          "OsbbRequests.Aws": "[1.0.0, )",
-          "OsbbRequests.CommandProcessor": "[1.0.0, )",
-          "OsbbRequests.Shared": "[1.0.0, )"
-        }
-      },
-      "osbbrequests.cognito": {
-        "type": "Project",
-        "dependencies": {
-          "AWSSDK.CognitoIdentityProvider": "[4.0.100, )",
-          "OsbbRequests.Services": "[1.0.0, )"
-        }
-      },
       "osbbrequests.commandlistener": {
         "type": "Project",
         "dependencies": {
@@ -378,7 +274,6 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
-          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "OsbbRequests.CommandProcessor": "[1.0.0, )",
           "OsbbRequests.Services": "[1.0.0, )"

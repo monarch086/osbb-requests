@@ -3,7 +3,7 @@ using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Domain.Residents;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
@@ -145,7 +145,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         var keyboard = KeyPhoneKeyboard(draft);
         if (keyboard == ReplyKeyboard.KeyFinish && text.Equals(FinishKeyOrderButton, StringComparison.OrdinalIgnoreCase))
             return FinishKeyOrder(command, draft, owner);
-        if (!ResidentPhoneIndex.TryNormalize(text, out var phone))
+        if (!PhoneNumber.TryNormalize(text, out var phone))
             return new("Введіть коректний номер телефону, наприклад 0671234567 або +380671234567. Скасувати: /cancel.", Keyboard: keyboard);
         if (AlreadyAdded(draft, phone!))
             return new("Цей номер уже додано до заявки. Введіть інший номер, завершіть створення заявки або скасуйте її.", Keyboard: ReplyKeyboard.KeyFinish);
@@ -156,7 +156,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     }
 
     private static bool AlreadyAdded(RequestDraft draft, string phone) =>
-        draft.KeyItems?.Any(item => ResidentPhoneIndex.TryNormalize(item.Phone, out var existing) && existing == phone) == true;
+        draft.KeyItems?.Any(item => PhoneNumber.TryNormalize(item.Phone, out var existing) && existing == phone) == true;
 
     private CommandOutcome SelectNextKey(CommandEnvelope command, RequestDraft draft, string text, ResidentRegistration owner)
     {
@@ -192,9 +192,9 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     {
         var items = draft.KeyItems;
         if (draft.Category != RequestCategories.KeyOrder || items is null || items.Count is < 1 or > 30 ||
-            items.Any(item => item.Type is not ("Магніт" or "Перепустка") || !ResidentPhoneIndex.TryNormalize(item.Phone, out _)))
+            items.Any(item => item.Type is not ("Магніт" or "Перепустка") || !PhoneNumber.TryNormalize(item.Phone, out _)))
             throw new InvalidOperationException("Incomplete key order.");
-        var unique = items.DistinctBy(item => ResidentPhoneIndex.Normalize(item.Phone), StringComparer.Ordinal).ToArray();
+        var unique = items.DistinctBy(item => PhoneNumber.Normalize(item.Phone), StringComparer.Ordinal).ToArray();
         if (unique.Length != items.Count)
         {
             var cleaned = draft with { KeyItems = unique, Stage = RequestDraftStage.KeyNext, Version = draft.Version + 1 };

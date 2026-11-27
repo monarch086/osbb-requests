@@ -4,5 +4,9 @@
     <ProjectReference Include="../OsbbRequests.Cognito/OsbbRequests.Cognito.csproj" />
     <ProjectReference Include="../OsbbRequests.Postgres/OsbbRequests.Postgres.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

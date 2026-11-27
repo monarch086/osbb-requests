@@ -40,9 +40,9 @@ public sealed record ResidentNotification(string Id, string ComplexId, long Owne
             registration.BuildingId, registration.UserId, null, null, text, registration.UpdatedAt);
     }
 
-    public static string DueKey(DateTimeOffset dueAt, string id) => "DUE#" + dueAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) + "#" + id;
     public static string Partition(string complexId) => "NOTIFICATIONS#" + complexId;
     public static string MessageKey(long ownerId, long messageId) => "MESSAGE#" + ownerId.ToString(CultureInfo.InvariantCulture) + "#" + messageId.ToString(CultureInfo.InvariantCulture);
+
     private static string Label(RequestStatus status) => status switch
     {
         RequestStatus.New => "Нова",

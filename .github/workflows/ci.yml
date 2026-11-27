@@ -40,10 +40,4 @@ jobs:
       - run: npm run test -- --no-build --no-restore
         env:
           OSBB_POSTGRES_TEST_CONNECTION: Host=127.0.0.1;Database=postgres;Username=postgres;Password=integration-test
-      - run: python3 -m unittest discover -s tests/admin -v
       - run: npm run check
-      - run: npm run package:dotnet
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lambda-packages
-          path: artifacts/**/*.zip

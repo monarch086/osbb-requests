@@ -5,7 +5,6 @@ using OsbbRequests.Domain;
 using System.Globalization;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Telegram;
-using OsbbRequests.Bot.Webhook;
 
 namespace OsbbRequests.Bot.Tests;
 
@@ -192,18 +191,5 @@ internal sealed class FakeSecret(string secret) : ISecretProvider
     {
         Reads++;
         return Task.FromResult(secret);
-    }
-}
-
-internal sealed class FakeQueue : ICommandQueue
-{
-    public List<CommandEnvelope> Commands { get; } = [];
-    public bool Fail { get; set; }
-    public Task EnqueueAsync(CommandEnvelope command, CancellationToken cancellationToken)
-    {
-        if (Fail)
-            throw new InvalidOperationException("Queue unavailable.");
-        Commands.Add(command);
-        return Task.CompletedTask;
     }
 }

@@ -1,10 +1,5 @@
-using Amazon;
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.Model;
-using Amazon.Runtime;
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
-using OsbbRequests.Aws.Bot;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Shared.Residents;
 using System.Text.Json;
@@ -25,26 +20,6 @@ public sealed class ResidentProfileTests
         return (repo, new(repo, new CommandHandler(repo, "OsbbBot", "building", new Clock()), new FakeTelegram()));
     }
     private sealed class Clock : TimeProvider { public override DateTimeOffset GetUtcNow() => Now; }
-
-    [Fact]
-    public async Task ApartmentSubmissionWritesNotificationInSameTransaction()
-    {
-        using var db = new CaptureDynamo();
-        var repository = new DynamoCommandRepository(db, "data", residentsTable: "residents", complexId: "building");
-        var apartment = new OwnerApartment("apartment-id", "4Д", 203, Now);
-        var record = new OwnerApartments("building", 42, Original.Id, 1, [apartment]);
-        var dialog = new ResidentProfileDialog(42, "building", ProfileAction.Apartments, 2, Original.Version, null, false);
-        await repository.CommitAsync(Message(99, "203"), new("Запит подано", ProfileDialog: new(dialog, 1),
-            Apartment: new(record, null, Original.Version, apartment.Id)), default);
-        var writes = db.Transaction!.TransactItems;
-        Assert.Contains(writes, write => write.Put?.Item["pk"].S == OwnerApartments.Key("building", 42));
-        Assert.Contains(writes, write => write.Put?.Item["pk"].S == "UPDATE#99");
-        var notification = Assert.Single(writes, write => write.Put?.Item["pk"].S == "NOTIFICATIONS#building").Put.Item["payload"].S;
-        var job = JsonSerializer.Deserialize<ResidentNotification>(notification)!;
-        Assert.Equal("new-apartment-apartment-id", job.Id);
-        Assert.Equal(AdministratorEvent.NewApartmentRegistration, job.AdministratorEvent);
-        Assert.True(job.IsBroadcast);
-    }
 
     [Fact]
     public async Task EditingRunsRegistrationStepsAndCommitsOnlyAfterEmailWithoutRevokingAccess()
@@ -273,47 +248,6 @@ public sealed class ResidentProfileTests
     }
 
     [Fact]
-    public async Task RepositoryUpdatesAllCurrentProfileCopiesAndClearsDialogAtomicallyWithReceiptAndMembershipGuard()
-    {
-        using var db = new CaptureDynamo();
-        var dialog = new ResidentProfileDialog(42, "building", ProfileAction.Delete, 2, 6, null, false);
-        var deleted = Original with
-        {
-            FirstName = null,
-            LastName = null,
-            Phone = null,
-            Email = null,
-            BuildingNumber = null,
-            ApartmentNumber = null,
-            PersonalDataDeleted = true,
-            Stage = RegistrationStage.Deleted,
-            PersonalDataDeletedAt = Now,
-            Version = 7
-        };
-        await new DynamoCommandRepository(db, "data").CommitAsync(Message(1, ResidentProfileService.Confirmation),
-            new("Видалено", ProfileDialog: new(dialog, 1), Profile: new(deleted, 6)), default);
-        var writes = db.Transaction!.TransactItems;
-        Assert.Equal(6, writes.Count);
-        var guard = Assert.Single(writes, w => w.Update is not null).Update;
-        Assert.Equal("MEMBERSHIP", guard.Key["sk"].S);
-        Assert.Contains("#active", guard.ConditionExpression);
-        Assert.False(guard.ExpressionAttributeValues[":no"].BOOL);
-        var profiles = writes.Where(w => w.Put?.Item.GetValueOrDefault("sk")?.S is "REGISTRATION" or "META" ||
-            w.Put?.Item.GetValueOrDefault("sk")?.S?.StartsWith("RESIDENT#", StringComparison.Ordinal) == true).ToList();
-        Assert.Equal(3, profiles.Count);
-        foreach (var write in profiles)
-        {
-            var profile = JsonSerializer.Deserialize<ResidentRegistration>(write.Put.Item["payload"].S)!;
-            Assert.True(profile.PersonalDataDeleted);
-            Assert.Null(profile.FirstName);
-            Assert.Null(profile.Phone);
-            Assert.Null(profile.Email);
-            Assert.Equal("6", write.Put.ExpressionAttributeValues[":expected"].N);
-        }
-        Assert.DoesNotContain(writes, w => w.Delete is not null);
-        Assert.DoesNotContain(writes, w => w.Put?.Item.ContainsKey("requestBuildingId") == true);
-    }
-    [Fact]
     public async Task RepeatRegistrationMakesCurrentProfileAvailableForExistingRequests()
     {
         var (repo, processor) = Setup();
@@ -357,40 +291,6 @@ public sealed class ResidentProfileTests
     }
 
     [Fact]
-    public async Task DeletingProfileAtomicallyRemovesPersonalDataFromMirrorAndIndexes()
-    {
-        using var db = new CaptureDynamo();
-        var state = new ResidentProfileDialog(42, "building", ProfileAction.Delete, 2, 6, null, false);
-        var deleted = new ResidentRegistration(Original.Id, 42, "building", RegistrationStage.Deleted, 7, Original.CreatedAt, Original.UpdatedAt, PersonalDataDeleted: true);
-        await new DynamoCommandRepository(db, "data", residentsTable: "residents").CommitAsync(Message(1, "confirm"),
-            new("Видалено", ProfileDialog: new(state, 1), Profile: new(deleted, 6)), default);
-        var mirror = Assert.Single(db.Transaction!.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item["pk"].S.StartsWith("COMPLEX#building#USER#", StringComparison.Ordinal)).Put;
-        var mirrored = System.Text.Json.JsonSerializer.Deserialize<ResidentRegistration>(mirror.Item["payload"].S)!;
-        Assert.Null(mirrored.FirstName);
-        Assert.Null(mirrored.LastName);
-        Assert.Null(mirrored.Phone);
-        Assert.Null(mirrored.Email);
-        Assert.False(mirror.Item.ContainsKey("directory"));
-        Assert.Equal("6", mirror.ExpressionAttributeValues[":version"].N);
-        Assert.Contains(db.Transaction.TransactItems, w => w.Update?.Key["sk"].S == "MEMBERSHIP");
-        var membership = Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "MEMBERSHIP").Put.Item["recordData"].M;
-        Assert.False(membership["active"].BOOL);
-        Assert.Equal("admin@example.org", membership["reviewedBy"].S);
-        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "META");
-        Assert.Single(db.Transaction.TransactItems, w => w.Put?.TableName == "residents" && w.Put.Item.GetValueOrDefault("sourceSk")?.S == "PROFILE_DIALOG");
-    }
-
-    [Fact]
-    public async Task ProfileUpdateCannotUseAnotherResidentsIdentity()
-    {
-        using var db = new CaptureDynamo();
-        var state = new ResidentProfileDialog(42, "building", ProfileAction.Delete, 2, 6, null, false);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => new DynamoCommandRepository(db, "data").CommitAsync(Message(1, "confirm"),
-            new("Видалено", ProfileDialog: new(state, 1), Profile: new(Original with { UserId = 99 }, 6)), default));
-        Assert.Null(db.Transaction);
-    }
-
-    [Fact]
     public async Task DeletionReturnsGuestMenuAndBlocksRequestsUntilFullRegistrationCompletes()
     {
         var (repo, _) = Setup();
@@ -424,24 +324,5 @@ public sealed class ResidentProfileTests
         Assert.Equal((42L, true), telegram.Menus[^1]);
         Assert.Single(repo.Requests);
         Assert.False(repo.Registrations[42].HasDeletedPersonalData);
-    }
-
-    private sealed class CaptureDynamo() : AmazonDynamoDBClient(new AnonymousAWSCredentials(), RegionEndpoint.EUCentral1)
-    {
-        public TransactWriteItemsRequest? Transaction;
-        public override Task<GetItemResponse> GetItemAsync(GetItemRequest request, CancellationToken ct = default) =>
-            Task.FromResult(new GetItemResponse
-            {
-                Item = new Dictionary<string, AttributeValue>
-                {
-                    ["pk"] = new("USER#42"),
-                    ["sk"] = new("MEMBERSHIP"),
-                    ["buildingId"] = new("building"),
-                    ["active"] = new() { BOOL = true },
-                    ["reviewedBy"] = new("admin@example.org")
-                }
-            });
-        public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken ct = default)
-        { Transaction = request; return Task.FromResult(new TransactWriteItemsResponse()); }
     }
 }

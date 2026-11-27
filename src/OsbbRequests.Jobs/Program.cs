@@ -32,8 +32,7 @@ if (!string.Equals(await telegram.GetBotUsernameAsync(startup.Token), username, 
 IServiceNotifier? notifier = null;
 if (configuration["SERVICE_BOT_TOKEN"] is { Length: > 0 } serviceToken)
     notifier = new TelegramServiceNotifier(http, new LocalSecret(serviceToken), "osbb-requests-jobs",
-        configuration["STAGE"] ?? "local", configuration["SERVICE_NOTIFICATION_CHAT_ID"] ?? TelegramServiceNotifier.ServiceNotificationChatId,
-        sourceLabel: "Сервіс", logLocation: "журнал контейнера");
+        configuration["STAGE"] ?? "local", configuration["SERVICE_NOTIFICATION_CHAT_ID"] ?? TelegramServiceNotifier.ServiceNotificationChatId);
 
 builder.Services.AddSingleton(new NotificationProcessor(new PostgresNotificationRepository(database, scope), telegram, notifier));
 builder.Services.AddSingleton(new NotificationJobDiagnostics(notifier));

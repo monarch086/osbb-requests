@@ -13,7 +13,7 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${OSBB_IMPORT_DATABASE:?Set OSBB_IMPORT_DATABASE}
+      POSTGRES_DB: ${OSBB_DATABASE:?Set OSBB_DATABASE}
       POSTGRES_USER: ${OSBB_POSTGRES_USER:-osbb}
       POSTGRES_PASSWORD: ${OSBB_POSTGRES_PASSWORD:?Set OSBB_POSTGRES_PASSWORD}
     ports:

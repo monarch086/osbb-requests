@@ -116,7 +116,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
             }, cancellationToken, requireTrueResult: true);
         lock (configuredMenus)
         {
-            // Bound the warm Lambda cache; a cache miss only repeats an idempotent menu update.
+            // Bound the menu cache; a cache miss only repeats an idempotent menu update.
             if (configuredMenus.Count >= 1000) configuredMenus.Clear();
             configuredMenus[chatId] = registered;
         }

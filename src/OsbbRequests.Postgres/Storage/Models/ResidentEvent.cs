@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Text.Json;
 using OsbbRequests.Domain.Admin;
 
 namespace OsbbRequests.DataImport.Storage;
@@ -25,26 +23,6 @@ public sealed class ResidentEvent
     public bool? FirstNameChanged { get; set; }
     public bool? LastNameChanged { get; set; }
 
-    // Compatibility with the original DynamoDB importer.
-    [NotMapped]
-    public string Data
-    {
-        set
-        {
-            using var document = JsonDocument.Parse(value);
-            var audit = document.RootElement;
-            Decision = Text(audit, "decision");
-            Reason = Text(audit, "reason");
-            ApprovalMode = Text(audit, "approvalMode");
-            var payload = Text(audit, "payload");
-            var change = payload is null ? null : JsonSerializer.Deserialize<ResidentTypeChange>(payload);
-            PreviousType = change?.PreviousType;
-            NewType = change?.NewType;
-            FirstNameChanged = change?.FirstNameChanged;
-            LastNameChanged = change?.LastNameChanged;
-        }
-    }
-
     public ResidentTypeChange ToHistory()
     {
         var keyChange = KeyRequestId is { } request && PreviousKeyType is { } previous
@@ -54,7 +32,4 @@ public sealed class ResidentEvent
         return new(PreviousType, NewType, Actor ?? "", CreatedAt ?? default,
             FirstNameChanged ?? false, LastNameChanged ?? false, keyChange);
     }
-
-    private static string? Text(JsonElement audit, string key) =>
-        audit.TryGetProperty(key, out var value) ? value.GetString() : null;
 }

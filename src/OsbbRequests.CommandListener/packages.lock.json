@@ -175,7 +175,6 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
-          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "OsbbRequests.CommandProcessor": "[1.0.0, )",
           "OsbbRequests.Services": "[1.0.0, )"

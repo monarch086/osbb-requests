@@ -14,19 +14,6 @@
           "Microsoft.Extensions.Logging": "10.0.15"
         }
       },
-      "Microsoft.ICU.ICU4C.Runtime": {
-        "type": "Direct",
-        "requested": "[72.1.0.3, )",
-        "resolved": "72.1.0.3",
-        "contentHash": "Z42uzvs0TN9Y02xgHtRgPcumLRnvK3MHVHZ0Pr3OrnvyZYhBwqDgdYBOvoELcTsayUgwqrPLb+C5Fqqk66zlUg==",
-        "dependencies": {
-          "Microsoft.ICU.ICU4C.Runtime.linux-arm64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.linux-x64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.win-arm64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.win-x64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.win-x86": "72.1.0.3"
-        }
-      },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "Direct",
         "requested": "[10.0.3, )",
@@ -131,6 +118,18 @@
         "type": "Transitive",
         "resolved": "10.0.15",
         "contentHash": "NjzLiZ1/bYx8VwLqHxNnCfDTQQbCY7P1dwT7JM5FiANiaSfI6UKHi0/sla+jyRbOIbPAMJkhWQ/9pH3tMf+IrQ=="
+      },
+      "Microsoft.ICU.ICU4C.Runtime": {
+        "type": "Transitive",
+        "resolved": "72.1.0.3",
+        "contentHash": "Z42uzvs0TN9Y02xgHtRgPcumLRnvK3MHVHZ0Pr3OrnvyZYhBwqDgdYBOvoELcTsayUgwqrPLb+C5Fqqk66zlUg==",
+        "dependencies": {
+          "Microsoft.ICU.ICU4C.Runtime.linux-arm64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.linux-x64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.win-arm64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.win-x64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.win-x86": "72.1.0.3"
+        }
       },
       "Microsoft.ICU.ICU4C.Runtime.linux-arm64": {
         "type": "Transitive",

@@ -31,15 +31,6 @@ public sealed class RequestEventSnapshot
         KeySerialNumbersChanged = RequestAudit.KeySerialNumbersChanged(previous, next)
     };
 
-    internal static RequestEventSnapshot FromLegacy(string value)
-    {
-        using var document = JsonDocument.Parse(value);
-        var snapshot = document.RootElement.Deserialize<RequestEventSnapshot>()
-            ?? throw new JsonException("Missing request event snapshot.");
-        snapshot.HasEntrance = document.RootElement.TryGetProperty("Entrance", out _);
-        return snapshot;
-    }
-
     public string SerializeForHistory()
     {
         var fields = new Dictionary<string, object?>

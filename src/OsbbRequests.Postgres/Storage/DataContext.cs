@@ -4,10 +4,6 @@ namespace OsbbRequests.DataImport.Storage;
 
 public sealed class DataContext(DbContextOptions<DataContext> options) : DbContext(options)
 {
-    // Legacy importer shims keep its old project buildable; these entity types are not part of the active EF model.
-    public DbSet<SourceRecord> SourceRecords => Set<SourceRecord>();
-    public DbSet<ImportRun> ImportRuns => Set<ImportRun>();
-    public DbSet<ImportSource> ImportSources => Set<ImportSource>();
     public DbSet<Complex> Complexes => Set<Complex>();
     public DbSet<ResidentApartment> ResidentApartments => Set<ResidentApartment>();
     public DbSet<Resident> Residents => Set<Resident>();
@@ -32,10 +28,6 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
 
     protected override void OnModelCreating(ModelBuilder model)
     {
-        model.Ignore<SourceRecord>();
-        model.Ignore<ImportRun>();
-        model.Ignore<ImportSource>();
-
         model.Entity<BotConversation>(e =>
         {
             e.ToTable("bot_conversations");

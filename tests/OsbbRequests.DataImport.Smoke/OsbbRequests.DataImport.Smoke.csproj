@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../src/OsbbRequests.DataImport/OsbbRequests.DataImport.csproj" />
-  </ItemGroup>
-</Project>

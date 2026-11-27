@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Text.Json;
 using OsbbRequests.Domain.Models;
 using NotificationEvent = OsbbRequests.Domain.Models.AdministratorEvent;
 
@@ -32,30 +30,6 @@ public sealed class Notification
     public DateTimeOffset? CompletedAt { get; set; }
     public string? Disposition { get; set; }
     public DateTimeOffset? LegacyExpiresAt { get; set; }
-
-    // Compatibility for imported delivery receipts and Telegram reply links.
-    [NotMapped]
-    public string Data
-    {
-        set
-        {
-            using var document = JsonDocument.Parse(value);
-            var data = document.RootElement;
-            switch (Kind)
-            {
-                case "MESSAGE":
-                    RequestId = data.TryGetProperty("requestId", out var request) ? request.GetInt64() : null;
-                    break;
-                case "RESULT":
-                    CompletedAt = data.TryGetProperty("completedAt", out var completed) ? completed.GetDateTimeOffset().ToUniversalTime() : null;
-                    Disposition = data.TryGetProperty("disposition", out var disposition) ? disposition.GetString() : null;
-                    LegacyExpiresAt = data.TryGetProperty("expiresAt", out var expiry) ? DateTimeOffset.FromUnixTimeSeconds(expiry.GetInt64()) : null;
-                    break;
-                default:
-                    throw new InvalidOperationException("Unsupported notification from the original DynamoDB importer.");
-            }
-        }
-    }
 
     public static Notification CreatePending(long sourceId, long complexId, string complex, ResidentNotification value,
         DateTimeOffset? dueAt = null)
