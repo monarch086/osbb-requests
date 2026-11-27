@@ -1,4 +1,3 @@
-using System.Globalization;
 using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.Shared.Residents;

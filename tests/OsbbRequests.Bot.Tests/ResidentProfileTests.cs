@@ -1,8 +1,6 @@
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
-using OsbbRequests.Shared.Residents;
-using System.Text.Json;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;

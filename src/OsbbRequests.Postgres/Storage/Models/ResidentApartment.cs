@@ -1,5 +1,4 @@
 using OsbbRequests.Domain.Models;
-using OsbbRequests.Shared.Residents;
 
 namespace OsbbRequests.DataImport.Storage;
 

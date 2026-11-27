@@ -1,5 +1,3 @@
-using OsbbRequests.Domain;
-
 namespace OsbbRequests.Domain.Models;
 
 public sealed record MaintenanceRequest(

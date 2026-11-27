@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
-using OsbbRequests.Domain;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
