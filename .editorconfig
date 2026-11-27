@@ -19,6 +19,7 @@ dotnet_diagnostic.IDE0161.severity = warning
 csharp_prefer_braces = when_multiline
 dotnet_diagnostic.IDE0011.severity = warning
 dotnet_diagnostic.CA2016.severity = warning
+dotnet_diagnostic.CA2200.severity = warning
 
 [*.{csproj,props}]
 indent_size = 2
