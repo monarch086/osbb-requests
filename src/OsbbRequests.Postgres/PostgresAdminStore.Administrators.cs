@@ -19,7 +19,8 @@ public sealed partial class PostgresAdminStore
         var privileges = await db.AdministratorPermissions.FindAsync([currentScope.SourceId, userId], ct);
         var settings = await db.AdministratorNotificationSettings.FindAsync([currentScope.SourceId, userId], ct);
         var permissions = privileges is null ? PagePermissions.Legacy :
-            new PagePermissions(privileges.ComplexRequests, privileges.KeyOrders, privileges.RegisteredResidents, privileges.PendingResidents, privileges.Messages);
+            new PagePermissions(privileges.ComplexRequests, privileges.KeyOrders, privileges.RegisteredResidents,
+                privileges.PendingResidents, privileges.Messages, privileges.Administrators);
         return new(userId, admin.Email ?? "", admin.DisplayName ?? admin.Email ?? "", admin.IsActive, admin.IsSuperAdmin, admin.Version,
             settings?.TelegramChatId, settings?.NewResidents == true, settings?.NewRequests == true, settings?.NewAdministrators == true,
             permissions, settings?.NewKeyOrders == true, settings?.NewApartmentRegistrations == true);
@@ -88,6 +89,7 @@ public sealed partial class PostgresAdminStore
         settings.RegisteredResidents = permissions.RegisteredResidents;
         settings.PendingResidents = permissions.PendingResidents;
         settings.Messages = permissions.Messages;
+        settings.Administrators = permissions.Administrators;
         AuditAdmin(db, current, row, actor, "AdminPermissionsChanged", permissions);
     }, ct);
 

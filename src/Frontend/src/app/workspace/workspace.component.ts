@@ -114,6 +114,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
       case 'messages':
         return p.messages;
       case 'admins':
+        return p.administrators;
       case 'statistics':
         return user.isSuperAdmin;
     }

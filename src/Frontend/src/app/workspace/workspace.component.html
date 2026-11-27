@@ -89,7 +89,7 @@
           >Повідомлення</a
         >
       }
-      @if (user.isSuperAdmin) {
+      @if (allowed('admins', user)) {
         <a
           class="nav-link"
           [class.active]="tab === 'admins'"
@@ -99,6 +99,8 @@
           [routerLink]="saving ? null : '/administrators'"
           >Адміністратори</a
         >
+      }
+      @if (allowed('statistics', user)) {
         <a
           class="nav-link"
           [class.active]="tab === 'statistics'"
@@ -119,16 +121,17 @@
     @if (tab === 'messages' && allowed('messages', user)) {
       <app-messages-section [me]="user" (savingChange)="setSaving($event)" />
     }
-    @if (tab === 'admins' && user.isSuperAdmin) {
+    @if (tab === 'admins' && allowed('admins', user)) {
       <app-administrators-section [me]="user" (savingChange)="setSaving($event)" />
     }
-    @if (tab === 'statistics' && user.isSuperAdmin) {
+    @if (tab === 'statistics' && allowed('statistics', user)) {
       <app-statistics />
     }
     @if (
       !allowed('requests', user) &&
       !allowed('residents', user) &&
       !allowed('messages', user) &&
+      !allowed('admins', user) &&
       !user.isSuperAdmin
     ) {
       <p class="alert alert-info">

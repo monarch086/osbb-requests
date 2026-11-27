@@ -11,6 +11,7 @@ import { PermissionsDialogComponent } from './permissions-dialog.component';
 })
 export class AdministratorsComponent {
   @Input() admins: Admin[] = [];
+  @Input({ required: true }) canManage = false;
   @Input() saving = false;
   @Input() error = '';
   @Output() readonly saveNotifications = new EventEmitter<{

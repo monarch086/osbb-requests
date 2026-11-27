@@ -92,6 +92,9 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Property<bool?>("RegisteredResidents")
                         .HasColumnType("boolean");
 
+                    b.Property<bool?>("Administrators")
+                        .HasColumnType("boolean");
+
                     b.HasKey("SourceId", "Key");
 
                     b.ToTable("administrator_events", (string)null);
@@ -149,6 +152,9 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("RegisteredResidents")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Administrators")
                         .HasColumnType("boolean");
 
                     b.HasKey("SourceId", "UserId");

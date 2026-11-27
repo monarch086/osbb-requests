@@ -11,6 +11,7 @@
 </div>
 <app-administrators
   [admins]="lists.admins"
+  [canManage]="me.isSuperAdmin"
   [saving]="saving || loading"
   [error]="error"
   (toggleAccess)="setAccess($event)"

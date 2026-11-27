@@ -7,10 +7,11 @@ public sealed record AdminUser(string UserId, string Email, string DisplayName, 
 {
     public PagePermissions EffectivePermissions => IsSuperAdmin ? PagePermissions.All : Permissions ?? PagePermissions.Legacy;
 }
-public sealed record PagePermissions(bool ComplexRequests, bool KeyOrders, bool RegisteredResidents, bool PendingResidents, bool Messages)
+public sealed record PagePermissions(bool ComplexRequests, bool KeyOrders, bool RegisteredResidents, bool PendingResidents,
+    bool Messages, bool Administrators = false)
 {
     public static readonly PagePermissions Legacy = new(true, true, true, true, false);
-    public static readonly PagePermissions All = new(true, true, true, true, true);
+    public static readonly PagePermissions All = new(true, true, true, true, true, true);
 }
 public sealed record PermissionsChange(int Version, PagePermissions Permissions);
 public sealed record NotificationSettingsChange(string? TelegramChatId, bool NotifyNewResidents, bool NotifyNewRequests, bool NotifyNewAdministrators, int Version, bool? NotifyNewKeyOrders = null, bool? NotifyNewApartmentRegistrations = null);

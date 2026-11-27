@@ -6,6 +6,7 @@ internal enum AdminPermission
 {
     Active,
     Messages,
+    ReadAdministrators,
     ManageAdministrators,
     EditPermissions,
     EditNotifications,

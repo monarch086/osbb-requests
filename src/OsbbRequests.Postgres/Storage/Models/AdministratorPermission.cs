@@ -9,4 +9,5 @@ public sealed class AdministratorPermission
     public bool RegisteredResidents { get; set; }
     public bool PendingResidents { get; set; }
     public bool Messages { get; set; }
+    public bool Administrators { get; set; }
 }

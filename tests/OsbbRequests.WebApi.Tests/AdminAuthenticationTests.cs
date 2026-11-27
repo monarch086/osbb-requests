@@ -125,7 +125,7 @@ public sealed partial class AdminAuthenticationTests : IDisposable
         });
     }
 
-    private string SignedToken(string? violation = null)
+    private string SignedToken(string? violation = null, string userId = "test-user")
     {
         using var foreignKey = RSA.Create(2048);
         var key = new RsaSecurityKey(violation == "signature" ? foreignKey : rsa) { KeyId = "test-key" };
@@ -135,7 +135,7 @@ public sealed partial class AdminAuthenticationTests : IDisposable
             new("token_use", violation == "id-token" ? "id" : "access"),
             new("scope", violation == "scope" ? "openid " + Scope + ".other" : "openid " + Scope)
         };
-        if (violation != "subject") claims.Add(new Claim("sub", "test-user"));
+        if (violation != "subject") claims.Add(new Claim("sub", userId));
         var now = DateTime.UtcNow;
         var token = new JwtSecurityToken(violation == "issuer" ? Issuer + "-wrong" : Issuer,
             violation == "audience" ? "wrong-audience" : null, claims, now.AddMinutes(-2),

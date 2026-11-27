@@ -22,7 +22,7 @@
                   : 'Очікує доступу'
             }}</span>
           </div>
-          @if (!a.isSuperAdmin) {
+          @if (canManage && !a.isSuperAdmin) {
             <button
               class="btn"
               [class.btn-outline-danger]="a.isActive"
@@ -39,7 +39,7 @@
             <button
               type="button"
               class="btn btn-outline-secondary w-100 text-start h-100"
-              [disabled]="saving"
+              [disabled]="saving || !canManage"
               (click)="notifications = a"
             >
               <strong>Сповіщення</strong>
@@ -78,7 +78,7 @@
             <button
               type="button"
               class="btn btn-outline-secondary w-100 text-start h-100"
-              [disabled]="saving || a.isSuperAdmin"
+              [disabled]="saving || !canManage || a.isSuperAdmin"
               (click)="permissions = a"
             >
               <strong>Доступи</strong>
@@ -101,12 +101,16 @@
                 @if (a.effectivePermissions.messages) {
                   <span class="d-block" role="listitem">• Повідомлення</span>
                 }
+                @if (a.effectivePermissions.administrators) {
+                  <span class="d-block" role="listitem">• Адміністратори</span>
+                }
                 @if (
                   !a.effectivePermissions.complexRequests &&
                   !a.effectivePermissions.keyOrders &&
                   !a.effectivePermissions.registeredResidents &&
                   !a.effectivePermissions.pendingResidents &&
-                  !a.effectivePermissions.messages
+                  !a.effectivePermissions.messages &&
+                  !a.effectivePermissions.administrators
                 ) {
                   <span class="d-block" role="listitem">• Не надано</span>
                 }

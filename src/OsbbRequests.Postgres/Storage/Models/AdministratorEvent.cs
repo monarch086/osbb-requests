@@ -15,6 +15,7 @@ public sealed class AdministratorEvent
     public bool? RegisteredResidents { get; set; }
     public bool? PendingResidents { get; set; }
     public bool? Messages { get; set; }
+    public bool? Administrators { get; set; }
 
     public void SetPermissionsSnapshot(PagePermissions? permissions)
     {
@@ -23,5 +24,6 @@ public sealed class AdministratorEvent
         RegisteredResidents = permissions?.RegisteredResidents;
         PendingResidents = permissions?.PendingResidents;
         Messages = permissions?.Messages;
+        Administrators = permissions?.Administrators;
     }
 }

@@ -213,6 +213,60 @@ public sealed partial class AdminAuthenticationTests
     }
 
     [PostgresFact]
+    public async Task SuperAdministratorCanGrantAndRevokeAdministratorDirectoryAndMessagesIndependently()
+    {
+        await using var db = await TestDatabase.CreateAsync(useMigrations: true);
+        db.Readout.Administrators.Add(new() { SourceId = 1, UserId = "target", IsActive = true, Version = 1 });
+        db.Readout.AdministratorNotificationSettings.Add(new() { SourceId = 1, UserId = "test-user", TelegramChatId = "12345" });
+        await db.Readout.SaveChangesAsync();
+        using var factory = CreateHostWithPostgres(db, useStoredAccounts: true);
+        using var super = AuthenticatedClient(factory, super: true);
+        using var regular = factory.CreateClient();
+        regular.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", SignedToken(userId: "target"));
+        const string path = "/admin/administrators/target/permissions";
+        const string administrators = "/admin/administrators";
+        const string statistics = "/admin/statistics";
+        const string messages = "/admin/messages";
+
+        using var defaultAdministrators = await regular.GetAsync(administrators);
+        Assert.Equal(HttpStatusCode.Forbidden, defaultAdministrators.StatusCode);
+        using var superStatistics = await super.GetAsync(statistics);
+        Assert.Equal(HttpStatusCode.OK, superStatistics.StatusCode);
+
+        var administratorsOnly = new { complexRequests = false, keyOrders = false, registeredResidents = false, pendingResidents = false, messages = false, administrators = true };
+        using var selfGranted = await regular.PatchAsJsonAsync(path, new { version = 1, permissions = administratorsOnly });
+        Assert.Equal(HttpStatusCode.Forbidden, selfGranted.StatusCode);
+        using var saved = await super.PatchAsJsonAsync(path, new { version = 1, permissions = administratorsOnly });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        using var grantedAdministrators = await regular.GetAsync(administrators);
+        Assert.Equal(HttpStatusCode.OK, grantedAdministrators.StatusCode);
+        var directory = (await grantedAdministrators.Content.ReadFromJsonAsync<Page<AdminUser>>())!;
+        Assert.Null(Assert.Single(directory.Items, admin => admin.UserId == "test-user").TelegramChatId);
+        using var cannotChangeAccess = await regular.PatchAsJsonAsync("/admin/administrators/test-user", new { version = 9, isActive = false });
+        Assert.Equal(HttpStatusCode.Forbidden, cannotChangeAccess.StatusCode);
+        using var cannotEditPermissions = await regular.PatchAsJsonAsync(path, new { version = 2, permissions = administratorsOnly });
+        Assert.Equal(HttpStatusCode.Forbidden, cannotEditPermissions.StatusCode);
+        using var deniedStatistics = await regular.GetAsync(statistics);
+        Assert.Equal(HttpStatusCode.Forbidden, deniedStatistics.StatusCode);
+        using var deniedMessages = await regular.GetAsync(messages);
+        Assert.Equal(HttpStatusCode.Forbidden, deniedMessages.StatusCode);
+
+        var messagesOnly = new { complexRequests = false, keyOrders = false, registeredResidents = false, pendingResidents = false, messages = true, administrators = false };
+        using var updated = await super.PatchAsJsonAsync(path, new { version = 2, permissions = messagesOnly });
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        using var revokedAdministrators = await regular.GetAsync(administrators);
+        Assert.Equal(HttpStatusCode.Forbidden, revokedAdministrators.StatusCode);
+        using var grantedMessages = await regular.GetAsync(messages);
+        Assert.Equal(HttpStatusCode.OK, grantedMessages.StatusCode);
+        using var broadcast = await regular.PostAsJsonAsync(messages, new { id = Guid.NewGuid(), text = "Тестове оголошення" });
+        Assert.Equal(HttpStatusCode.OK, broadcast.StatusCode);
+        Assert.Equal("target", (await db.Readout.BroadcastMessages.SingleAsync()).CreatedById);
+        Assert.Collection(await db.Readout.AdministratorEvents.OrderBy(audit => audit.CreatedAt).ToListAsync(),
+            first => Assert.Equal((false, true), (first.Messages, first.Administrators)),
+            second => Assert.Equal((true, false), (second.Messages, second.Administrators)));
+    }
+
+    [PostgresFact]
     public async Task RequestEditsStayInPostgresWithHistoryOutboxAndVersionChecks()
     {
         await using var db = await TestDatabase.CreateAsync();

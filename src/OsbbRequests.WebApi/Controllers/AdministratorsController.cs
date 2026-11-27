@@ -10,7 +10,7 @@ namespace OsbbRequests.WebApi.Controllers;
 public sealed class AdministratorsController(PermissionService permissions) : ControllerBase
 {
     [HttpGet]
-    [RequireAdminAccess(AdminPermission.ManageAdministrators)]
+    [RequireAdminAccess(AdminPermission.ReadAdministrators)]
     public async Task<Page<AdminUser>> List([FromQuery] string? cursor, CancellationToken ct) =>
         await permissions.ListAdminsAsync(HttpContext.GetAdminActor(), cursor, ct);
 

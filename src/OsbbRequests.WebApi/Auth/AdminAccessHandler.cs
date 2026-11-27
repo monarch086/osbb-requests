@@ -39,6 +39,7 @@ internal sealed class AdminAccessHandler(AdminAccountService accounts)
         {
             case AdminPermission.Active: break;
             case AdminPermission.Messages: MessageService.RequireMessagesAccess(actor); break;
+            case AdminPermission.ReadAdministrators: PermissionService.RequireAdministratorDirectoryAccess(actor); break;
             case AdminPermission.ManageAdministrators: PermissionService.RequireAdministratorManagement(actor); break;
             case AdminPermission.EditPermissions: PermissionService.RequirePermissionsEdit(actor); break;
             case AdminPermission.EditNotifications:

@@ -30,6 +30,7 @@ export interface PagePermissions {
   registeredResidents: boolean;
   pendingResidents: boolean;
   messages: boolean;
+  administrators: boolean;
 }
 export type ResidentType = 'Owner' | 'FamilyMember' | 'Tenant' | 'Employee';
 export interface ResidentCounts {
