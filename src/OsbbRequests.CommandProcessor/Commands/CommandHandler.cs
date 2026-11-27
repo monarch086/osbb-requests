@@ -14,7 +14,7 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
     private readonly ResidentProfileService profiles = new(repository, buildingId, timeProvider ?? TimeProvider.System);
     private readonly RequestCreationService requests = new(repository, buildingId, timeProvider ?? TimeProvider.System);
     private readonly RequestLookupService lookup = new(repository, buildingId);
-    private readonly ComplexRequestsService complexRequests = new(repository, buildingId);
+    private readonly RequestListsService requestLists = new(repository, buildingId);
     public const string Categories = RequestCreationService.Categories;
     public const string NewUsage = RequestCreationService.Usage;
     public const string DispatcherContacts = "Телефони диспетчерів:\n\nСантехнік, електрик:\n0632479719\n0936631010\n\n" +
@@ -74,13 +74,13 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
                 command = new BotCommand(button, "");
             }
         }
-        var outcome = await HandleCoreAsync(envelope, cancellationToken);
+        var outcome = await HandleCoreAsync(envelope, navigatingNext ? navigation?.RequestList : null, cancellationToken);
         if (command is not null && command.Name is not ("edit_profile" or "delete_profile" or "account" or "apartments" or "cancel") && outcome.ProfileDialog is null)
             outcome = await profiles.ClearAsync(envelope.UserId, outcome, cancellationToken);
         if (command is not null && outcome.Lookup is null)
             outcome = await lookup.ClearAsync(envelope.UserId, outcome, cancellationToken);
         if (outcome.NextPageCommand is { } next)
-            return outcome with { Keyboard = ReplyKeyboard.PageNavigation, PageNavigation = Navigation(navigation, envelope.UserId, next) };
+            return outcome with { Keyboard = ReplyKeyboard.PageNavigation, PageNavigation = Navigation(navigation, envelope.UserId, next, requestList: outcome.RequestList) };
         if (navigation is not null && command is not null && (navigation.NextCommand is not null || navigation.ReturnToMenu))
         {
             var returnToMenu = (navigatingNext || navigation.ReturnToMenu && command.Name != "new" &&
@@ -95,10 +95,10 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         return outcome;
     }
 
-    private PageNavigationChange Navigation(PageNavigation? previous, long userId, string? next, bool returnToMenu = false) => new(
-        new(userId, buildingId, next, (previous?.Version ?? 0) + 1, clock.GetUtcNow().AddDays(30).ToUnixTimeSeconds(), returnToMenu), previous?.Version);
+    private PageNavigationChange Navigation(PageNavigation? previous, long userId, string? next, bool returnToMenu = false, RequestListNavigation? requestList = null) => new(
+        new(userId, buildingId, next, (previous?.Version ?? 0) + 1, clock.GetUtcNow().AddDays(30).ToUnixTimeSeconds(), returnToMenu, requestList), previous?.Version);
 
-    private async Task<CommandOutcome> HandleCoreAsync(CommandEnvelope envelope, CancellationToken cancellationToken)
+    private async Task<CommandOutcome> HandleCoreAsync(CommandEnvelope envelope, RequestListNavigation? requestList, CancellationToken cancellationToken)
     {
         var command = BotCommand.Parse(envelope.Text, botUsername);
         if (command is null)
@@ -136,9 +136,9 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
             "edit_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Edit, cancellationToken),
             "delete_profile" => await profiles.StartAsync(envelope.UserId, ProfileAction.Delete, cancellationToken),
             "new" => await requests.StartAsync(envelope, command.Arguments, cancellationToken),
-            "complex" => await complexRequests.ListAsync(envelope.UserId, command.Arguments, cancellationToken),
+            "complex" => await requestLists.ListAsync(envelope.UserId, own: false, command.Arguments, requestList, cancellationToken),
             "delete" => await lookup.StartAsync(envelope.UserId, command.Arguments, cancellationToken, RequestLookupAction.Delete),
-            "my" => await ListAsync(envelope.UserId, command.Arguments, cancellationToken),
+            "my" => await requestLists.ListAsync(envelope.UserId, own: true, command.Arguments, requestList, cancellationToken),
             _ => await lookup.StartAsync(envelope.UserId, command.Arguments, cancellationToken)
         };
     }
@@ -160,57 +160,6 @@ public sealed class CommandHandler(ICommandRepository repository, string botUser
         if (request is null || request.OwnerId != userId || request.BuildingId != buildingId)
             return new("Заявку не знайдено серед ваших заявок.");
         return new($"Коментар до заявки №{id} збережено.", Comment: new(id, userId, buildingId, comment, clock.GetUtcNow()));
-    }
-
-    private async Task<CommandOutcome> ListAsync(long userId, string arguments, CancellationToken cancellationToken)
-    {
-        long? beforeId = null;
-        if (arguments.Length > 0)
-        {
-            if (!TryId(arguments, out var parsed))
-                return new CommandOutcome("Використайте /my або команду наступної сторінки зі списку заявок.");
-            beforeId = parsed;
-        }
-
-        var page = await repository.ListRequestsAsync(userId, beforeId, cancellationToken);
-        if (page.Items.Count == 0)
-            return new CommandOutcome("Заявок на цій сторінці немає. Створити заявку: /new.");
-
-        var requests = page.Items.Where(r => r.BuildingId == buildingId && r.OwnerId == userId).ToList();
-        var lines = requests.Select(r => $"№{r.Id} - {StatusLabel(r.Status)}\n" + RequestListText.DateLine(r.CreatedAt) +
-            RequestListText.LocationLine(r.Scope, r.BuildingNumber, r.Floor, r.Entrance) +
-            RequestListText.Limit(r.Category, 80) + (string.IsNullOrEmpty(r.Location) ? "" : ": " + RequestListText.Limit(r.Location, 200)) +
-            RequestListText.Description(r.Description) + $"\n/request {r.Id}").ToList();
-        string? NextCommand(int count)
-        {
-            var next = count > 0 && count < requests.Count ? requests[count - 1].Id : page.NextBeforeId;
-            return next is null ? null : "/my " + next.Value.ToString(CultureInfo.InvariantCulture);
-        }
-        string? nextCommand = null;
-        string? CaptureNext(int count) => nextCommand = NextCommand(count);
-        var reply = RequestListText.Build("Ваші заявки:", lines, CaptureNext);
-        if (nextCommand is not null && page.NextBeforeId is { } nextId && nextCommand == "/my " + nextId.ToString(CultureInfo.InvariantCulture) &&
-            !await HasOwnRequestsAfterAsync(userId, nextId, cancellationToken))
-        {
-            reply = RequestListText.Build("Ваші заявки:", lines, _ => null);
-            nextCommand = null;
-        }
-        return new CommandOutcome(reply, NextPageCommand: nextCommand);
-    }
-
-    private async Task<bool> HasOwnRequestsAfterAsync(long userId, long beforeId, CancellationToken ct)
-    {
-        const int maxPages = 25;
-        for (var i = 0; i < maxPages; i++)
-        {
-            var page = await repository.ListRequestsAsync(userId, beforeId, ct);
-            if (page.Items.Any(request => request.BuildingId == buildingId && request.OwnerId == userId)) return true;
-            if (page.NextBeforeId is not { } next) return false;
-            if (next >= beforeId) throw new InvalidOperationException("Invalid personal request cursor.");
-            beforeId = next;
-        }
-        // Keep continuation when the bounded lookahead cannot determine whether more items exist.
-        return true;
     }
 
     private static bool TryId(string value, out long id) =>

@@ -73,7 +73,8 @@ public sealed partial class AdminAuthenticationTests
         var request = await repository.GetRequestAsync(42, 33, default);
         Assert.Equal(create.Text, Assert.IsType<MaintenanceRequest>(request).Description);
         Assert.Null(await repository.GetRequestAsync(43, 33, default));
-        Assert.Contains((await repository.ListPublicRequestsAsync(CommandComplex, null, default)).Items, row => row.Id == 33);
+        Assert.Contains("№33", (await new CommandHandler(repository, "testbot", CommandComplex)
+            .HandleAsync(new(34, 42, 42, "/complex"), default)).Reply);
         Assert.Equal(4, telegram.MessagesSent);
         Assert.True((await repository.GetReplyAsync(33, default))?.Delivered);
 
@@ -86,6 +87,35 @@ public sealed partial class AdminAuthenticationTests
         Assert.Equal(3, events.Count);
         Assert.Contains(events, row => row is { Action: "ResidentComment", Resolution: "Деталі заявки", ActorId: 42 });
         Assert.Equal(2, await database.Readout.Notifications.CountAsync(row => row.Kind == "LOCAL_PENDING"));
+    }
+
+    [PostgresFact]
+    public async Task CommandBotContinuesNumberedPagesFromPostgresAfterRestart()
+    {
+        await using var database = await TestDatabase.CreateAsync(useMigrations: true);
+        var repository = await PostgresCommandRepository.ConnectAsync(database, CommandComplex, "testbot", default);
+        await RegisterCommandResidentAsync(repository, 42);
+        for (var id = 31; id <= 36; id++)
+        {
+            var request = new MaintenanceRequest(id, 42, CommandComplex, "Інше", "", "Опис заявки",
+                RegistrationTime, Visibility: RequestVisibility.Public, Scope: RequestScope.Complex);
+            await repository.CommitAsync(new(id, 42, 42, ""), new("OK", NewRequest: request), default);
+        }
+
+        var telegram = new CommandTestTelegram();
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "testbot", CommandComplex),
+            telegram, CommandComplex);
+        await processor.ProcessAsync(new(40, 42, 42, "/complex"), default);
+        Assert.EndsWith("Сторінка 1 з 2", (await repository.GetReplyAsync(40, default))!.Text);
+
+        var reopened = await PostgresCommandRepository.ConnectAsync(database, CommandComplex, "testbot", default);
+        var restarted = new TelegramCommandProcessor(reopened, new CommandHandler(reopened, "testbot", CommandComplex),
+            telegram, CommandComplex);
+        await restarted.ProcessAsync(new(41, 42, 42, "Далі"), default);
+        var last = (await reopened.GetReplyAsync(41, default))!;
+        Assert.Contains("№31", last.Text);
+        Assert.EndsWith("Сторінка 2 з 2", last.Text);
+        Assert.Equal(ReplyKeyboard.MainResident, last.Keyboard);
     }
 
     [PostgresFact]
@@ -175,7 +205,8 @@ public sealed partial class AdminAuthenticationTests
             set.SetProperty(row => row.ResidentType, ResidentType.Owner).SetProperty(row => row.Version, 3));
         await repository.CommitAsync(new(60, 42, 42, "Завершити"), new("OK", NewRequest: order, OwnerProfileVersion: 3), default);
         Assert.Equal(profile.Phone, Assert.Single((await repository.GetRequestAsync(42, 60, default))!.KeyItems!).Phone);
-        Assert.DoesNotContain((await repository.ListPublicRequestsAsync(CommandComplex, null, default)).Items, row => row.Id == 60);
+        Assert.DoesNotContain("№60", (await new CommandHandler(repository, "testbot", CommandComplex)
+            .HandleAsync(new(61, 42, 42, "/complex"), default)).Reply);
 
         var apartment = new OwnerApartment("additional", "4В", 2, RegistrationTime);
         var submission = new OwnerApartments(CommandComplex, 42, profile.Id, 1, [apartment]);

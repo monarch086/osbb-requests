@@ -144,20 +144,19 @@ public sealed class CommandTests
 
         repository.Requests.Add(new MaintenanceRequest(99, 99, "building", "інше", "Секретне місце", "Чужі дані",
             DateTimeOffset.UtcNow));
-        var page = await Handler(repository).HandleAsync(Command("/my"), CancellationToken.None);
         var ids = new List<long>();
-        while (true)
+        for (var index = 1; index <= 11; index++)
         {
+            var update = new CommandEnvelope(index, 42, 42, index == 1 ? "/my" : "Далі");
+            var page = await Handler(repository).HandleAsync(update, default);
+            await repository.CommitAsync(update, page, default);
             Assert.DoesNotContain("Секретне місце", page.Reply);
             Assert.DoesNotContain("Чужі дані", page.Reply);
             Assert.Contains(new string('О', 2000), page.Reply);
             Assert.True(page.Reply.Length <= 4096);
+            Assert.EndsWith($"Сторінка {index} з 11", page.Reply);
             ids.AddRange(System.Text.RegularExpressions.Regex.Matches(page.Reply, @"^№(\d+)", System.Text.RegularExpressions.RegexOptions.Multiline)
                 .Select(match => long.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
-            var parts = page.Reply.Split("Наступна сторінка: ");
-            if (parts.Length == 1) break;
-            Assert.True(ids.Count <= 11);
-            page = await Handler(repository).HandleAsync(Command(parts[1]), CancellationToken.None);
         }
         Assert.Equal(Enumerable.Range(1, 11).Reverse().Select(id => (long)id), ids);
     }

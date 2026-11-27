@@ -23,21 +23,9 @@ internal static class RequestListText
 
     public static string Description(string description) => "\n~~~~~\n" + Limit(description, 2000) + "\n~~~~~";
 
-    public static string Build(string heading, IReadOnlyList<string> entries, Func<int, string?> nextCommand)
-    {
-        var text = heading;
-        var count = 0;
-        foreach (var entry in entries)
-        {
-            var candidate = text + "\n\n" + entry;
-            if (candidate.Length + Footer(nextCommand(count + 1)).Length > 4096)
-                break;
-            text = candidate;
-            count++;
-        }
-        if (entries.Count > 0 && count == 0) throw new InvalidOperationException("Request list entry exceeds Telegram message limit.");
-        return text + Footer(nextCommand(count));
-    }
+    public const int MessageLimit = 4096;
+    public static int FooterLength { get; } = Footer(int.MaxValue, int.MaxValue).Length;
+    public static string Footer(int page, int total) => $"\n\nСторінка {page} з {total}";
 
     public static string Limit(string value, int length)
     {
@@ -45,5 +33,4 @@ internal static class RequestListText
         var end = char.IsHighSurrogate(value[length - 1]) ? length - 1 : length;
         return value[..end] + "…";
     }
-    private static string Footer(string? command) => command is null ? "" : "\n\nНаступна сторінка: " + command;
 }

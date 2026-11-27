@@ -1,4 +1,4 @@
-using System.Globalization;
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.DataImport.Storage;
@@ -6,7 +6,6 @@ using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
 using OsbbRequests.Services.Notifications;
-using OsbbRequests.Services.Requests;
 using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.Postgres.Bot;
@@ -30,42 +29,35 @@ public sealed partial class PostgresCommandRepository
         return row is null ? null : (await ToRequestsAsync(db, [row], ct))[0];
     }
 
-    public async Task<RequestPage> ListRequestsAsync(long userId, long? beforeId, CancellationToken ct)
+    public async IAsyncEnumerable<RequestListItem> ReadRequestListAsync(string complexId, long? ownerId,
+        RequestListBoundary? before, long[]? pageIds, [EnumeratorCancellation] CancellationToken ct)
     {
+        if (complexId != complex) yield break;
         await using var db = await factory.CreateDbContextAsync(ct);
-        var rows = await Requests(db).Where(row => row.OwnerId == userId && (beforeId == null || row.RequestId < beforeId))
-            .OrderByDescending(row => row.RequestId).Take(11).ToListAsync(ct);
-        var requests = await ToRequestsAsync(db, rows.Take(10).ToArray(), ct);
-        return new(requests, rows.Count > 10 ? requests[^1].Id : null);
-    }
-
-    public async Task<PublicRequestPage> ListPublicRequestsAsync(string complexId, string? before, CancellationToken ct)
-    {
-        if (complexId != complex) return new([], null);
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var query = Requests(db).Where(row => row.Visibility == RequestVisibility.Public &&
-            (row.Status == RequestStatus.New || row.Status == RequestStatus.InProgress));
-        if (before is not null)
+        var query = Requests(db);
+        query = ownerId is { } owner
+            ? query.Where(row => row.OwnerId == owner)
+            : query.Where(row => row.Visibility == RequestVisibility.Public &&
+                (row.Status == RequestStatus.New || row.Status == RequestStatus.InProgress));
+        if (before is { CreatedAt: { } date } publicBoundary)
         {
-            var separator = before.LastIndexOf('#');
-            if (separator <= 0 || !TryParseBoundary(before, separator, out var date, out var id))
-                return new([], null);
-            var boundary = date.ToUniversalTime();
-            query = query.Where(row => row.CreatedAt < boundary || row.CreatedAt == boundary && row.RequestId < id);
+            var utc = date.ToUniversalTime();
+            query = query.Where(row => row.CreatedAt < utc || row.CreatedAt == utc && row.RequestId < publicBoundary.RequestId);
         }
-        var rows = await query.OrderByDescending(row => row.CreatedAt).ThenByDescending(row => row.RequestId).Take(6).ToListAsync(ct);
-        var items = rows.Take(5).Select(row => new PublicRequestSummary(row.RequestId, row.Status, row.CreatedAt, row.Scope,
-            row.BuildingNumber, row.Floor, row.Category ?? "", row.Location ?? "", row.Description ?? "", row.Entrance,
-            FormattableString.Invariant($"{row.CreatedAt:O}#{row.RequestId}"))).ToArray();
-        return new(items, rows.Count > 5 ? items[^1].CursorKey : null);
-    }
+        else if (before is { } personalBoundary)
+        {
+            query = query.Where(row => row.RequestId < personalBoundary.RequestId);
+        }
+        if (pageIds is not null)
+            query = query.Where(row => pageIds.Contains(row.RequestId));
 
-    private static bool TryParseBoundary(string cursor, int separator, out DateTimeOffset date, out long id)
-    {
-        id = 0;
-        return DateTimeOffset.TryParseExact(cursor.AsSpan(0, separator), "O", CultureInfo.InvariantCulture,
-            DateTimeStyles.None, out date) &&
-            long.TryParse(cursor.AsSpan(separator + 1), NumberStyles.None, CultureInfo.InvariantCulture, out id);
+        var ordered = ownerId is null
+            ? query.OrderByDescending(row => row.CreatedAt).ThenByDescending(row => row.RequestId)
+            : query.OrderByDescending(row => row.RequestId);
+        var items = ordered.Select(row => new RequestListItem(row.RequestId, row.Status, row.CreatedAt,
+            row.Scope, row.BuildingNumber, row.Floor, row.Category ?? "", row.Location ?? "", row.Description ?? "", row.Entrance));
+        await foreach (var item in items.AsAsyncEnumerable().WithCancellation(ct))
+            yield return item;
     }
 
     public async Task<long?> GetNotificationRequestAsync(long userId, long messageId, CancellationToken ct)

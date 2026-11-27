@@ -1,10 +1,9 @@
-using System.Globalization;
+using System.Runtime.CompilerServices;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
-using OsbbRequests.Services.Requests;
 using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.Bot.Tests;
@@ -30,7 +29,7 @@ internal sealed class MemoryRepository : ICommandRepository
     public Dictionary<(long UserId, string ComplexId, string Token), string> ComplexCursors { get; } = [];
     public Task<string?> GetComplexCursorAsync(long userId, string complexId, string token, CancellationToken ct) =>
         Task.FromResult(ComplexCursors.GetValueOrDefault((userId, complexId, token)));
-    public string? LastPublicBefore { get; private set; }
+    public RequestListBoundary? LastRequestBoundary { get; private set; }
     public Dictionary<long, int> RequestVersions { get; } = [];
     public Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken ct)
     {
@@ -38,17 +37,28 @@ internal sealed class MemoryRepository : ICommandRepository
         return Task.FromResult(request is null ? null : new DeletableRequest(request.Id, request.OwnerId,
             request.BuildingId, request.Status, RequestVersions.GetValueOrDefault(request.Id, 1)));
     }
-    public Task<PublicRequestPage> ListPublicRequestsAsync(string complexId, string? before, CancellationToken ct)
+    public async IAsyncEnumerable<RequestListItem> ReadRequestListAsync(string complexId, long? ownerId,
+        RequestListBoundary? before, long[]? pageIds, [EnumeratorCancellation] CancellationToken ct)
     {
-        LastPublicBefore = before;
+        await Task.Yield();
+        LastRequestBoundary = before;
         Queries++;
-        static string SortKey(MaintenanceRequest r) => r.CreatedAt.ToString("O", CultureInfo.InvariantCulture) + "#" + r.Id.ToString("D20", CultureInfo.InvariantCulture);
-        var candidates = Requests.Where(r => r.BuildingId == complexId && (before is null || string.CompareOrdinal(SortKey(r), before) < 0))
-            .OrderByDescending(SortKey, StringComparer.Ordinal).Take(6).ToList();
-        var page = candidates.Take(5).ToList();
-        var items = page.Where(r => r.Visibility == RequestVisibility.Public && r.Status is RequestStatus.New or RequestStatus.InProgress)
-            .Select(r => new PublicRequestSummary(r.Id, r.Status, r.CreatedAt, r.Scope, r.BuildingNumber, r.Floor, r.Category, r.Location, r.Description, r.Entrance)).ToList();
-        return Task.FromResult(new PublicRequestPage(items, candidates.Count > 5 ? SortKey(page[^1]) : null));
+        var candidates = Requests.Where(r => r.BuildingId == complexId && (pageIds is null || pageIds.Contains(r.Id)));
+        candidates = ownerId is { } owner
+            ? candidates.Where(r => r.OwnerId == owner).OrderByDescending(r => r.Id)
+            : candidates.Where(r => r.Visibility == RequestVisibility.Public && r.Status is RequestStatus.New or RequestStatus.InProgress)
+                .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id);
+        if (before is { CreatedAt: { } date } publicBoundary)
+            candidates = candidates.Where(r => r.CreatedAt < date || r.CreatedAt == date && r.Id < publicBoundary.RequestId);
+        else if (before is { } personalBoundary)
+            candidates = candidates.Where(r => r.Id < personalBoundary.RequestId);
+
+        foreach (var item in candidates)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return new(item.Id, item.Status, item.CreatedAt, item.Scope, item.BuildingNumber, item.Floor,
+                item.Category, item.Location, item.Description, item.Entrance);
+        }
     }
     public HashSet<long> Residents { get; } = [42];
     public Dictionary<long, StoredReply> Replies { get; } = [];
@@ -77,14 +87,6 @@ internal sealed class MemoryRepository : ICommandRepository
     public Task<MaintenanceRequest?> GetRequestAsync(long userId, long requestId, CancellationToken cancellationToken) =>
         Task.FromResult(Requests.FirstOrDefault(r => r.OwnerId == userId && r.Id == requestId));
 
-    public Task<RequestPage> ListRequestsAsync(long userId, long? beforeId, CancellationToken cancellationToken)
-    {
-        Queries++;
-        var rows = Requests.Where(r => r.OwnerId == userId && (!beforeId.HasValue || r.Id < beforeId.Value))
-            .OrderByDescending(r => r.Id).Take(11).ToList();
-        return Task.FromResult(new RequestPage(rows.Take(10).ToList(), rows.Count > 10 ? rows[9].Id : null));
-    }
-
     public Task<StoredReply?> GetReplyAsync(long updateId, CancellationToken cancellationToken) =>
         Task.FromResult(Replies.GetValueOrDefault(updateId));
 
@@ -106,12 +108,6 @@ internal sealed class MemoryRepository : ICommandRepository
         }
         if (outcome.PageNavigation is { } nav && PageNavigations.GetValueOrDefault(command.UserId)?.Version != nav.ExpectedVersion)
             throw new InvalidOperationException("Page navigation conflict.");
-        if (outcome.Pagination is { } cursor && (cursor.UserId != command.UserId ||
-            ComplexCursors.ContainsKey((cursor.UserId, cursor.ComplexId, cursor.Token))))
-        {
-            throw new InvalidOperationException("Pagination conflict.");
-        }
-
         if (outcome.Deletion is { } deletion)
         {
             var target = Requests.SingleOrDefault(r => r.OwnerId == command.UserId && r.Id == deletion.Id);
@@ -159,8 +155,6 @@ internal sealed class MemoryRepository : ICommandRepository
         if (outcome.Deletion is { } removed)
             Requests.RemoveAll(r => r.Id == removed.Id && r.OwnerId == removed.OwnerId);
         CommitCount++;
-        if (outcome.Pagination is { } pagination)
-            ComplexCursors.Add((pagination.UserId, pagination.ComplexId, pagination.Token), pagination.Before);
         if (outcome.NewRequest is { } request)
             Requests.Add(request);
         var reply = new StoredReply(command.UpdateId, command.UserId, command.ChatId, outcome.Reply, false, outcome.Keyboard, outcome.Profile?.Value.PersonalDataDeleted == true || outcome.Registration?.AutomaticallyApproved == true);

@@ -31,11 +31,15 @@ public sealed class PageNavigationTests
         for (var i = 1; i <= 11; i++) repo.Requests.Add(Request(i));
         await processor.ProcessAsync(Message(1, command), default);
         Assert.Equal(ReplyKeyboard.PageNavigation, telegram.Keyboards[^1]);
+        var total = command == "/my" ? 2 : 3;
+        Assert.EndsWith($"Сторінка 1 з {total}", telegram.Messages[^1].Text);
+        Assert.DoesNotContain("Наступна сторінка:", telegram.Messages[^1].Text);
         Assert.NotNull(repo.PageNavigations[42].NextCommand);
         await processor.ProcessAsync(Message(2, "Далі"), default);
-        // /complex has five results per page; continue until the cursor ends.
+        Assert.EndsWith($"Сторінка 2 з {total}", telegram.Messages[^1].Text);
         if (command == "/complex") await processor.ProcessAsync(Message(3, "Далі"), default);
         Assert.Contains("№1 ", telegram.Messages[^1].Text);
+        Assert.EndsWith($"Сторінка {total} з {total}", telegram.Messages[^1].Text);
         Assert.Equal(ReplyKeyboard.MainResident, telegram.Keyboards[^1]);
         Assert.Null(repo.PageNavigations[42].NextCommand);
     }
@@ -87,16 +91,21 @@ public sealed class PageNavigationTests
     }
 
     [Fact]
-    public async Task ComplexCanContinueAfterAnEmptyFilteredPage()
+    public async Task ComplexDoesNotExposeRequestsThatBecomePrivateAfterPlanning()
     {
         var (repo, telegram, processor) = Setup();
-        for (var i = 1; i <= 6; i++) repo.Requests.Add(Request(i, 99, i == 1 ? RequestVisibility.Public : RequestVisibility.Private));
+        for (var i = 1; i <= 11; i++) repo.Requests.Add(Request(i, 99));
         await processor.ProcessAsync(Message(1, "/complex"), default);
-        Assert.Contains("На цій сторінці немає", telegram.Messages[^1].Text);
-        Assert.Equal(ReplyKeyboard.PageNavigation, telegram.Keyboards[^1]);
+        Assert.Equal(1, repo.Queries);
+
+        repo.Requests[5] = repo.Requests[5] with { Visibility = RequestVisibility.Private };
+        repo.Requests.Add(Request(12, 99));
         await processor.ProcessAsync(Message(2, "Далі"), default);
-        Assert.Contains("№1", telegram.Messages[^1].Text);
-        Assert.Equal(ReplyKeyboard.MainResident, telegram.Keyboards[^1]);
+        Assert.DoesNotContain("№6 ", telegram.Messages[^1].Text);
+        Assert.DoesNotContain("№12 ", telegram.Messages[^1].Text);
+        Assert.Contains("№2 ", telegram.Messages[^1].Text);
+        Assert.EndsWith("Сторінка 2 з 3", telegram.Messages[^1].Text);
+        Assert.Equal(2, repo.Queries);
     }
 
     [Fact]
