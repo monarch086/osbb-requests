@@ -1,4 +1,4 @@
-using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.CommandProcessor.Models;
 

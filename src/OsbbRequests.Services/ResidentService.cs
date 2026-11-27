@@ -148,7 +148,7 @@ public sealed class ResidentService(IResidentStore store)
     {
         RequireResidentDirectoryAccess(actor, pending: false);
         var registration = await GetRegistrationAsync(reference, ct);
-        if (registration.Stage != RegistrationStage.Approved || registration.PersonalDataDeleted)
+        if (registration.Status != ResidentRegistrationStatus.Approved || registration.PersonalDataDeleted)
             throw new AdminOperationException(AdminFailure.NotFound, "Реєстрацію не знайдено.");
         return await store.GetRegistrationApprovalAsync(reference, ct);
     }
@@ -157,8 +157,8 @@ public sealed class ResidentService(IResidentStore store)
     {
         RequireRegistrationHistoryAccess(actor);
         var registration = await GetRegistrationAsync(reference, ct);
-        if (registration.Stage == RegistrationStage.Pending ? !actor.EffectivePermissions.PendingResidents :
-            registration.Stage == RegistrationStage.Approved ? !actor.EffectivePermissions.RegisteredResidents : true)
+        if (registration.Status == ResidentRegistrationStatus.Pending ? !actor.EffectivePermissions.PendingResidents :
+            registration.Status == ResidentRegistrationStatus.Approved ? !actor.EffectivePermissions.RegisteredResidents : true)
         {
             throw new AdminOperationException(AdminFailure.Forbidden, "Недостатньо прав для перегляду історії.");
         }
@@ -173,18 +173,18 @@ public sealed class ResidentService(IResidentStore store)
         return store.DecideAsync(actor, reference, decision, ct);
     }
 
-    private async Task<ResidentRegistration> GetRegistrationAsync(string reference, CancellationToken ct)
+    private async Task<ResidentProfile> GetRegistrationAsync(string reference, CancellationToken ct)
     {
         ValidateRegistrationReference(reference);
         return await store.GetRegistrationAsync(reference, ct) ??
             throw new AdminOperationException(AdminFailure.NotFound, "Реєстрацію не знайдено.");
     }
 
-    private static PendingResident ToPendingResident(ResidentRegistration resident) => new(resident.Id, resident.FirstName, resident.LastName,
+    private static PendingResident ToPendingResident(ResidentProfile resident) => new(resident.Id, resident.FirstName, resident.LastName,
         resident.Phone, resident.Email, resident.BuildingNumber, resident.ApartmentNumber, resident.ResidentType,
         resident.TypeChangeCount, resident.ConsentAt, resident.UpdatedAt, resident.Version, resident.UserId.ToString(CultureInfo.InvariantCulture));
 
-    private static RegisteredResident ToRegisteredResident(ResidentRegistration resident) => new(resident.Id, resident.FirstName, resident.LastName,
+    private static RegisteredResident ToRegisteredResident(ResidentProfile resident) => new(resident.Id, resident.FirstName, resident.LastName,
         resident.Phone, resident.ApprovedAt ?? resident.UpdatedAt, resident.UserId.ToString(CultureInfo.InvariantCulture), resident.BuildingNumber,
         resident.ApartmentNumber, resident.PersonalDataDeleted, resident.Email, resident.ConsentAt, resident.ResidentType, resident.TypeChangeCount, resident.Version);
 

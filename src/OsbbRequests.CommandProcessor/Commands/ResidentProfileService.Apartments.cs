@@ -1,6 +1,7 @@
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 

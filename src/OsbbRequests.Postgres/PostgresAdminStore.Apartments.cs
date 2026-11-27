@@ -28,19 +28,19 @@ public sealed partial class PostgresAdminStore
         return new Page<ApartmentReviewEntry>(items, NextCursor(offset, ownerIds.Length));
     }, ct);
 
-    public Task<IReadOnlyList<OwnerApartment>> ListOwnerApartmentsAsync(ResidentRegistration profile, CancellationToken ct) =>
+    public Task<IReadOnlyList<OwnerApartment>> ListOwnerApartmentsAsync(ResidentProfile profile, CancellationToken ct) =>
         Read<IReadOnlyList<OwnerApartment>>(async (db, area) =>
         {
-            if (!OwnerApartments.CanManage(profile) || profile.BuildingId != options.Complex) return [];
+            if (!profile.IsApprovedOwner() || profile.BuildingId != options.Complex) return [];
             var apartments = await db.ResidentApartments.Where(row => row.ComplexId == area.ComplexId &&
                 row.TelegramUserId == profile.UserId && row.RegistrationId == profile.Id).OrderBy(row => row.SubmittedAt).ToListAsync(ct);
             return apartments.Select(ToApartment).ToArray();
         }, ct);
 
     public Task<IReadOnlyDictionary<string, IReadOnlyList<OwnerApartment>>> ListApprovedApartmentsForExportAsync(
-        IReadOnlyList<ResidentRegistration> residents, CancellationToken ct) => Read<IReadOnlyDictionary<string, IReadOnlyList<OwnerApartment>>>(async (db, area) =>
+        IReadOnlyList<ResidentProfile> residents, CancellationToken ct) => Read<IReadOnlyDictionary<string, IReadOnlyList<OwnerApartment>>>(async (db, area) =>
     {
-        var ids = residents.Where(row => OwnerApartments.CanManage(row) && row.BuildingId == options.Complex).Select(row => row.Id).ToArray();
+        var ids = residents.Where(row => row.IsApprovedOwner() && row.BuildingId == options.Complex).Select(row => row.Id).ToArray();
         var rows = await db.ResidentApartments.Where(row => row.ComplexId == area.ComplexId && ids.Contains(row.RegistrationId) &&
             row.Status == ApartmentReviewStatus.Approved).OrderBy(row => row.SubmittedAt).ToListAsync(ct);
         return rows.GroupBy(row => row.RegistrationId).ToDictionary(g => g.Key, g => (IReadOnlyList<OwnerApartment>)g.Select(ToApartment).ToArray());

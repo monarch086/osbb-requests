@@ -29,9 +29,9 @@ public sealed record ResidentNotification(string Id, string ComplexId, long Owne
             next.BuildingId, next.OwnerId, next.Id, version, text, now);
     }
 
-    public static ResidentNotification RegistrationApproved(ResidentRegistration registration)
+    public static ResidentNotification RegistrationApproved(ResidentProfile registration)
     {
-        if (registration.Stage != RegistrationStage.Approved || registration.UserId <= 0)
+        if (registration.Status != ResidentRegistrationStatus.Approved || registration.UserId <= 0)
             throw new InvalidOperationException("Notification requires an approved registration.");
         var date = TimeZoneInfo.ConvertTime(registration.UpdatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         var text = "Вашу реєстрацію в ЖК «Зелений острів 2» схвалено.\n" +

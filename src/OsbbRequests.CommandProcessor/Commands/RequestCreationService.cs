@@ -5,6 +5,7 @@ using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
 using OsbbRequests.Services.Requests;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
@@ -192,7 +193,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     private async Task<ResidentRegistration?> OwnerAsync(long userId, CancellationToken ct)
     {
         var profile = await repository.GetRegistrationAsync(userId, ct);
-        return profile is not null && OwnerApartments.CanManage(profile) && profile.BuildingId == complexId && profile.UserId == userId ? profile : null;
+        return profile is not null && profile.IsApprovedOwner() && profile.BuildingId == complexId && profile.UserId == userId ? profile : null;
     }
 
     private CommandOutcome FinishKeyOrder(CommandEnvelope command, RequestDraft draft, ResidentRegistration owner)

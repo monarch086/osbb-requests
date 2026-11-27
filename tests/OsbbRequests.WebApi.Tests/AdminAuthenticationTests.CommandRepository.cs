@@ -6,6 +6,7 @@ using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Postgres.Bot;
 using OsbbRequests.Services.Requests;
+using OsbbRequests.Services.Residents;
 using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;
@@ -14,6 +15,41 @@ public sealed partial class AdminAuthenticationTests
 {
     private const string CommandComplex = "osbb-requests-dev";
     private static readonly DateTimeOffset RegistrationTime = new(2026, 11, 26, 10, 0, 0, TimeSpan.Zero);
+
+    [PostgresFact]
+    public async Task ExistingProfileDialogResumesFromItsStoredStep()
+    {
+        await using var database = await TestDatabase.CreateAsync(useMigrations: true);
+        var repository = await PostgresCommandRepository.ConnectAsync(database, CommandComplex, "testbot", default);
+        var profile = await RegisterCommandResidentAsync(repository, 42);
+        database.Readout.BotConversations.Add(new()
+        {
+            ComplexId = 1,
+            Bot = "testbot",
+            UserId = 42,
+            Kind = "profile",
+            Version = 1,
+            Data = """
+                {"UserId":42,"ComplexId":"osbb-requests-dev","Action":0,"Version":1,
+                 "ExpectedProfileVersion":2,"Active":true,"Draft":{
+                   "Id":"local-profile","UserId":42,"BuildingId":"osbb-requests-dev","Stage":"AwaitingLastName","Version":2,
+                   "CreatedAt":"2026-11-26T10:00:00+00:00","UpdatedAt":"2026-11-26T10:00:00+00:00",
+                   "FirstName":"Олена","Phone":"+380671234567","ResidentType":"FamilyMember"}}
+                """
+        });
+        await database.Readout.SaveChangesAsync();
+        database.Readout.ChangeTracker.Clear();
+
+        var processor = new TelegramCommandProcessor(repository, new CommandHandler(repository, "testbot", CommandComplex),
+            new CommandTestTelegram(), CommandComplex);
+        await processor.ProcessAsync(new(30, 42, 42, "Коваль"), default);
+
+        var dialog = (await repository.GetProfileDialogAsync(42, default))!;
+        Assert.Equal(RegistrationStage.AwaitingBuilding, dialog.Draft?.Stage);
+        Assert.Equal("Олена", dialog.Draft?.FirstName);
+        Assert.Equal("Коваль", dialog.Draft?.LastName);
+        Assert.Equal(profile, await repository.GetRegistrationAsync(42, default));
+    }
 
     [PostgresFact]
     public async Task CommandBotUsesExistingPostgresTablesAndDoesNotReplayCommittedWrites()

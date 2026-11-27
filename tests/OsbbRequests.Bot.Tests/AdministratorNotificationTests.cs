@@ -1,6 +1,7 @@
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services.Notifications;
+using OsbbRequests.Services.Residents;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;

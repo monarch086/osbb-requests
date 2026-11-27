@@ -2,6 +2,7 @@ using System.Text.Json;
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Residents;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;

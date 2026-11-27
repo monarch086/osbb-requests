@@ -19,7 +19,7 @@ public sealed class ResidentExport(IResidentStore store)
         return file;
     }
 
-    private static string[] Row(ResidentRegistration r, bool pending, IReadOnlyList<OwnerApartment>? apartments)
+    private static string[] Row(ResidentProfile r, bool pending, IReadOnlyList<OwnerApartment>? apartments)
     {
         var date = pending ? r.UpdatedAt : r.ApprovedAt ?? r.UpdatedAt;
         var formatted = TimeZoneInfo.ConvertTime(date, Kyiv).ToString("dd.MM.yyyy, HH:mm", CultureInfo.InvariantCulture);

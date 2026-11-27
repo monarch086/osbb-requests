@@ -37,13 +37,13 @@ public static class AdministratorNotifications
         _ => "Не зазначено"
     };
 
-    public static ResidentNotification NewResident(ResidentRegistration resident) => new(
+    public static ResidentNotification NewResident(ResidentProfile resident) => new(
         "new-resident-" + resident.Id + "-v" + resident.Version.ToString(CultureInfo.InvariantCulture), resident.BuildingId, 0, null, null,
         "Нова реєстрація мешканця в ЖК «Зелений острів 2».\n" +
         string.Join(" ", new[] { resident.FirstName, resident.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))) +
         "\nТип мешканця: " + ResidentTypeLabel(resident.ResidentType) +
         "\nБудинок: " + (string.IsNullOrWhiteSpace(resident.BuildingNumber) ? "Не зазначено" : resident.BuildingNumber.Trim()) +
-        "\nПодано: " + Date(resident.UpdatedAt) + (resident.Stage == RegistrationStage.Approved
+        "\nПодано: " + Date(resident.UpdatedAt) + (resident.Status == ResidentRegistrationStatus.Approved
             ? "\nРеєстрацію схвалено автоматично. Мешканцю надано доступ."
             : "\nПотребує перевірки в розділі «Мешканці» вебпанелі."), resident.UpdatedAt, AdministratorEvent.NewResident);
 

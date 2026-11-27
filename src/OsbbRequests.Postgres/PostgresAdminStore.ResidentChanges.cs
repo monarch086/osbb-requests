@@ -5,6 +5,7 @@ using OsbbRequests.Domain.Models;
 using OsbbRequests.Services;
 using OsbbRequests.Services.Admin;
 using OsbbRequests.Services.Notifications;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.Postgres;
 

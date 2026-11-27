@@ -7,6 +7,7 @@ using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
 using OsbbRequests.Services.Notifications;
 using OsbbRequests.Services.Requests;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.Postgres.Bot;
 

@@ -6,9 +6,9 @@ using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.DataImport.Storage;
-using OsbbRequests.Domain.Models;
 using OsbbRequests.Postgres.Bot;
 using OsbbRequests.Services.Notifications;
+using OsbbRequests.Services.Residents;
 using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;

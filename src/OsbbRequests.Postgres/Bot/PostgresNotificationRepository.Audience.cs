@@ -4,6 +4,7 @@ using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services.Notifications;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.Postgres.Bot;
 

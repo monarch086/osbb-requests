@@ -16,6 +16,7 @@ using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services;
 using OsbbRequests.Services.Admin;
+using OsbbRequests.Services.Residents;
 using Xunit;
 using BroadcastMessage = OsbbRequests.Services.Admin.BroadcastMessage;
 

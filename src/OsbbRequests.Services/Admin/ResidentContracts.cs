@@ -8,7 +8,7 @@ public sealed record ResidentListRow(string Id, string? FirstName, string? LastN
 
 public sealed record CompactResidentPage(IReadOnlyList<ResidentListRow> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts, string? StartCursor, string? NextCursor) : IResidentDirectoryView;
 
-public sealed record ResidentDirectoryPage(IReadOnlyList<ResidentRegistration> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts);
+public sealed record ResidentDirectoryPage(IReadOnlyList<ResidentProfile> Items, int PageNumber, int PageSize, int Total, ResidentCounts Counts);
 
 public sealed record RegisteredResident(string Id, string? FirstName, string? LastName, string? Phone, DateTimeOffset RegisteredAt, string? TelegramChatId = null, string? BuildingNumber = null, string? ApartmentNumber = null, bool PersonalDataDeleted = false, string? Email = null, DateTimeOffset? ConsentAt = null, ResidentType ResidentType = ResidentType.FamilyMember, int TypeChangeCount = 0, int Version = 0);
 

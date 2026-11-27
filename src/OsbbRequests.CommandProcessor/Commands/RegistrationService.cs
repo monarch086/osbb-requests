@@ -6,6 +6,7 @@ using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 

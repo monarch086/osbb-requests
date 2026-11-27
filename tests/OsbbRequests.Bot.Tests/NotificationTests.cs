@@ -6,6 +6,7 @@ using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services.Notifications;
+using OsbbRequests.Services.Residents;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -21,7 +22,7 @@ public sealed class NotificationTests
     [Fact]
     public async Task ApprovalNotificationRetriesThenDeliversOnlyToApprovedResident()
     {
-        var registration = new OsbbRequests.Domain.Models.ResidentRegistration(new string('a', 32), 99, "complex", RegistrationStage.Approved, 5,
+        var registration = new OsbbRequests.Services.Residents.ResidentRegistration(new string('a', 32), 99, "complex", RegistrationStage.Approved, 5,
             Now.AddDays(-1), Now, "+380500000000", "Олена", "Тестова");
         var notification = ResidentNotification.RegistrationApproved(registration);
         var repository = new MemoryNotifications(new NotificationWorkItem(notification.Id, notification, 0));
@@ -126,7 +127,7 @@ public sealed class NotificationTests
     [Fact]
     public async Task ResidentApprovalUpdatesChatMenuBeforeSendingConfirmation()
     {
-        var registration = new OsbbRequests.Domain.Models.ResidentRegistration("reference", 42, "complex", RegistrationStage.Approved,
+        var registration = new OsbbRequests.Services.Residents.ResidentRegistration("reference", 42, "complex", RegistrationStage.Approved,
             5, Now, Now);
         var work = Work() with { Notification = ResidentNotification.RegistrationApproved(registration) };
         var repository = new MemoryNotifications(work);

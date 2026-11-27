@@ -28,8 +28,8 @@ public sealed partial class PostgresAdminStore
         string? residentType, string? sort, string? direction, CancellationToken ct) =>
         Read((db, current) => ReadDirectoryAsync(db, current, pending, page, buildingNumber, residentType, sort, direction, ct), ct);
 
-    public Task<IReadOnlyList<ResidentRegistration>> ListResidentExportAsync(bool pending, string? buildingNumber,
-        string? residentType, string? sort, string? direction, CancellationToken ct) => Read<IReadOnlyList<ResidentRegistration>>(async (db, current) =>
+    public Task<IReadOnlyList<ResidentProfile>> ListResidentExportAsync(bool pending, string? buildingNumber,
+        string? residentType, string? sort, string? direction, CancellationToken ct) => Read<IReadOnlyList<ResidentProfile>>(async (db, current) =>
     {
         var (query, _) = FilterResidents(db, current, pending, buildingNumber, residentType, sort, direction);
         var rows = await SortResidents(query, pending, direction).Take(1_048_576).ToListAsync(ct);
@@ -100,7 +100,7 @@ public sealed partial class PostgresAdminStore
     public Task<int> CountRegistrationsAsync(CancellationToken ct) =>
         Read((db, current) => ResidentRows(db, current, pending: true).CountAsync(ct), ct);
 
-    public Task<Page<ResidentRegistration>> ListRegistrationsAsync(string? cursor, CancellationToken ct) =>
+    public Task<Page<ResidentProfile>> ListRegistrationsAsync(string? cursor, CancellationToken ct) =>
         ListProfilesAsync(true, cursor, ct);
 
     public async Task<Page<RegisteredResident>> ListResidentsAsync(string? cursor, CancellationToken ct)
@@ -111,30 +111,30 @@ public sealed partial class PostgresAdminStore
             r.ApartmentNumber, r.PersonalDataDeleted, r.Email, r.ConsentAt, r.ResidentType, r.TypeChangeCount, r.Version)).ToArray(), page.Cursor);
     }
 
-    private Task<Page<ResidentRegistration>> ListProfilesAsync(bool pending, string? cursor, CancellationToken ct) =>
+    private Task<Page<ResidentProfile>> ListProfilesAsync(bool pending, string? cursor, CancellationToken ct) =>
         Read(async (db, current) =>
         {
             var offset = Offset(cursor);
             var rows = await SortResidents(ResidentRows(db, current, pending), pending, null).Skip(offset).Take(PageSize + 1).ToListAsync(ct);
-            return new Page<ResidentRegistration>(await ToProfilesAsync(db, rows.Take(PageSize).ToArray(), ct), NextCursor(offset, rows.Count));
+            return new Page<ResidentProfile>(await ToProfilesAsync(db, rows.Take(PageSize).ToArray(), ct), NextCursor(offset, rows.Count));
         }, ct);
 
-    public Task<ResidentRegistration?> GetCurrentRegisteredResidentAsync(string reference, CancellationToken ct) =>
+    public Task<ResidentProfile?> GetCurrentRegisteredResidentAsync(string reference, CancellationToken ct) =>
         Read((db, current) => FindProfileAsync(db, ResidentRows(db, current, pending: false).Where(row => row.RegistrationId == reference), ct), ct);
 
-    public Task<ResidentRegistration?> GetRegistrationAsync(string reference, CancellationToken ct) =>
+    public Task<ResidentProfile?> GetRegistrationAsync(string reference, CancellationToken ct) =>
         Read((db, current) => FindProfileAsync(db, db.Residents.Where(row => row.ComplexId == current.ComplexId && row.RegistrationId == reference), ct), ct);
 
-    private Task<ResidentRegistration?> ResidentByUserAsync(DataContext db, Scope current, long user, CancellationToken ct) =>
+    private Task<ResidentProfile?> ResidentByUserAsync(DataContext db, Scope current, long user, CancellationToken ct) =>
         FindProfileAsync(db, db.Residents.Where(row => row.ComplexId == current.ComplexId && row.TelegramUserId == user), ct);
 
-    private async Task<ResidentRegistration?> FindProfileAsync(DataContext db, IQueryable<Resident> query, CancellationToken ct)
+    private async Task<ResidentProfile?> FindProfileAsync(DataContext db, IQueryable<Resident> query, CancellationToken ct)
     {
         var row = await query.SingleOrDefaultAsync(ct);
         return row is null ? null : (await ToProfilesAsync(db, [row], ct))[0];
     }
 
-    private async Task<ResidentRegistration[]> ToProfilesAsync(DataContext db, IReadOnlyCollection<Resident> rows, CancellationToken ct)
+    private async Task<ResidentProfile[]> ToProfilesAsync(DataContext db, IReadOnlyCollection<Resident> rows, CancellationToken ct)
     {
         if (rows.Count == 0) return [];
         var ids = rows.Select(row => row.Id).ToArray();
@@ -171,7 +171,7 @@ public sealed partial class PostgresAdminStore
         db.ResidentEvents.Where(row => row.SourceId == current.SourceId && row.RegistrationId == reference &&
             (row.Key.StartsWith("LOCAL#") || row.Key.StartsWith("COMPLEX#" + options.Complex + "#")));
 
-    private static string ResidentName(ResidentRegistration profile)
+    private static string ResidentName(ResidentProfile profile)
     {
         var name = string.Join(" ", new[] { profile.FirstName, profile.LastName }.Where(part => !string.IsNullOrWhiteSpace(part)).Select(part => part!.Trim()));
         return name.Length > 0 ? name : "Мешканець";
