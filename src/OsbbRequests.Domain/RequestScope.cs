@@ -7,7 +7,6 @@ public enum RequestScope { Complex, Building }
 
 public static class ComplexLayout
 {
-    public const string ComplexLabel = "Прибудинкова територія";
     public static IReadOnlyList<string> BuildingNumbers { get; } = Array.AsReadOnly(new[] { "4Б", "4В", "4Г", "4Д" });
     public const int FloorCount = 25;
     public const int EntranceFloor = 0;
@@ -21,12 +20,4 @@ public static class ComplexLayout
     public static bool IsValidRequest(string category, RequestScope? scope, string? buildingNumber, int? floor, int? entrance = null) =>
         category == OsbbRequests.Domain.Models.RequestCategories.KeyOrder && scope is null && buildingNumber is null && floor is null && entrance is null ||
         IsValid(scope, buildingNumber, floor, entrance);
-    public static string Target(RequestScope? scope, string? buildingNumber) => scope == RequestScope.Complex ? "Complex" :
-        scope == RequestScope.Building && buildingNumber is not null && BuildingNumbers.Contains(buildingNumber, StringComparer.Ordinal) ? "Building" + buildingNumber : "Unspecified";
-    public static string Label(RequestScope? scope, string? buildingNumber, int? floor, int? entrance = null) => scope switch
-    {
-        RequestScope.Complex => ComplexLabel,
-        RequestScope.Building => $"Будинок {buildingNumber} · під’їзд {(entrance is { } entry ? entry.ToString(System.Globalization.CultureInfo.InvariantCulture) : "Не зазначено")}" + (floor == EntranceFloor ? " · Парадне" : floor is { } number ? $", поверх {number}" : " · без прив’язки до поверху"),
-        _ => "Будинок не уточнено"
-    };
 }

@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
 using OsbbRequests.Services;
+using OsbbRequests.Services.Admin;
 
 namespace OsbbRequests.Postgres;
 

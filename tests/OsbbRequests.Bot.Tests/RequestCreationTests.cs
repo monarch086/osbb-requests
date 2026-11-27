@@ -1,6 +1,7 @@
 using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain;
+using OsbbRequests.Services.Requests;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -97,7 +98,7 @@ public sealed class RequestCreationTests
             Assert.Contains("Парадне", reply);
             Assert.DoesNotContain("поверх 0", reply);
         }
-        Assert.NotEqual(ComplexLayout.Label(request.Scope, request.BuildingNumber, 0), ComplexLayout.Label(request.Scope, request.BuildingNumber, null));
+        Assert.NotEqual(RequestLocationText.Format(request.Scope, request.BuildingNumber, 0), RequestLocationText.Format(request.Scope, request.BuildingNumber, null));
         Assert.False(ComplexLayout.IsValid(RequestScope.Complex, null, 0));
     }
 

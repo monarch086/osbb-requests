@@ -1,5 +1,4 @@
 using System.Text.Json;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 
 namespace OsbbRequests.DataImport.Storage;
@@ -28,7 +27,9 @@ public sealed class RequestEventSnapshot
         Floor = next.Floor,
         Entrance = next.Entrance,
         HasEntrance = true,
-        KeySerialNumbersChanged = RequestAudit.KeySerialNumbersChanged(previous, next)
+        KeySerialNumbersChanged = !Enumerable.SequenceEqual(
+            previous.KeyItems?.Select(key => key.SerialNumber) ?? [],
+            next.KeyItems?.Select(key => key.SerialNumber) ?? [])
     };
 
     public string SerializeForHistory()

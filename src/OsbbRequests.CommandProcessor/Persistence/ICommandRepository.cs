@@ -1,5 +1,6 @@
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Requests;
 
 namespace OsbbRequests.CommandProcessor.Persistence;
 

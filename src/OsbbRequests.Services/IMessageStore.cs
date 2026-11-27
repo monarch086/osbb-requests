@@ -1,4 +1,4 @@
-using OsbbRequests.Domain.Admin;
+using OsbbRequests.Services.Admin;
 
 namespace OsbbRequests.Services;
 

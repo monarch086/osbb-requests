@@ -1,6 +1,6 @@
 using OsbbRequests.Domain.Models;
 
-namespace OsbbRequests.Domain.Admin;
+namespace OsbbRequests.Services.Admin;
 
 public sealed record ApartmentReviewEntry(string RegistrationId, string? FirstName, string? LastName,
     IReadOnlyList<OwnerApartment> Apartments);

@@ -1,6 +1,9 @@
 using System.Globalization;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Requests;
 
-namespace OsbbRequests.Domain.Models;
+namespace OsbbRequests.Services.Notifications;
 
 public sealed record ResidentNotification(string Id, string ComplexId, long OwnerId, long? RequestId,
     int? RequestVersion, string Text, DateTimeOffset CreatedAt, AdministratorEvent? AdministratorEvent = null, string? AdministratorId = null, string? ResidentBroadcastId = null, string? RegistrationId = null)
@@ -17,7 +20,7 @@ public sealed record ResidentNotification(string Id, string ComplexId, long Owne
         if (!statusChanged && comment.Length == 0) return null;
         var date = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         var text = $"Оновлення вашої заявки №{next.Id}\n" +
-            $"{ComplexLayout.Label(next.Scope, next.BuildingNumber, next.Floor, next.Entrance)}\n" +
+            $"{RequestLocationText.Format(next.Scope, next.BuildingNumber, next.Floor, next.Entrance)}\n" +
             $"Оновлено: {date:dd.MM.yyyy HH:mm} (Київ)\n" +
             (statusChanged ? $"Статус: {Label(previous.Status)} → {Label(next.Status)}" : $"Статус: {Label(next.Status)}");
         if (comment.Length > 0) text += "\n\nПояснення для мешканця:\n" + comment;
@@ -39,8 +42,6 @@ public sealed record ResidentNotification(string Id, string ComplexId, long Owne
             registration.BuildingId, registration.UserId, null, null, text, registration.UpdatedAt);
     }
 
-    public static string Partition(string complexId) => "NOTIFICATIONS#" + complexId;
-    public static string MessageKey(long ownerId, long messageId) => "MESSAGE#" + ownerId.ToString(CultureInfo.InvariantCulture) + "#" + messageId.ToString(CultureInfo.InvariantCulture);
 
     private static string Label(RequestStatus status) => status switch
     {

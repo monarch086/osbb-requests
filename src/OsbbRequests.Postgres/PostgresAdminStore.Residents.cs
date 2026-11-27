@@ -2,10 +2,10 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services;
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Services.Admin;
+using OsbbRequests.Services.Residents;
 
 namespace OsbbRequests.Postgres;
 

@@ -8,6 +8,7 @@ using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Postgres.Bot;
+using OsbbRequests.Services.Notifications;
 using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;
@@ -22,8 +23,8 @@ public sealed partial class AdminAuthenticationTests
         await context.Database.GetService<IMigrator>().MigrateAsync("20261127121810_NormalizeResidentAndRequestEvents");
         var now = DateTimeOffset.UtcNow;
         var pending = new ResidentNotification("migration-test", CommandComplex, 42, 6, 2, "Тест черги", now);
-        var legacyMessage = ResidentNotification.Partition(CommandComplex) + "\u001f" + ResidentNotification.MessageKey(42, 15);
-        var legacyResult = ResidentNotification.Partition(CommandComplex) + "\u001fRESULT#migration-test";
+        var legacyMessage = $"NOTIFICATIONS#{CommandComplex}\u001fMESSAGE#42#15";
+        var legacyResult = $"NOTIFICATIONS#{CommandComplex}\u001fRESULT#migration-test";
         await context.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO notifications ("SourceId","ComplexId","Key","Kind","Data","DueAt","Attempts")
             VALUES (1,1,'LOCAL#migration-test','LOCAL_PENDING',{JsonSerializer.Serialize(pending)}::jsonb,{now},2),

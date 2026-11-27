@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Notifications;
 
 namespace OsbbRequests.Postgres.Bot;
 

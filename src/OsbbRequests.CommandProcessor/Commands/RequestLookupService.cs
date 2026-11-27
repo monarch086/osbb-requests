@@ -3,6 +3,7 @@ using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Requests;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
@@ -107,7 +108,7 @@ public sealed class RequestLookupService(ICommandRepository repository, string c
             return new CommandOutcome("Заявку не знайдено серед ваших заявок.");
         var localDate = TimeZoneInfo.ConvertTime(request.CreatedAt, TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv"));
         var text = $"Заявка №{request.Id}\nСтатус: {CommandHandler.StatusLabel(request.Status)}\n" +
-            (request.Category == RequestCategories.KeyOrder && request.Scope is null ? "" : ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + "\n") +
+            (request.Category == RequestCategories.KeyOrder && request.Scope is null ? "" : RequestLocationText.Format(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + "\n") +
             $"Категорія: {request.Category}\n" +
             (string.IsNullOrEmpty(request.Location) ? "" : $"Місце: {request.Location}\n") +
             $"Подано: {localDate:dd.MM.yyyy HH:mm}\n\n{request.Description}";

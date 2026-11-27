@@ -4,6 +4,7 @@ using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
+using OsbbRequests.Services.Requests;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
@@ -191,7 +192,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     private async Task<ResidentRegistration?> OwnerAsync(long userId, CancellationToken ct)
     {
         var profile = await repository.GetRegistrationAsync(userId, ct);
-        return profile is { Stage: RegistrationStage.Approved, ResidentType: ResidentType.Owner, PersonalDataDeleted: false } && profile.BuildingId == complexId && profile.UserId == userId ? profile : null;
+        return profile is not null && OwnerApartments.CanManage(profile) && profile.BuildingId == complexId && profile.UserId == userId ? profile : null;
     }
 
     private CommandOutcome FinishKeyOrder(CommandEnvelope command, RequestDraft draft, ResidentRegistration owner)
@@ -226,7 +227,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
         var request = new MaintenanceRequest(command.UpdateId, command.UserId, complexId, CanonicalCategory(draft.Category) ?? throw new InvalidOperationException("Unknown request category."), draft.Location ?? "",
             description, clock.GetUtcNow(), Visibility: RequestVisibility.Public, Scope: draft.Scope, BuildingNumber: draft.BuildingNumber, Floor: draft.Floor, Entrance: entrance);
         return new($"Заявку №{request.Id} створено. Статус: Нова. Видимість: для всіх мешканців комплексу.\n" +
-            ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + $"\nДеталі: /request {request.Id}",
+            RequestLocationText.Format(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + $"\nДеталі: /request {request.Id}",
             request, Keyboard: ReplyKeyboard.Remove,
             Draft: new(new(command.UserId, complexId, RequestDraftStage.Completed, (expectedVersion ?? 0) + 1), expectedVersion));
     }
@@ -235,7 +236,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     {
         var value = text.Trim().ToLowerInvariant();
         scope = RequestScope.Building; building = null;
-        if (value is "комплекс" or "весь комплекс" or "весь комплекс та прибудинкова територія" || value.Equals(ComplexLayout.ComplexLabel, StringComparison.OrdinalIgnoreCase)) { scope = RequestScope.Complex; return true; }
+        if (value is "комплекс" or "весь комплекс" or "весь комплекс та прибудинкова територія" || value.Equals(RequestLocationText.ComplexLabel, StringComparison.OrdinalIgnoreCase)) { scope = RequestScope.Complex; return true; }
         value = value.Replace("будинок", "", StringComparison.Ordinal).Replace("№", "", StringComparison.Ordinal).Trim();
         var number = value.ToUpperInvariant();
         if (!ComplexLayout.BuildingNumbers.Contains(number, StringComparer.Ordinal)) return false;
@@ -274,7 +275,7 @@ public sealed class RequestCreationService(ICommandRepository repository, string
     private static CommandOutcome Prompt(RequestDraft draft, bool owner = false) => draft.Stage switch
     {
         RequestDraftStage.Scope => new("ЖК «Зелений острів 2».\n" +
-            "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «" + ComplexLayout.ComplexLabel + "». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
+            "Де виникла проблема? Оберіть будинок 4Б, 4В, 4Г або 4Д або «" + RequestLocationText.ComplexLabel + "». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestScope),
         RequestDraftStage.Entrance => new($"Будинок {draft.BuildingNumber}. Оберіть під’їзд: 1, 2 або «Не зазначено». Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestEntrance),
         RequestDraftStage.Floor => new($"Будинок {draft.BuildingNumber}. Оберіть поверх від 1 до 25. Скасувати: /cancel.", Keyboard: ReplyKeyboard.RequestFloor),
         RequestDraftStage.InitialCategory or RequestDraftStage.Category => new("Оберіть категорію: " + Categories + (owner ? ", " + RequestCategories.KeyOrder : "") + ". Скасувати: /cancel.", Keyboard: owner ? ReplyKeyboard.OwnerRequestCategory : ReplyKeyboard.RequestCategory),

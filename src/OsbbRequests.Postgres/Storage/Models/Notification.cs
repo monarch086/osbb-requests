@@ -1,5 +1,5 @@
-using OsbbRequests.Domain.Models;
-using NotificationEvent = OsbbRequests.Domain.Models.AdministratorEvent;
+using OsbbRequests.Services.Notifications;
+using NotificationEvent = OsbbRequests.Services.Notifications.AdministratorEvent;
 
 namespace OsbbRequests.DataImport.Storage;
 

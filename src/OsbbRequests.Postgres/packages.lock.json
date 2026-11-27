@@ -168,6 +168,7 @@
         "type": "Project",
         "dependencies": {
           "OsbbRequests.Domain": "[1.0.0, )",
+          "OsbbRequests.Services": "[1.0.0, )",
           "OsbbRequests.Shared": "[1.0.0, )"
         }
       },

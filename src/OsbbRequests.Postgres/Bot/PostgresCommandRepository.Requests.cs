@@ -5,11 +5,16 @@ using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Domain.Residents;
+using OsbbRequests.Services.Notifications;
+using OsbbRequests.Services.Requests;
 
 namespace OsbbRequests.Postgres.Bot;
 
 public sealed partial class PostgresCommandRepository
 {
+    private static string AuditTarget(RequestScope? scope, string? buildingNumber) => scope == RequestScope.Complex ? "Complex" :
+        scope == RequestScope.Building && buildingNumber is not null && ComplexLayout.BuildingNumbers.Contains(buildingNumber, StringComparer.Ordinal) ? "Building" + buildingNumber : "Unspecified";
+
     public async Task<DeletableRequest?> GetDeletableRequestAsync(long userId, long requestId, CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
@@ -65,8 +70,7 @@ public sealed partial class PostgresCommandRepository
     public async Task<long?> GetNotificationRequestAsync(long userId, long messageId, CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
-        var message = ResidentNotification.MessageKey(userId, messageId);
-        var key = ResidentNotification.Partition(complex) + "\u001f" + message;
+        var key = FormattableString.Invariant($"NOTIFICATIONS#{complex}\u001fMESSAGE#{userId}#{messageId}");
         var localKey = scope.ReplyKey(userId, messageId);
         var now = clock.GetUtcNow();
         var requestId = await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId &&
@@ -133,7 +137,7 @@ public sealed partial class PostgresCommandRepository
         var audit = CreateRequestEvent(request.Id, "EVENT#CREATED", request.CreatedAt);
         audit.ActorId = request.OwnerId;
         audit.Status = request.Status.ToString();
-        audit.Target = ComplexLayout.Target(request.Scope, request.BuildingNumber);
+        audit.Target = AuditTarget(request.Scope, request.BuildingNumber);
         audit.Floor = request.Floor;
         audit.HasFloor = true;
         audit.Entrance = request.Entrance;

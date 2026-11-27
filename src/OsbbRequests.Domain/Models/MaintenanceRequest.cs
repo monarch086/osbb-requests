@@ -10,8 +10,6 @@ public sealed record MaintenanceRequest(
 
 public sealed record KeyOrderItem(string Type, string Phone, string? SerialNumber = null);
 
-public sealed record RequestPage(IReadOnlyList<MaintenanceRequest> Items, long? NextBeforeId);
-
 public static class RequestCategories
 {
     public const string KeyOrder = "Замовлення ключів";

@@ -42,6 +42,12 @@
       "osbbrequests.domain": {
         "type": "Project"
       },
+      "osbbrequests.services": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Domain": "[1.0.0, )"
+        }
+      },
       "osbbrequests.shared": {
         "type": "Project",
         "dependencies": {

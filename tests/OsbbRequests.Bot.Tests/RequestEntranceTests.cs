@@ -3,6 +3,7 @@ using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Requests;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -129,7 +130,7 @@ public sealed class RequestEntranceTests
             """;
         var request = JsonSerializer.Deserialize<MaintenanceRequest>(json)!;
         Assert.Null(request.Entrance);
-        Assert.Contains("під’їзд Не зазначено", ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance));
+        Assert.Contains("під’їзд Не зазначено", RequestLocationText.Format(request.Scope, request.BuildingNumber, request.Floor, request.Entrance));
         Assert.True(ComplexLayout.IsValid(request.Scope, request.BuildingNumber, request.Floor, request.Entrance));
     }
 

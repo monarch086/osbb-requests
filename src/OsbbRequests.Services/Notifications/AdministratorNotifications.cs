@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
+using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Requests;
 
-namespace OsbbRequests.Domain.Models;
+namespace OsbbRequests.Services.Notifications;
 
 [JsonConverter(typeof(JsonStringEnumConverter<AdministratorEvent>))]
 public enum AdministratorEvent { NewResident, NewRequest, NewAdministrator, NewComplexRequest, NewKeyOrder, NewApartmentRegistration }
@@ -55,7 +57,7 @@ public static class AdministratorNotifications
     public static ResidentNotification NewRequest(MaintenanceRequest request) => new(
         "new-request-" + request.Id.ToString(CultureInfo.InvariantCulture), request.BuildingId, 0, request.Id, 1,
         $"Нова заявка №{request.Id} у ЖК «Зелений острів 2».\n" +
-        ComplexLayout.Label(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + "\nКатегорія: " + request.Category +
+        RequestLocationText.Format(request.Scope, request.BuildingNumber, request.Floor, request.Entrance) + "\nКатегорія: " + request.Category +
         "\nСтворено: " + Date(request.CreatedAt) + "\n~~~~~\n" + request.Description +
         "\n~~~~~\nПерегляньте заявку в розділі «Заявки» вебпанелі.", request.CreatedAt,
         request.Category == RequestCategories.KeyOrder ? AdministratorEvent.NewKeyOrder : AdministratorEvent.NewComplexRequest);

@@ -16,8 +16,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Services;
+using OsbbRequests.Services.Admin;
 using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;

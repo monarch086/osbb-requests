@@ -1,7 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Services;
+using OsbbRequests.Services.Admin;
 using OsbbRequests.WebApi.Auth;
 
 namespace OsbbRequests.WebApi.Controllers;

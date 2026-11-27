@@ -1,5 +1,5 @@
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Admin;
 
 namespace OsbbRequests.Services;
 

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.DataImport.Storage;
-using NotificationEvent = OsbbRequests.Domain.Models.AdministratorEvent;
+using NotificationEvent = OsbbRequests.Services.Notifications.AdministratorEvent;
 
 namespace OsbbRequests.Postgres.Bot;
 

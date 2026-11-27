@@ -1,7 +1,7 @@
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Services;
+using OsbbRequests.Services.Admin;
 
 namespace OsbbRequests.Cognito;
 

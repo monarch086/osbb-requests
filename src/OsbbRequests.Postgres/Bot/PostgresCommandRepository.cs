@@ -5,7 +5,7 @@ using Npgsql;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.DataImport.Storage;
-using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Notifications;
 
 namespace OsbbRequests.Postgres.Bot;
 

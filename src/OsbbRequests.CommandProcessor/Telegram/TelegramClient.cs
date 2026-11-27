@@ -6,6 +6,7 @@ using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Requests;
 using OsbbRequests.Shared.Telegram;
 
 namespace OsbbRequests.CommandProcessor.Telegram;
@@ -86,7 +87,7 @@ public sealed class TelegramClient(HttpClient httpClient, ISecretProvider tokenP
         {
             var rows = keyboard switch
             {
-                ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { ComplexLayout.ComplexLabel }).ToArray(),
+                ReplyKeyboard.RequestScope => ComplexLayout.BuildingNumbers.Select(number => "Будинок " + number).Chunk(2).Append(new[] { RequestLocationText.ComplexLabel }).ToArray(),
                 ReplyKeyboard.ProfileDeleteConfirmation => [[ResidentProfileService.Confirmation]],
                 ReplyKeyboard.OwnerRequestCategory => RequestCreationService.Categories.Split(", ").Append(RequestCategories.KeyOrder).Select(category => new[] { category }).ToArray(),
                 ReplyKeyboard.KeyType => [["Магніт"], ["Перепустка"]],

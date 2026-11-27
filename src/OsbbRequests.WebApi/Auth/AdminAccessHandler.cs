@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Services;
+using OsbbRequests.Services.Admin;
 
 namespace OsbbRequests.WebApi.Auth;
 

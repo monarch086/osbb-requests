@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace OsbbRequests.Shared.Residents;
+namespace OsbbRequests.Services.Residents;
 
 public static class ResidentNameOrder
 {

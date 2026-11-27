@@ -5,6 +5,7 @@ using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Postgres.Bot;
+using OsbbRequests.Services.Requests;
 using Xunit;
 
 namespace OsbbRequests.WebApi.Tests;
@@ -28,7 +29,7 @@ public sealed partial class AdminAuthenticationTests
             telegram, CommandComplex);
         await processor.ProcessAsync(new(30, 42, 42, "/new"), default);
         await processor.ProcessAsync(new(31, 42, 42, "Інше"), default);
-        await processor.ProcessAsync(new(32, 42, 42, ComplexLayout.ComplexLabel), default);
+        await processor.ProcessAsync(new(32, 42, 42, RequestLocationText.ComplexLabel), default);
         var create = new CommandEnvelope(33, 42, 42, "Тестова заявка зі слухача");
         await processor.ProcessAsync(create, default);
         await processor.ProcessAsync(create, default);

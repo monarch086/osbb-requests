@@ -1,5 +1,5 @@
 using System.Globalization;
-using OsbbRequests.Shared.Residents;
+using OsbbRequests.Services.Residents;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;

@@ -1,5 +1,6 @@
 using System.Globalization;
 using OsbbRequests.Domain;
+using OsbbRequests.Services.Requests;
 
 namespace OsbbRequests.CommandProcessor.Commands;
 
@@ -12,7 +13,7 @@ internal static class RequestListText
 
     public static string LocationLine(RequestScope? scope, string? buildingNumber, int? floor, int? entrance)
     {
-        if (scope == RequestScope.Complex) return ComplexLayout.ComplexLabel + "\n";
+        if (scope == RequestScope.Complex) return RequestLocationText.ComplexLabel + "\n";
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(buildingNumber)) parts.Add("Будинок " + buildingNumber);
         if (entrance is { } entry) parts.Add("під’їзд " + entry.ToString(CultureInfo.InvariantCulture));

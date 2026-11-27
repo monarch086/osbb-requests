@@ -4,6 +4,7 @@ using OsbbRequests.CommandProcessor.Persistence;
 using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.Domain;
 using OsbbRequests.Domain.Models;
+using OsbbRequests.Services.Requests;
 using OsbbRequests.Shared.Telegram;
 
 namespace OsbbRequests.Bot.Tests;

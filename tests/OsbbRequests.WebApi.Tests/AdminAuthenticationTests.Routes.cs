@@ -13,11 +13,11 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain;
-using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services;
+using OsbbRequests.Services.Admin;
 using Xunit;
-using BroadcastMessage = OsbbRequests.Domain.Admin.BroadcastMessage;
+using BroadcastMessage = OsbbRequests.Services.Admin.BroadcastMessage;
 
 namespace OsbbRequests.WebApi.Tests;
 

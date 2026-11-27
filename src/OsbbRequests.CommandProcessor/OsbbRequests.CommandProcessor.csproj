@@ -2,6 +2,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Telegram/command-menu.json" />
     <ProjectReference Include="../OsbbRequests.Domain/OsbbRequests.Domain.csproj" />
+    <ProjectReference Include="../OsbbRequests.Services/OsbbRequests.Services.csproj" />
     <ProjectReference Include="../OsbbRequests.Shared/OsbbRequests.Shared.csproj" />
   </ItemGroup>
 </Project>
