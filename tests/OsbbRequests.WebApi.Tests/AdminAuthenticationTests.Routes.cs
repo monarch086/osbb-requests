@@ -282,9 +282,10 @@ public sealed partial class AdminAuthenticationTests
         Assert.Equal(10, (await db.Readout.Administrators.SingleAsync()).Version);
         var audit = await db.Readout.AdministratorEvents.SingleAsync();
         Assert.Equal("test-user", audit.AdministratorId);
-        using var data = JsonDocument.Parse(audit.Data);
-        Assert.Equal("AdminNotificationSettingsChanged", data.RootElement.GetProperty("action").GetString());
-        Assert.Equal("admin@example.invalid", data.RootElement.GetProperty("actor").GetString());
+        Assert.Equal("AdminNotificationSettingsChanged", audit.Action);
+        Assert.Equal("admin@example.invalid", audit.Actor);
+        Assert.NotNull(audit.CreatedAt);
+        Assert.Null(audit.ComplexRequests);
     }
 
     [PostgresFact]

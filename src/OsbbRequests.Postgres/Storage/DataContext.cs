@@ -116,7 +116,11 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
                 .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
-        model.Entity<AdministratorEvent>(e => { e.ToTable("administrator_events"); e.HasKey(x => new { x.SourceId, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
+        model.Entity<AdministratorEvent>(e =>
+        {
+            e.ToTable("administrator_events");
+            e.HasKey(x => new { x.SourceId, x.Key });
+        });
         model.Entity<AdministratorPermission>(e => { e.ToTable("administrator_permissions"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<AdministratorNotificationSetting>(e => { e.ToTable("administrator_notification_settings"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<ApiDailyStatistic>(e => { e.ToTable("api_daily_statistics"); e.HasKey(x => new { x.SourceId, x.Date, x.Endpoint }); });

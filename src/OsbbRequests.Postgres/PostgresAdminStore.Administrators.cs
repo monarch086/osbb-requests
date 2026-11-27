@@ -1,9 +1,9 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Domain.Admin;
 using OsbbRequests.Domain.Models;
 using OsbbRequests.Services;
+using StoredAdministratorEvent = OsbbRequests.DataImport.Storage.AdministratorEvent;
 
 namespace OsbbRequests.Postgres;
 
@@ -88,7 +88,7 @@ public sealed partial class PostgresAdminStore
         settings.RegisteredResidents = permissions.RegisteredResidents;
         settings.PendingResidents = permissions.PendingResidents;
         settings.Messages = permissions.Messages;
-        AuditAdmin(db, current, row, actor, "AdminPermissionsChanged");
+        AuditAdmin(db, current, row, actor, "AdminPermissionsChanged", permissions);
     }, ct);
 
     public Task SetNotificationSettingsAsync(AdminUser actor, AdminUser target, NotificationSettingsChange change, CancellationToken ct) => Write(async (db, current) =>
@@ -129,16 +129,20 @@ public sealed partial class PostgresAdminStore
         return (await db.Administrators.FindAsync([current.SourceId, userId], ct))!;
     }
 
-    private static void AuditAdmin(DataContext db, Scope current, Administrator target, AdminUser actor, string action)
+    private static void AuditAdmin(DataContext db, Scope current, Administrator target, AdminUser actor, string action, PagePermissions? permissions = null)
     {
         target.UpdatedAt = DateTimeOffset.UtcNow;
         target.Version++;
-        db.AdministratorEvents.Add(new()
+        var audit = new StoredAdministratorEvent
         {
             SourceId = current.SourceId,
             AdministratorId = target.UserId,
             Key = EventKey(),
-            Data = JsonSerializer.Serialize(new { action, actor = actor.Email, createdAt = target.UpdatedAt })
-        });
+            Action = action,
+            Actor = actor.Email,
+            CreatedAt = target.UpdatedAt
+        };
+        audit.SetPermissionsSnapshot(permissions);
+        db.AdministratorEvents.Add(audit);
     }
 }

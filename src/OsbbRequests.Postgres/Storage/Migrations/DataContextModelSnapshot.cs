@@ -64,13 +64,33 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Property<string>("Key")
                         .HasColumnType("text");
 
+                    b.Property<string>("Action")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Actor")
+                        .HasColumnType("text");
+
                     b.Property<string>("AdministratorId")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Data")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
+                    b.Property<bool?>("ComplexRequests")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("KeyOrders")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("Messages")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("PendingResidents")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("RegisteredResidents")
+                        .HasColumnType("boolean");
 
                     b.HasKey("SourceId", "Key");
 
