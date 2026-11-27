@@ -21,6 +21,8 @@ stack = run(['aws', 'cloudformation', 'describe-stacks', '--stack-name', 'osbb-r
 if stack['StackStatus'] not in ('CREATE_COMPLETE', 'UPDATE_COMPLETE'):
     raise SystemExit('Deploy the infrastructure successfully before uploading the frontend.')
 outputs = {row['OutputKey']: row['OutputValue'] for row in stack['Outputs']}
+if 'FrontendBucketName' not in outputs:
+    raise SystemExit('This stage uses a CloudFront redirect and has no managed frontend bucket.')
 run(['npm', 'run', 'build', '--prefix', str(frontend)])
 dist = frontend / 'dist' / 'osbb-admin' / 'browser'
 config = {
