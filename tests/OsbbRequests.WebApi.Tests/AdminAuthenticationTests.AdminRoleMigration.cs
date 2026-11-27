@@ -49,7 +49,7 @@ public sealed partial class AdminAuthenticationTests
         var context = database.Readout;
         context.Administrators.Add(new() { SourceId = 1, UserId = "target", IsActive = true, Version = 1 });
         await context.SaveChangesAsync();
-        var store = new PostgresAdminStore(database, new("eu-central-1", "dev", "osbb-requests-dev"));
+        var store = new PostgresAdminStore(database, new("osbb-requests-dev"));
         var actor = (await store.GetAdminAsync("test-user", default))!;
         var target = (await store.GetAdminAsync("target", default))!;
 
@@ -77,10 +77,12 @@ public sealed partial class AdminAuthenticationTests
             new() { SourceId = 1, UserId = "no-snapshot" },
             new() { SourceId = 1, UserId = "false-flag" },
             new() { SourceId = 1, UserId = "string-flag" });
-        context.SourceRecords.AddRange(
-            new() { SourceId = 1, Table = "administrators", Key = "test-user", Hash = "fixture", Data = "{\"IsSuperAdmin\":true}" },
-            new() { SourceId = 1, Table = "administrators", Key = "false-flag", Hash = "fixture", Data = """{"IsSuperAdmin":false}""" },
-            new() { SourceId = 1, Table = "administrators", Key = "string-flag", Hash = "fixture", Data = """{"IsSuperAdmin":"true"}""" });
+        await context.Database.ExecuteSqlRawAsync("""
+            INSERT INTO source_records ("SourceId","Table","Key","Hash","Data","LastSeenAt","ProjectionVersion")
+            VALUES (1,'administrators','test-user','fixture','{{"IsSuperAdmin":true}}',now(),2),
+                   (1,'administrators','false-flag','fixture','{{"IsSuperAdmin":false}}',now(),2),
+                   (1,'administrators','string-flag','fixture','{{"IsSuperAdmin":"true"}}',now(),2);
+            """);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
@@ -93,7 +95,7 @@ public sealed partial class AdminAuthenticationTests
 
         await context.Database.ExecuteSqlRawAsync("DELETE FROM source_records");
         await context.Database.MigrateAsync();
-        var store = new PostgresAdminStore(database, new("eu-central-1", "dev", "osbb-requests-dev"));
+        var store = new PostgresAdminStore(database, new("osbb-requests-dev"));
         Assert.True((await store.GetAdminAsync("test-user", default))?.IsSuperAdmin);
         Assert.False((await store.GetAdminAsync("string-flag", default))?.IsSuperAdmin);
     }

@@ -42,11 +42,7 @@ builder.Services.AddSingleton<IIdentityProvider, CognitoIdentity>();
 builder.Services.AddDbContextFactory<DataContext>(options => options.UseNpgsql(
     builder.Configuration.GetConnectionString("Postgres") ??
         throw new InvalidOperationException("Необхідно налаштувати ConnectionStrings:Postgres.")));
-builder.Services.AddSingleton(new PostgresOptions(
-    builder.Configuration["Postgres:Region"] ?? "eu-central-1",
-    builder.Configuration["Postgres:Stage"] ?? "dev",
-    builder.Configuration["Postgres:ComplexId"] ?? "osbb-requests-dev",
-    string.IsNullOrWhiteSpace(builder.Configuration["Postgres:AccountId"]) ? null : builder.Configuration["Postgres:AccountId"]));
+builder.Services.AddSingleton(new PostgresOptions(builder.Configuration["Postgres:ComplexId"] ?? "osbb-requests-dev"));
 builder.Services.AddScoped<PostgresAdminStore>();
 builder.Services.AddScoped<IAdministratorAccounts>(services => services.GetRequiredService<PostgresAdminStore>());
 builder.Services.AddScoped<IAdministratorStore>(services => services.GetRequiredService<PostgresAdminStore>());

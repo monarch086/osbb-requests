@@ -18,12 +18,8 @@ public sealed partial class PostgresAdminStore(IDbContextFactory<DataContext> fa
     private async Task<Scope> GetScopeAsync(DataContext db, CancellationToken ct)
     {
         if (scope is not null) return scope;
-        var matches = await (from source in db.ImportSources
-                             join complex in db.Complexes on source.Id equals complex.SourceId
-                             where source.AwsAccountId != null && source.Region == options.Region &&
-                                   source.Stage == options.Stage && complex.ExternalId == options.Complex &&
-                                   (options.AccountId == null || source.AwsAccountId == options.AccountId)
-                             select new Scope(source.Id, complex.Id)).Take(2).ToListAsync(ct);
+        var matches = await db.Complexes.AsNoTracking().Where(complex => complex.ExternalId == options.Complex)
+            .Select(complex => new Scope(complex.SourceId, complex.Id)).Take(2).ToListAsync(ct);
         if (matches.Count != 1) throw Error(AdminFailure.Unavailable, "Оберіть одне джерело даних PostgreSQL для комплексу.");
         return scope = matches[0];
     }

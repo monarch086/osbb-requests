@@ -4,6 +4,7 @@ namespace OsbbRequests.DataImport.Storage;
 
 public sealed class DataContext(DbContextOptions<DataContext> options) : DbContext(options)
 {
+    // Legacy importer shims keep its old project buildable; these entity types are not part of the active EF model.
     public DbSet<SourceRecord> SourceRecords => Set<SourceRecord>();
     public DbSet<ImportRun> ImportRuns => Set<ImportRun>();
     public DbSet<ImportSource> ImportSources => Set<ImportSource>();
@@ -31,6 +32,10 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Ignore<SourceRecord>();
+        model.Ignore<ImportRun>();
+        model.Ignore<ImportSource>();
+
         model.Entity<BotConversation>(e =>
         {
             e.ToTable("bot_conversations");
@@ -44,8 +49,6 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.HasKey(x => new { x.ComplexId, x.Bot, x.UpdateId });
             e.HasOne<Complex>().WithMany().HasForeignKey(x => x.ComplexId).OnDelete(DeleteBehavior.Restrict);
         });
-        model.Entity<SourceRecord>(e => { e.ToTable("source_records"); e.HasKey(x => new { x.SourceId, x.Table, x.Key }); e.Property(x => x.Data).HasColumnType("jsonb"); });
-        model.Entity<ImportRun>(e => { e.ToTable("import_runs"); e.HasKey(x => x.Id); });
         model.Entity<ResidentApartment>(e =>
         {
             e.ToTable("resident_apartments", table =>
@@ -157,21 +160,10 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
         model.Entity<AdministratorPermission>(e => { e.ToTable("administrator_permissions"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<AdministratorNotificationSetting>(e => { e.ToTable("administrator_notification_settings"); e.HasKey(x => new { x.SourceId, x.UserId }); e.HasOne<Administrator>().WithMany().HasForeignKey(x => new { x.SourceId, x.UserId }).OnDelete(DeleteBehavior.Cascade); });
         model.Entity<ApiDailyStatistic>(e => { e.ToTable("api_daily_statistics"); e.HasKey(x => new { x.SourceId, x.Date, x.Endpoint }); });
-        model.Entity<ImportSource>(e =>
-        {
-            e.ToTable("import_sources");
-            e.HasIndex(x => new { x.AwsAccountId, x.Region, x.Stage }).IsUnique().AreNullsDistinct(false);
-        });
         model.Entity<Complex>(e =>
         {
             e.ToTable("complexes");
             e.HasIndex(x => new { x.SourceId, x.ExternalId }).IsUnique();
         });
-        foreach (var entity in model.Model.GetEntityTypes().Where(type =>
-                     !type.IsOwned() && type.FindProperty(nameof(ImportRun.SourceId)) is not null))
-        {
-            model.Entity(entity.ClrType).HasOne(typeof(ImportSource), null).WithMany()
-                .HasForeignKey(nameof(ImportRun.SourceId)).OnDelete(DeleteBehavior.Restrict);
-        }
     }
 }

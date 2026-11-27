@@ -34,9 +34,12 @@ public sealed partial class AdminAuthenticationTests
 
         await migrator.MigrateAsync("20261127140733_NormalizeLegacyRegistrationHistory");
 
-        var statistic = await context.SourceRecords.SingleAsync(row => row.Table == "statistics");
-        Assert.EndsWith("GET /different", statistic.Key, StringComparison.Ordinal);
-        Assert.False(await context.SourceRecords.AnyAsync(row => row.Table == "command-data"));
+        var statisticKey = await context.Database.SqlQueryRaw<string>(
+            "SELECT \"Key\" AS \"Value\" FROM source_records WHERE \"Table\" = 'statistics'").SingleAsync();
+        Assert.EndsWith("GET /different", statisticKey, StringComparison.Ordinal);
+        var commandDataCount = await context.Database.SqlQueryRaw<int>(
+            "SELECT count(*)::int AS \"Value\" FROM source_records WHERE \"Table\" = 'command-data'").SingleAsync();
+        Assert.Equal(0, commandDataCount);
         var snapshot = await context.ResidentRegistrationSnapshots.SingleAsync();
         Assert.Equal("old-ref", snapshot.RegistrationId);
         Assert.Equal("v1", snapshot.ConsentVersion);
@@ -46,16 +49,24 @@ public sealed partial class AdminAuthenticationTests
 
         context.ChangeTracker.Clear();
         await migrator.MigrateAsync("20261127140605_RemoveProjectedSourceRecords");
-        Assert.Equal(2, await context.SourceRecords.CountAsync(row => row.Table == "command-data"));
+        commandDataCount = await context.Database.SqlQueryRaw<int>(
+            "SELECT count(*)::int AS \"Value\" FROM source_records WHERE \"Table\" = 'command-data'").SingleAsync();
+        Assert.Equal(2, commandDataCount);
         await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync("20261127150535_DropEmptySourceRecords"));
         await context.Database.ExecuteSqlRawAsync("DELETE FROM source_records");
         await context.Database.MigrateAsync();
         Assert.Equal(1, await context.ResidentRegistrationSnapshots.CountAsync());
         Assert.Equal(1, await context.ResidentMembershipHistory.CountAsync());
         Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.source_records')::text AS \"Value\"").SingleAsync());
+        Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.import_sources')::text AS \"Value\"").SingleAsync());
+        Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.import_runs')::text AS \"Value\"").SingleAsync());
         await migrator.MigrateAsync("20261127140733_NormalizeLegacyRegistrationHistory");
-        Assert.Empty(await context.SourceRecords.ToListAsync());
+        var sourceRecordCount = await context.Database.SqlQueryRaw<int>(
+            "SELECT count(*)::int AS \"Value\" FROM source_records").SingleAsync();
+        Assert.Equal(0, sourceRecordCount);
         await context.Database.MigrateAsync();
         Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.source_records')::text AS \"Value\"").SingleAsync());
+        Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.import_sources')::text AS \"Value\"").SingleAsync());
+        Assert.Null(await context.Database.SqlQueryRaw<string?>("SELECT to_regclass('public.import_runs')::text AS \"Value\"").SingleAsync());
     }
 }

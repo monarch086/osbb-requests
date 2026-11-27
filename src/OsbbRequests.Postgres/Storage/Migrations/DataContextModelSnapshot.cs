@@ -311,67 +311,6 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.ToTable("complexes", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ImportRun", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("ChangedCount")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset?>("FinishedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("ReadCount")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("SourceId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SourceId");
-
-                    b.ToTable("import_runs", (string)null);
-                });
-
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ImportSource", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("AwsAccountId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Region")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Stage")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AwsAccountId", "Region", "Stage")
-                        .IsUnique();
-
-                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("AwsAccountId", "Region", "Stage"), false);
-
-                    b.ToTable("import_sources", (string)null);
-                });
-
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.Notification", b =>
                 {
                     b.Property<long>("SourceId")
@@ -1008,62 +947,8 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.ToTable("resident_registration_snapshots", (string)null);
                 });
 
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.SourceRecord", b =>
-                {
-                    b.Property<long>("SourceId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Table")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Key")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Data")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Hash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("LastSeenAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ProjectionVersion")
-                        .HasColumnType("integer");
-
-                    b.HasKey("SourceId", "Table", "Key");
-
-                    b.ToTable("source_records", (string)null);
-                });
-
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.Administrator", b =>
-                {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.AdministratorEvent", b =>
-                {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.AdministratorNotificationSetting", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Administrator", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "UserId")
@@ -1073,25 +958,10 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.AdministratorPermission", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Administrator", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ApiDailyStatistic", b =>
-                {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -1115,12 +985,6 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.BroadcastMessage", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "ComplexId")
@@ -1129,32 +993,8 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.Complex", b =>
-                {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ImportRun", b =>
-                {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.Notification", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "ComplexId")
@@ -1165,12 +1005,6 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.Request", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "ComplexId")
@@ -1181,12 +1015,6 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.RequestEvent", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.OwnsOne("OsbbRequests.DataImport.Storage.RequestEventSnapshot", "Snapshot", b1 =>
                         {
                             b1.Property<long>("SourceId")
@@ -1238,12 +1066,6 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.RequestKeyItem", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Request", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "OwnerId", "RequestId")
@@ -1285,27 +1107,12 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Navigation("Resident");
                 });
 
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentEvent", b =>
-                {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentMembership", b =>
                 {
                     b.HasOne("OsbbRequests.DataImport.Storage.Resident", null)
                         .WithMany()
                         .HasForeignKey("ResidentId")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
 
                     b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
                         .WithMany()
@@ -1316,12 +1123,6 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentMembershipHistory", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "ComplexId")
@@ -1343,25 +1144,10 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentRegistrationSnapshot", b =>
                 {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
                         .WithMany()
                         .HasForeignKey("SourceId", "ComplexId")
                         .HasPrincipalKey("SourceId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OsbbRequests.DataImport.Storage.SourceRecord", b =>
-                {
-                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
-                        .WithMany()
-                        .HasForeignKey("SourceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
