@@ -65,6 +65,23 @@ public sealed partial class AdminAuthenticationTests
         Assert.Null(await repository.GetReplyAsync(50, default));
         Assert.Null(await repository.GetRequestLookupAsync(42, default));
 
+        database.Readout.ResidentRegistrationSnapshots.Add(new()
+        {
+            SourceId = 1,
+            ComplexId = 1,
+            RegistrationId = profile.Id,
+            TelegramUserId = 42,
+            Stage = "Approved",
+            Version = 1,
+            CreatedAt = RegistrationTime,
+            UpdatedAt = RegistrationTime,
+            Phone = profile.Phone,
+            FirstName = profile.FirstName,
+            BuildingNumber = profile.BuildingNumber
+        });
+        await database.Readout.SaveChangesAsync();
+        database.Readout.ChangeTracker.Clear();
+
         var deleted = profile with
         {
             Stage = RegistrationStage.Deleted,
@@ -87,6 +104,10 @@ public sealed partial class AdminAuthenticationTests
         Assert.False(await repository.ResidentPhoneExistsAsync(CommandComplex, profile.Phone!, default));
         Assert.True((await repository.GetRegistrationAsync(42, default))?.PersonalDataDeleted);
         Assert.Empty(await database.Readout.ResidentConsents.ToListAsync());
+        var history = await database.Readout.ResidentRegistrationSnapshots.SingleAsync();
+        Assert.Null(history.Phone);
+        Assert.Null(history.FirstName);
+        Assert.Null(history.BuildingNumber);
         Assert.NotNull(await repository.GetRequestAsync(42, 6, default));
     }
 

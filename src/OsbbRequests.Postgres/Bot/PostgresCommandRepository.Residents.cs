@@ -92,10 +92,19 @@ public sealed partial class PostgresCommandRepository
             membership.Active = false;
             await db.ResidentApartments.Where(apartment => apartment.ComplexId == complexId && apartment.TelegramUserId == value.UserId)
                 .ExecuteDeleteAsync(ct);
+            await EraseSnapshotPersonalDataAsync(db, value.UserId, ct);
             await db.BotCommandReceipts.Where(reply => reply.ComplexId == complexId && reply.UserId == value.UserId && reply.Delivered)
                 .ExecuteUpdateAsync(set => set.SetProperty(reply => reply.Text, ""), ct);
         }
     }
+
+    private Task<int> EraseSnapshotPersonalDataAsync(DataContext db, long userId, CancellationToken ct) =>
+        db.ResidentRegistrationSnapshots.Where(snapshot => snapshot.ComplexId == complexId && snapshot.TelegramUserId == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(snapshot => snapshot.FirstName, (string?)null)
+                .SetProperty(snapshot => snapshot.LastName, (string?)null).SetProperty(snapshot => snapshot.Phone, (string?)null)
+                .SetProperty(snapshot => snapshot.Email, (string?)null).SetProperty(snapshot => snapshot.BuildingNumber, (string?)null)
+                .SetProperty(snapshot => snapshot.ApartmentNumber, (string?)null)
+                .SetProperty(snapshot => snapshot.DecisionReason, (string?)null), ct);
 
     private async Task<Resident> SaveProfileAsync(DataContext db, ResidentRegistration value, int? expected, CancellationToken ct)
     {

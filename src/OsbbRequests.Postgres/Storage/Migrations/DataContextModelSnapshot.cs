@@ -871,6 +871,39 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.ToTable("resident_memberships", (string)null);
                 });
 
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentMembershipHistory", b =>
+                {
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Key")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("ComplexId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RegistrationId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasColumnType("text");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("SourceId", "Key");
+
+                    b.HasIndex("SourceId", "ComplexId");
+
+                    b.ToTable("resident_membership_history", (string)null);
+                });
+
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentPhone", b =>
                 {
                     b.Property<long>("ResidentId")
@@ -891,6 +924,88 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                         .HasFilter("\"IsPrimary\"");
 
                     b.ToTable("resident_phones", (string)null);
+                });
+
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentRegistrationSnapshot", b =>
+                {
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ComplexId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RegistrationId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ApartmentNumber")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BuildingNumber")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ConsentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ConsentVersion")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecisionReason")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FirstName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastName")
+                        .HasColumnType("text");
+
+                    b.Property<bool?>("PersonalDataDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("PersonalDataDeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResidentType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResumeAfterConsent")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool?>("TypeBeforeAddress")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("TypeChangeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("SourceId", "ComplexId", "RegistrationId", "Version");
+
+                    b.HasIndex("ComplexId", "TelegramUserId");
+
+                    b.ToTable("resident_registration_snapshots", (string)null);
                 });
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.SourceRecord", b =>
@@ -1199,6 +1314,22 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentMembershipHistory", b =>
+                {
+                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId", "ComplexId")
+                        .HasPrincipalKey("SourceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentPhone", b =>
                 {
                     b.HasOne("OsbbRequests.DataImport.Storage.Resident", "Resident")
@@ -1208,6 +1339,22 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                         .IsRequired();
 
                     b.Navigation("Resident");
+                });
+
+            modelBuilder.Entity("OsbbRequests.DataImport.Storage.ResidentRegistrationSnapshot", b =>
+                {
+                    b.HasOne("OsbbRequests.DataImport.Storage.ImportSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("OsbbRequests.DataImport.Storage.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId", "ComplexId")
+                        .HasPrincipalKey("SourceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("OsbbRequests.DataImport.Storage.SourceRecord", b =>

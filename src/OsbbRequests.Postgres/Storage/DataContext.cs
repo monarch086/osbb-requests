@@ -18,6 +18,8 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
     public DbSet<ResidentPhone> ResidentPhones => Set<ResidentPhone>();
     public DbSet<ResidentConsent> ResidentConsents => Set<ResidentConsent>();
     public DbSet<ResidentMembership> ResidentMemberships => Set<ResidentMembership>();
+    public DbSet<ResidentMembershipHistory> ResidentMembershipHistory => Set<ResidentMembershipHistory>();
+    public DbSet<ResidentRegistrationSnapshot> ResidentRegistrationSnapshots => Set<ResidentRegistrationSnapshot>();
     public DbSet<BroadcastMessage> BroadcastMessages => Set<BroadcastMessage>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AdministratorEvent> AdministratorEvents => Set<AdministratorEvent>();
@@ -113,6 +115,21 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
                 .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Resident>().WithMany().HasForeignKey(x => x.ResidentId).OnDelete(DeleteBehavior.SetNull);
+        });
+        model.Entity<ResidentRegistrationSnapshot>(e =>
+        {
+            e.ToTable("resident_registration_snapshots");
+            e.HasKey(x => new { x.SourceId, x.ComplexId, x.RegistrationId, x.Version });
+            e.HasIndex(x => new { x.ComplexId, x.TelegramUserId });
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
+                .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<ResidentMembershipHistory>(e =>
+        {
+            e.ToTable("resident_membership_history");
+            e.HasKey(x => new { x.SourceId, x.Key });
+            e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
+                .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         model.Entity<BroadcastMessage>(e =>
         {
