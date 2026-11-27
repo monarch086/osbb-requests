@@ -14,12 +14,18 @@ dotnet_diagnostic.IDE0005.severity = warning
 dotnet_sort_system_directives_first = true
 csharp_using_directive_placement = outside_namespace
 dotnet_diagnostic.IDE0065.severity = warning
+csharp_style_namespace_declarations = file_scoped
+dotnet_diagnostic.IDE0161.severity = warning
 
 [*.{csproj,props}]
 indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+# Preserve the namespace layout produced by EF migration scaffolding.
+[**/Migrations/*.cs]
+dotnet_diagnostic.IDE0161.severity = none
 
 [**/Migrations/{*.Designer.cs,DataContextModelSnapshot.cs}]
 generated_code = true
