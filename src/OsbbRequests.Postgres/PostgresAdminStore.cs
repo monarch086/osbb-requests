@@ -1,5 +1,4 @@
 using System.Data;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using OsbbRequests.DataImport.Storage;
@@ -81,21 +80,11 @@ public sealed partial class PostgresAdminStore(IDbContextFactory<DataContext> fa
         return Math.Min(page, Math.Max(1, (total + PageSize - 1) / PageSize));
     }
 
-    private static void Enqueue(DataContext db, Scope currentScope, ResidentNotification? notification)
+    private void Enqueue(DataContext db, Scope currentScope, ResidentNotification? notification)
     {
         if (notification is null) return;
-        db.Notifications.Add(new Notification
-        {
-            SourceId = currentScope.SourceId,
-            ComplexId = currentScope.ComplexId,
-            Key = "LOCAL#" + notification.Id,
-            Kind = "LOCAL_PENDING",
-            Data = JsonSerializer.Serialize(notification)
-        });
+        db.Notifications.Add(Notification.CreatePending(currentScope.SourceId, currentScope.ComplexId, options.Complex, notification));
     }
-
-    private static string? String(JsonElement json, string field) =>
-        json.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static string EventKey() => "LOCAL#" + Guid.NewGuid().ToString("N");
 }

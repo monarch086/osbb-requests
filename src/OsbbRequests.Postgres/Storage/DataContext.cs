@@ -128,7 +128,7 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
             e.HasKey(x => new { x.SourceId, x.Key });
             e.HasIndex(x => new { x.ComplexId, x.DueAt }).HasFilter("\"Kind\" = 'LOCAL_PENDING'");
             e.HasIndex(x => new { x.ComplexId, x.ExpiresAt }).HasFilter("\"ExpiresAt\" IS NOT NULL");
-            e.Property(x => x.Data).HasColumnType("jsonb");
+            e.Property(x => x.AdministratorEvent).HasConversion<string>();
             e.HasOne<Complex>().WithMany().HasForeignKey(x => new { x.SourceId, x.ComplexId })
                 .HasPrincipalKey(x => new { x.SourceId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });

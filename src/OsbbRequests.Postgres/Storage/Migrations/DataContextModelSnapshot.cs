@@ -380,18 +380,29 @@ namespace OsbbRequests.DataImport.Storage.Migrations
                     b.Property<string>("Key")
                         .HasColumnType("text");
 
+                    b.Property<string>("AdministratorEvent")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AdministratorId")
+                        .HasColumnType("text");
+
                     b.Property<int>("Attempts")
                         .HasColumnType("integer");
 
                     b.Property<string>("AudienceAfter")
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<long>("ComplexId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Data")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
+                    b.Property<DateTimeOffset?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Disposition")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("DueAt")
                         .HasColumnType("timestamp with time zone");
@@ -408,6 +419,27 @@ namespace OsbbRequests.DataImport.Storage.Migrations
 
                     b.Property<DateTimeOffset?>("LeaseUntil")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LegacyExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("OwnerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RegistrationId")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("RequestVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResidentBroadcastId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Text")
+                        .HasColumnType("text");
 
                     b.HasKey("SourceId", "Key");
 

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.DataImport.Storage;
@@ -70,14 +69,10 @@ public sealed partial class PostgresCommandRepository
         var key = ResidentNotification.Partition(complex) + "\u001f" + message;
         var localKey = scope.ReplyKey(userId, messageId);
         var now = clock.GetUtcNow();
-        var data = await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId &&
-                row.Key == localKey && row.ExpiresAt > now).Select(row => row.Data).SingleOrDefaultAsync(ct);
-        data ??= await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId && row.Key == key)
-            .Select(row => row.Data).SingleOrDefaultAsync(ct);
-        if (data is null) return null;
-        using var json = JsonDocument.Parse(data);
-        return json.RootElement.TryGetProperty("requestId", out var id) && id.ValueKind == JsonValueKind.Number &&
-            id.TryGetInt64(out var requestId) ? requestId : null;
+        var requestId = await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId &&
+                row.Key == localKey && row.ExpiresAt > now).Select(row => row.RequestId).SingleOrDefaultAsync(ct);
+        return requestId ?? await db.Notifications.Where(row => row.SourceId == sourceId && row.ComplexId == complexId && row.Key == key)
+            .Select(row => row.RequestId).SingleOrDefaultAsync(ct);
     }
 
     private async Task WriteRequestsAsync(DataContext db, CommandEnvelope command, CommandOutcome outcome, CancellationToken ct)

@@ -1,15 +1,13 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.DataImport.Storage;
-using OsbbRequests.Domain.Models;
+using NotificationEvent = OsbbRequests.Domain.Models.AdministratorEvent;
 
 namespace OsbbRequests.Postgres.Bot;
 
 public sealed partial class PostgresNotificationRepository(IDbContextFactory<DataContext> factory, PostgresBotScope scope) : INotificationRepository
 {
     private const int PageSize = 25;
-    private const string Pending = "LOCAL_PENDING";
     private const string PauseKind = "LOCAL_PAUSE";
 
     public async Task<IReadOnlyList<NotificationWorkItem>> ListDueAsync(DateTimeOffset now, CancellationToken ct)
@@ -20,8 +18,7 @@ public sealed partial class PostgresNotificationRepository(IDbContextFactory<Dat
 
         var rows = await Due(Rows(db), now).OrderBy(row => row.DueAt == null ? DateTimeOffset.UnixEpoch : row.DueAt)
             .ThenBy(row => row.Key).Take(PageSize).ToListAsync(ct);
-        return rows.Select(row => new NotificationWorkItem(row.Key, JsonSerializer.Deserialize<ResidentNotification>(row.Data)
-            ?? throw new InvalidOperationException("Missing notification payload."), row.Attempts)).ToArray();
+        return rows.Select(row => new NotificationWorkItem(row.Key, row.ToPending(scope.Complex), row.Attempts)).ToArray();
     }
 
     public async Task<bool> ClaimAsync(NotificationWorkItem item, string lease, DateTimeOffset now, CancellationToken ct)
@@ -56,7 +53,7 @@ public sealed partial class PostgresNotificationRepository(IDbContextFactory<Dat
                 Key = scope.ReplyKey(notification.OwnerId, messageId.Value),
                 Kind = "LOCAL_MESSAGE",
                 ExpiresAt = now.AddDays(30),
-                Data = JsonSerializer.Serialize(new { requestId })
+                RequestId = requestId
             });
             await db.SaveChangesAsync(ct);
         }
@@ -75,8 +72,8 @@ public sealed partial class PostgresNotificationRepository(IDbContextFactory<Dat
     {
         await using var db = await factory.CreateDbContextAsync(ct);
         await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO notifications ("SourceId", "ComplexId", "Key", "Kind", "Data", "DueAt", "Attempts")
-            VALUES ({scope.SourceId}, {scope.ComplexId}, {PauseKey}, {PauseKind}, jsonb_build_object(), {until}, 0)
+            INSERT INTO notifications ("SourceId", "ComplexId", "Key", "Kind", "DueAt", "Attempts")
+            VALUES ({scope.SourceId}, {scope.ComplexId}, {PauseKey}, {PauseKind}, {until}, 0)
             ON CONFLICT ("SourceId", "Key") DO UPDATE
                 SET "DueAt" = GREATEST(notifications."DueAt", EXCLUDED."DueAt")
             """, ct);
@@ -88,19 +85,24 @@ public sealed partial class PostgresNotificationRepository(IDbContextFactory<Dat
         var expiresAt = now.AddDays(30);
         return rows.ExecuteUpdateAsync(update => update
             .SetProperty(row => row.Kind, kind).SetProperty(row => row.ExpiresAt, expiresAt)
-            .SetProperty(row => row.Data, "{}").SetProperty(row => row.AudienceAfter, (string?)null)
+            .SetProperty(row => row.CompletedAt, now).SetProperty(row => row.Disposition, disposition)
+            .SetProperty(row => row.OwnerId, (long?)null).SetProperty(row => row.RequestId, (long?)null)
+            .SetProperty(row => row.RequestVersion, (int?)null).SetProperty(row => row.Text, (string?)null)
+            .SetProperty(row => row.CreatedAt, (DateTimeOffset?)null).SetProperty(row => row.AdministratorEvent, (NotificationEvent?)null)
+            .SetProperty(row => row.AdministratorId, (string?)null).SetProperty(row => row.ResidentBroadcastId, (string?)null)
+            .SetProperty(row => row.RegistrationId, (string?)null).SetProperty(row => row.AudienceAfter, (string?)null)
             .SetProperty(row => row.Lease, (string?)null).SetProperty(row => row.LeaseUntil, (DateTimeOffset?)null), ct);
     }
 
     private static IQueryable<Notification> Due(IQueryable<Notification> rows, DateTimeOffset now) =>
-        rows.Where(row => row.Kind == Pending && (row.DueAt == null || row.DueAt <= now) &&
+        rows.Where(row => row.Kind == Notification.PendingKind && (row.DueAt == null || row.DueAt <= now) &&
             (row.LeaseUntil == null || row.LeaseUntil <= now));
 
     private IQueryable<Notification> Rows(DataContext db) => db.Notifications.Where(row =>
         row.SourceId == scope.SourceId && row.ComplexId == scope.ComplexId);
 
     private IQueryable<Notification> Claimed(DataContext db, NotificationWorkItem item, string lease) =>
-        Rows(db).Where(row => row.Key == item.SortKey && row.Kind == Pending && row.Lease == lease);
+        Rows(db).Where(row => row.Key == item.SortKey && row.Kind == Notification.PendingKind && row.Lease == lease);
 
     private string PauseKey => $"LOCAL_PAUSE#{scope.ComplexId}#{scope.Bot}";
 }

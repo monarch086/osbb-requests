@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using OsbbRequests.CommandProcessor.Models;
 using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.CommandProcessor.Telegram;
@@ -12,6 +14,40 @@ namespace OsbbRequests.WebApi.Tests;
 
 public sealed partial class AdminAuthenticationTests
 {
+    [PostgresFact]
+    public async Task NotificationMigrationPreservesPendingDeliveryAndLegacyExpiry()
+    {
+        await using var database = await TestDatabase.CreateAsync(useMigrations: true);
+        var context = database.Readout;
+        await context.Database.GetService<IMigrator>().MigrateAsync("20261127121810_NormalizeResidentAndRequestEvents");
+        var now = DateTimeOffset.UtcNow;
+        var pending = new ResidentNotification("migration-test", CommandComplex, 42, 6, 2, "Тест черги", now);
+        var legacyMessage = ResidentNotification.Partition(CommandComplex) + "\u001f" + ResidentNotification.MessageKey(42, 15);
+        var legacyResult = ResidentNotification.Partition(CommandComplex) + "\u001fRESULT#migration-test";
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO notifications ("SourceId","ComplexId","Key","Kind","Data","DueAt","Attempts")
+            VALUES (1,1,'LOCAL#migration-test','LOCAL_PENDING',{JsonSerializer.Serialize(pending)}::jsonb,{now},2),
+                   (1,1,{legacyMessage},'MESSAGE',jsonb_build_object('requestId',6),NULL,0),
+                   (1,1,{legacyResult},'RESULT',jsonb_build_object('completedAt','2025-01-01T00:00:00Z',
+                         'disposition','Delivered','expiresAt',1735689600),NULL,0);
+            """);
+        await context.Database.MigrateAsync();
+
+        Assert.True(await context.Database.SqlQueryRaw<bool>("""
+            SELECT "Disposition" = 'Delivered' AND "LegacyExpiresAt" = '2025-01-01T00:00:00Z'::timestamptz
+                   AND "ExpiresAt" IS NULL AS "Value" FROM notifications WHERE "Kind" = 'RESULT'
+            """).SingleAsync());
+        var scope = await PostgresBotScope.LoadAsync(database, CommandComplex, "testbot", default);
+        var repository = new PostgresNotificationRepository(database, scope);
+        var item = Assert.Single(await repository.ListDueAsync(now.AddSeconds(1), default));
+        Assert.Equal(2, item.Attempts);
+        Assert.Equal(pending.Text, item.Notification.Text);
+        Assert.Equal(pending.RequestVersion, item.Notification.RequestVersion);
+        Assert.True(await context.Notifications.AnyAsync(row => row.Kind == "RESULT"));
+        var commands = await PostgresCommandRepository.ConnectAsync(database, CommandComplex, "testbot", default);
+        Assert.Equal(6, await commands.GetNotificationRequestAsync(42, 15, default));
+    }
+
     [PostgresFact]
     public async Task LocalNotificationDeliveryRecordsTheTelegramReplyAndKeepsOnlyResults()
     {
@@ -34,8 +70,12 @@ public sealed partial class AdminAuthenticationTests
         Assert.Contains("Відповісти", message.Text);
         Assert.Equal(6, await commands.GetNotificationRequestAsync(42, 123, default));
         Assert.Null(await commands.GetNotificationRequestAsync(43, 123, default));
-        Assert.Equal("{}", await database.Readout.Notifications.AsNoTracking()
-            .Where(row => row.Kind == "LOCAL_DELIVERED").Select(row => row.Data).SingleAsync());
+        var result = await database.Readout.Notifications.AsNoTracking().SingleAsync(row => row.Kind == "LOCAL_DELIVERED");
+        Assert.Equal("Delivered", result.Disposition);
+        Assert.NotNull(result.CompletedAt);
+        Assert.Null(result.Text);
+        Assert.Null(result.OwnerId);
+        Assert.Null(result.RequestId);
     }
 
     [PostgresFact]
@@ -95,14 +135,7 @@ public sealed partial class AdminAuthenticationTests
 
     private static async Task InsertNotificationAsync(DataContext db, ResidentNotification notification)
     {
-        db.Notifications.Add(new()
-        {
-            ComplexId = 1,
-            SourceId = 1,
-            Key = "LOCAL#" + notification.Id,
-            Kind = "LOCAL_PENDING",
-            Data = JsonSerializer.Serialize(notification)
-        });
+        db.Notifications.Add(Notification.CreatePending(1, 1, CommandComplex, notification));
         await db.SaveChangesAsync();
     }
 

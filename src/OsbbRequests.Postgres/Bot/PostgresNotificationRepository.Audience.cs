@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OsbbRequests.CommandProcessor.Notifications;
 using OsbbRequests.DataImport.Storage;
@@ -50,15 +49,8 @@ public sealed partial class PostgresNotificationRepository
                 .SetProperty(row => row.DueAt, now), ct);
         if (count == 0) return;
 
-        db.Notifications.AddRange(recipients.Select(recipient => new Notification
-        {
-            SourceId = scope.SourceId,
-            ComplexId = scope.ComplexId,
-            Key = "LOCAL#" + recipient.Id,
-            Kind = Pending,
-            DueAt = now,
-            Data = JsonSerializer.Serialize(recipient)
-        }));
+        db.Notifications.AddRange(recipients.Select(recipient =>
+            Notification.CreatePending(scope.SourceId, scope.ComplexId, scope.Complex, recipient, now)));
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }

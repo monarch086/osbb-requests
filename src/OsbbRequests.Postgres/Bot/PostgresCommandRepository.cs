@@ -163,12 +163,6 @@ public sealed partial class PostgresCommandRepository : ICommandRepository
     private static bool IsRace(Exception error) => (error as PostgresException ?? error.InnerException as PostgresException)?.SqlState is
         PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.DeadlockDetected;
 
-    private void Enqueue(DataContext db, ResidentNotification notification) => db.Notifications.Add(new()
-    {
-        ComplexId = complexId,
-        SourceId = sourceId,
-        Key = "LOCAL#" + notification.Id,
-        Kind = "LOCAL_PENDING",
-        Data = JsonSerializer.Serialize(notification)
-    });
+    private void Enqueue(DataContext db, ResidentNotification notification) =>
+        db.Notifications.Add(Notification.CreatePending(sourceId, complexId, complex, notification));
 }
