@@ -2,6 +2,7 @@ export interface AppConfig {
   apiUrl: string;
   clientId: string;
   userPoolId: string;
+  environment?: string;
 }
 
 export interface SignedInUser {

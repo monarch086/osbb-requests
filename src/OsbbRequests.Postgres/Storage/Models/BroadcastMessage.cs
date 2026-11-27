@@ -1,0 +1,13 @@
+namespace OsbbRequests.DataImport.Storage;
+
+public sealed class BroadcastMessage
+{
+    public long SourceId { get; set; }
+    public required string Key { get; set; }
+    public long ComplexId { get; set; }
+    public required string MessageId { get; set; }
+    public required string Text { get; set; }
+    public required string CreatedById { get; set; }
+    public required string CreatedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}

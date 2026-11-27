@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "AWSSDK.CognitoIdentityProvider": {
+        "type": "Direct",
+        "requested": "[4.0.100, )",
+        "resolved": "4.0.100",
+        "contentHash": "8s82hGjCU56k7gappogu1oW/DDw753OliWFuHbup0yq2adRKZhFalbrre5E3yUloU+sPmXpN4cnadxMg7u97+w==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.100, 5.0.0)"
+        }
+      },
+      "AWSSDK.Core": {
+        "type": "Transitive",
+        "resolved": "4.0.100",
+        "contentHash": "7BqWwpzoTYsG5w7H2yuhdu7ZG2cw6GANhkKCzygGv0hoOaCXYy4fQu1satpGJ2wtTErM2aXkdo6qKDHgIeSVkA=="
+      },
+      "osbbrequests.domain": {
+        "type": "Project"
+      },
+      "osbbrequests.services": {
+        "type": "Project",
+        "dependencies": {
+          "OsbbRequests.Domain": "[1.0.0, )"
+        }
+      }
+    },
+    "net10.0/linux-arm64": {}
+  }
+}

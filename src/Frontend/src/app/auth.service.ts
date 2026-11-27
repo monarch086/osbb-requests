@@ -2,6 +2,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 
+import { isAllowedApiUrl } from './api-url';
 import type { AppConfig, SignedInUser, SignInResult } from './auth.models';
 import { CognitoAuthClient } from './cognito-auth-client.service';
 import { UserFacingError } from './error-message';
@@ -13,6 +14,7 @@ export class AuthService {
 
   readonly user$ = new BehaviorSubject<SignedInUser | null>(null);
   config?: AppConfig;
+  environment?: string;
 
   async initialize(): Promise<void> {
     if (!isPlatformBrowser(this.platformId)) {
@@ -27,14 +29,11 @@ export class AuthService {
       );
     }
     const config = (await response.json()) as AppConfig;
+    this.environment = config.environment;
     if (!config.apiUrl || !config.clientId || !config.userPoolId) {
       throw new UserFacingError('Доступ до облікового запису поки недоступний. Спробуйте пізніше.');
     }
-    const apiUrl = new URL(config.apiUrl);
-    if (
-      apiUrl.protocol !== 'https:' &&
-      !(apiUrl.protocol === 'http:' && apiUrl.hostname === 'localhost')
-    ) {
+    if (!isAllowedApiUrl(config.apiUrl, window.location.origin)) {
       throw new UserFacingError(
         'Доступ до облікового запису недоступний. Зверніться до служби підтримки.',
       );

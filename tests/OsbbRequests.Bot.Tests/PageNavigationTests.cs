@@ -1,10 +1,10 @@
 using System.Net;
 using System.Text.Json;
-using OsbbRequests.Bot.Telegram;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Shared.Domain;
-using OsbbRequests.Shared.Models;
+using OsbbRequests.CommandProcessor.Telegram;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.Domain;
+using OsbbRequests.Domain.Models;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -14,7 +14,7 @@ public sealed class PageNavigationTests
     private static MaintenanceRequest Request(int id, long owner = 42, RequestVisibility visibility = RequestVisibility.Public) =>
         new(id, owner, "building", "Інше", "", "Достатній опис заявки", DateTimeOffset.UnixEpoch.AddMinutes(id),
             Visibility: visibility, Scope: RequestScope.Complex);
-    private static (MemoryRepository Repo, FakeTelegram Telegram, CommandProcessor Processor) Setup()
+    private static (MemoryRepository Repo, FakeTelegram Telegram, TelegramCommandProcessor Processor) Setup()
     {
         var repo = new MemoryRepository();
         var telegram = new FakeTelegram();

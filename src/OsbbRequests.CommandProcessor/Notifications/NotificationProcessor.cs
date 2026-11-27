@@ -1,0 +1,60 @@
+using OsbbRequests.Shared.Telegram;
+using OsbbRequests.CommandProcessor.Telegram;
+
+namespace OsbbRequests.CommandProcessor.Notifications;
+
+public sealed class NotificationProcessor(INotificationRepository repository, ITelegramClient telegram,
+    IServiceNotifier? notifier = null, TimeProvider? timeProvider = null)
+{
+    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+    public async Task RunAsync(CancellationToken ct, Action<string>? log = null)
+    {
+        var items = await repository.ListDueAsync(clock.GetUtcNow(), ct);
+        foreach (var item in items)
+        {
+            ct.ThrowIfCancellationRequested();
+            var lease = Guid.NewGuid().ToString("N");
+            if (!await repository.ClaimAsync(item, lease, clock.GetUtcNow(), ct)) continue;
+            try
+            {
+                if (item.Notification.IsBroadcast)
+                {
+                    await repository.ExpandAsync(item, lease, clock.GetUtcNow(), ct);
+                    continue;
+                }
+                if (!await repository.CanDeliverAsync(item, ct))
+                {
+                    await repository.CompleteAsync(item, lease, "Skipped", clock.GetUtcNow(), ct);
+                    continue;
+                }
+                if (item.Notification.OwnerId > 0 && item.Notification.AdministratorEvent is null && item.Notification.AdministratorId is null &&
+                    item.Notification.Id.StartsWith("registration-", StringComparison.Ordinal))
+                    await telegram.SetCommandMenuAsync(item.Notification.OwnerId, registered: true, ct, force: true);
+                var text = item.Notification.RequestId is not null && item.Notification.AdministratorId is null
+                    ? item.Notification.Text + "\n\nЩоб відповісти, скористайтеся функцією «Відповісти» на це повідомлення."
+                    : item.Notification.Text;
+                var messageId = await telegram.SendNotificationAsync(item.Notification.OwnerId, text, ct);
+                await repository.CompleteDeliveredAsync(item, lease, clock.GetUtcNow(), messageId, ct);
+                log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=delivered");
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (TelegramRecipientUnavailableException error)
+            {
+                await repository.CompleteAsync(item, lease, "Undeliverable", clock.GetUtcNow(), ct);
+                log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=undeliverable" + TelegramFailureDiagnostics.For(error));
+                await notifier.ReportSafelyAsync("notification_undeliverable", error, item.Notification.Id, log);
+            }
+            catch (Exception error)
+            {
+                log?.Invoke($"operation=deliver_notification notificationId={item.Notification.Id} outcome=retry errorType={error.GetType().Name}" + TelegramFailureDiagnostics.For(error));
+                var delay = error is TelegramRateLimitException rate ? Math.Max(1, rate.RetryAfterSeconds) :
+                    (int)Math.Min(3600, 60 * Math.Pow(2, Math.Min(item.Attempts, 6)));
+                var dueAt = clock.GetUtcNow().AddSeconds(delay);
+                if (error is TelegramRateLimitException) await repository.PauseAsync(dueAt, ct);
+                await repository.RetryAsync(item, lease, dueAt, ct);
+                if (error is TelegramRateLimitException) break; // Respect a bot-wide retry_after too.
+                await notifier.ReportSafelyAsync("deliver_notification", error, item.Notification.Id, log);
+            }
+        }
+    }
+}

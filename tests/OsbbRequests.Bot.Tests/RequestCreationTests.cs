@@ -1,6 +1,6 @@
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Shared.Domain;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.Domain;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -75,7 +75,7 @@ public sealed class RequestCreationTests
     public async Task CategoriesAreStoredWithCanonicalNames(string input, string expected)
     {
         var outcome = await Handler(new()).HandleAsync(Message(1, $"/new 4Б | 1 | {input} | Опис проблеми"), default);
-        Assert.Equal(expected, Assert.IsType<OsbbRequests.Shared.Models.MaintenanceRequest>(outcome.NewRequest).Category);
+        Assert.Equal(expected, Assert.IsType<OsbbRequests.Domain.Models.MaintenanceRequest>(outcome.NewRequest).Category);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class RequestCreationTests
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
-        var processor = new CommandProcessor(repository, Handler(repository), telegram);
+        var processor = new TelegramCommandProcessor(repository, Handler(repository), telegram);
         foreach (var (id, text) in new[] { (1, "/new"), (3, "інше"), (2, "Весь комплекс") })
         {
             await processor.ProcessAsync(Message(id, text), default);

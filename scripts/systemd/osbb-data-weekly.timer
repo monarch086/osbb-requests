@@ -1,9 +1,0 @@
-[Unit]
-Description=Run weekly OSBB data import and PostgreSQL backup
-
-[Timer]
-OnCalendar=Sun *-*-* 04:00:00 Europe/Kyiv
-Persistent=true
-
-[Install]
-WantedBy=timers.target

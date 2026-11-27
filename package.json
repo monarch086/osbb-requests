@@ -9,7 +9,6 @@
   "scripts": {
     "build": "dotnet build OsbbRequests.sln --configuration Release",
     "check": "dotnet format OsbbRequests.sln --verify-no-changes --no-restore",
-    "package:dotnet": "bash scripts/package-dotnet.sh",
     "package": "serverless package",
     "deploy": "serverless deploy",
     "remove": "serverless remove",

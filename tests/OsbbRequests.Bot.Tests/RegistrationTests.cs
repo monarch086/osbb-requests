@@ -1,11 +1,9 @@
-using OsbbRequests.Shared.Models;
+using OsbbRequests.Domain.Models;
 using System.Net;
 using System.Text.Json;
-using Amazon.Lambda.APIGatewayEvents;
-using OsbbRequests.Bot.Commands;
-using OsbbRequests.Bot.Models;
-using OsbbRequests.Bot.Telegram;
-using OsbbRequests.Bot.Webhook;
+using OsbbRequests.CommandProcessor.Commands;
+using OsbbRequests.CommandProcessor.Models;
+using OsbbRequests.CommandProcessor.Telegram;
 using Xunit;
 
 namespace OsbbRequests.Bot.Tests;
@@ -13,11 +11,11 @@ namespace OsbbRequests.Bot.Tests;
 public sealed class RegistrationTests
 {
     private static CommandEnvelope Message(long id, string text = "", TelegramContact? contact = null) => new(id, 99, 99, text, contact);
-    private static (MemoryRepository Repository, FakeTelegram Telegram, CommandProcessor Processor) Create()
+    private static (MemoryRepository Repository, FakeTelegram Telegram, TelegramCommandProcessor Processor) Create()
     {
         var repository = new MemoryRepository();
         var telegram = new FakeTelegram();
-        return (repository, telegram, new CommandProcessor(repository,
+        return (repository, telegram, new TelegramCommandProcessor(repository,
             new CommandHandler(repository, "OsbbBot", "building", residentApprovalMode: ResidentApprovalMode.Manual), telegram));
     }
 
@@ -234,32 +232,6 @@ public sealed class RegistrationTests
         await processor.ProcessAsync(Message(3, "/register"), CancellationToken.None);
         Assert.Equal(RegistrationStage.AwaitingConsent, repository.Registrations[99].Stage);
         Assert.NotEqual(current.Id, repository.Registrations[99].Id);
-    }
-
-    [Fact]
-    public async Task WebhookAcceptsPrivateContactWithoutText()
-    {
-        var queue = new FakeQueue();
-        var payload = JsonSerializer.Serialize(new
-        {
-            update_id = 100,
-            message = new
-            {
-                from = new { id = 99, is_bot = false },
-                chat = new { id = 99, type = "private" },
-                contact = new { user_id = 99, phone_number = "+380671234567" }
-            }
-        });
-        var response = await new WebhookHandler(new FakeSecret("secret"), queue, "OsbbBot").HandleAsync(
-            new APIGatewayHttpApiV2ProxyRequest
-            {
-                Headers = new Dictionary<string, string> { ["x-telegram-bot-api-secret-token"] = "secret" },
-                Body = payload
-            }, CancellationToken.None);
-        Assert.Equal(200, response.StatusCode);
-        var command = Assert.Single(queue.Commands);
-        Assert.Equal(99, command.Contact?.UserId);
-        Assert.Equal("+380671234567", command.Contact?.PhoneNumber);
     }
 
     [Fact]

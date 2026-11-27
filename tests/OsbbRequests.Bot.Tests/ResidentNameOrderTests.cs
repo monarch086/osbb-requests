@@ -9,7 +9,7 @@ public sealed class ResidentNameOrderTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void KeysKeepUkrainianOrderingAndStableTies(bool ascending)
+    public void KeepsUkrainianOrderingAndStableTies(bool ascending)
     {
         var names = new (string Id, string? FirstName, string? LastName)[]
         {
@@ -30,12 +30,8 @@ public sealed class ResidentNameOrderTests
             if (result == 0 && left.Length > 0) result = compare.Compare(a.FirstName ?? "", b.FirstName ?? "", CompareOptions.IgnoreCase);
             return result == 0 ? string.CompareOrdinal(a.Id, b.Id) : result * (ascending ? 1 : -1);
         });
-        var actual = names.Select(name =>
-        {
-            var key = ResidentNameOrder.Create(name.Id, name.FirstName, name.LastName);
-            return (name.Id, Key: ascending ? key.Ascending : key.Descending);
-        }).OrderBy(item => item.Key, Comparer<byte[]>.Create((a, b) => a.AsSpan().SequenceCompareTo(b)))
-            .Select(item => item.Id);
-        Assert.Equal(expected.Select(item => item.Id), actual);
+        Array.Sort(names, (a, b) => ResidentNameOrder.Compare(
+            a.Id, a.FirstName, a.LastName, b.Id, b.FirstName, b.LastName, ascending));
+        Assert.Equal(expected.Select(item => item.Id), names.Select(item => item.Id));
     }
 }

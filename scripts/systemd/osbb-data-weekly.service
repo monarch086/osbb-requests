@@ -1,9 +1,0 @@
-[Unit]
-Description=Weekly OSBB data import and PostgreSQL backup
-
-[Service]
-Type=oneshot
-WorkingDirectory=%h/projects/osbb-requests
-Environment=PATH=%h/.dotnet:/usr/local/bin:/usr/bin:/bin
-ExecStart=%h/projects/osbb-requests/scripts/osbb-data-weekly
-TimeoutStartSec=30min
