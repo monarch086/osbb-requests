@@ -1,0 +1,89 @@
+x-telegram-environment: &telegram-environment
+  POSTGRES_CONNECTION_STRING: ${OSBB_CONNECTION_STRING:?Set OSBB_CONNECTION_STRING}
+  POSTGRES_COMPLEX_ID: ${OSBB_LISTENER_POSTGRES_COMPLEX_ID:-}
+  STAGE: ${OSBB_LISTENER_STAGE:-local}
+  TELEGRAM_BOT_TOKEN: ${OSBB_LISTENER_BOT_TOKEN:-}
+  TELEGRAM_BOT_USERNAME: ${OSBB_LISTENER_BOT_USERNAME:-}
+  BUILDING_ID: ${OSBB_LISTENER_COMPLEX_ID:-${OSBB_COMPLEX_ID:-osbb-requests-dev}}
+  SERVICE_BOT_TOKEN: ${OSBB_LISTENER_SERVICE_BOT_TOKEN:-}
+  SERVICE_NOTIFICATION_CHAT_ID: ${OSBB_LISTENER_SERVICE_NOTIFICATION_CHAT_ID:-38627946}
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${OSBB_DATABASE:?Set OSBB_DATABASE}
+      POSTGRES_USER: ${OSBB_POSTGRES_USER:-osbb}
+      POSTGRES_PASSWORD: ${OSBB_POSTGRES_PASSWORD:?Set OSBB_POSTGRES_PASSWORD}
+    volumes:
+      - osbb_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  adminer:
+    image: adminer:5.5.1
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - '${OSBB_ADMINER_BIND:-127.0.0.1}:${OSBB_ADMINER_PORT:-8081}:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+  command-listener:
+    image: nuc.local:5000/osbb-requests/command-listener:dev
+    profiles: [command-listener]
+    restart: unless-stopped
+    environment:
+      <<: *telegram-environment
+      RESIDENT_APPROVAL_MODE: ${OSBB_LISTENER_RESIDENT_APPROVAL_MODE:-Automatic}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  jobs:
+    image: nuc.local:5000/osbb-requests/jobs:dev
+    profiles: [jobs]
+    restart: unless-stopped
+    environment: *telegram-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+  web-api:
+    image: nuc.local:5000/osbb-requests/web-api:dev
+    restart: unless-stopped
+    profiles: [web-api]
+    environment:
+      ASPNETCORE_HTTP_PORTS: '8080'
+      Cognito__UserPoolId: ${OSBB_COGNITO_USER_POOL_ID:-}
+      Cognito__ClientId: ${OSBB_COGNITO_CLIENT_ID:-}
+      ConnectionStrings__Postgres: ${OSBB_CONNECTION_STRING:?Set OSBB_CONNECTION_STRING}
+      Postgres__ComplexId: ${OSBB_COMPLEX_ID:-osbb-requests-dev}
+    ports:
+      - '127.0.0.1:${OSBB_WEB_API_PORT:-8082}:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+  frontend:
+    image: nuc.local:5000/osbb-requests/frontend:dev
+    restart: unless-stopped
+    profiles: [web-api]
+    environment:
+      NGINX_ENVSUBST_FILTER: '^OSBB_(COGNITO_|ENVIRONMENT$)'
+      OSBB_ENVIRONMENT: ${OSBB_ENVIRONMENT:-prod}
+      OSBB_COGNITO_USER_POOL_ID: ${OSBB_COGNITO_USER_POOL_ID:-}
+      OSBB_COGNITO_CLIENT_ID: ${OSBB_COGNITO_CLIENT_ID:-}
+    ports:
+      - '${OSBB_FRONTEND_BIND:-127.0.0.1}:${OSBB_FRONTEND_PORT:-8083}:8080'
+    depends_on:
+      - web-api
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}
+volumes:
+  osbb_postgres_data:

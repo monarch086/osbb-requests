@@ -6,7 +6,7 @@ cd "$project_root"
 source .env.data.prod
 database="${OSBB_DATABASE:?Set OSBB_DATABASE in .env.data.prod}"
 database_user="${OSBB_POSTGRES_USER:-osbb}"
-registry=nuс.local:5000
+registry=nuc.local:5000
 services=(web-api command-listener jobs frontend)
 images_file="$(mktemp)"
 trap 'rm -- "$images_file"' EXIT
