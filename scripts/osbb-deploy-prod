@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -e
+project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$project_root"
+
+source .env.data.prod
+database="${OSBB_DATABASE:?Set OSBB_DATABASE in .env.data.prod}"
+database_user="${OSBB_POSTGRES_USER:-osbb}"
+registry=nuk.local:5000
+services=(web-api command-listener jobs frontend)
+images_file="$(mktemp)"
+trap 'rm -- "$images_file"' EXIT
+
+{
+  printf 'services:\n'
+  for service in "${services[@]}"; do
+    printf '  %s:\n    image: %s/osbb-requests/%s:dev\n' "$service" "$registry" "$service"
+  done
+} > "$images_file"
+
+dc() {
+  docker compose -p osbb-requests --env-file .env.data.prod -f compose.data.yml -f "$images_file" "$@"
+}
+
+# 1. Завантажити нові образи.
+dc pull "${services[@]}"
+
+# 2. Зупинити сервіси.
+dc stop "${services[@]}"
+
+# 3. Зробити й перевірити бекап робочої бази.
+umask 077
+mkdir -p backups
+backup="backups/$database-$(date -u +%Y%m%dT%H%M%SZ).dump"
+dc exec -T postgres pg_dump -U "$database_user" -d "$database" -Fc > "$backup"
+dc exec -T postgres pg_restore --list < "$backup" > /dev/null
+printf 'Резервна копія: %s\n' "$backup"
+
+# 4. Застосувати міграції.
+dc run --rm --no-deps --pull never -T command-listener migrate
+
+# 5. Запустити сервіси.
+dc up -d --no-deps --no-build --pull never --force-recreate "${services[@]}"
