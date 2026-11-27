@@ -1,7 +1,7 @@
 using Hangfire;
 using Microsoft.Extensions.Logging;
 using OsbbRequests.CommandProcessor.Notifications;
-using OsbbRequests.Shared.Telegram;
+using OsbbRequests.CommandProcessor.Telegram;
 
 namespace OsbbRequests.Jobs;
 

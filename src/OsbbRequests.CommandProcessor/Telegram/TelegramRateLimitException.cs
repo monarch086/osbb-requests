@@ -1,5 +1,3 @@
-using OsbbRequests.Shared.Telegram;
-
 namespace OsbbRequests.CommandProcessor.Telegram;
 
 public sealed class TelegramRateLimitException(int retryAfterSeconds, TelegramOperation? operation = null, TelegramErrorResponse? response = null) : Exception("Telegram rate limit exceeded."), ITelegramFailureDetails

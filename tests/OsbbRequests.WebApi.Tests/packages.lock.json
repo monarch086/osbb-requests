@@ -599,8 +599,7 @@
         "type": "Project",
         "dependencies": {
           "OsbbRequests.Domain": "[1.0.0, )",
-          "OsbbRequests.Services": "[1.0.0, )",
-          "OsbbRequests.Shared": "[1.0.0, )"
+          "OsbbRequests.Services": "[1.0.0, )"
         }
       },
       "osbbrequests.domain": {
@@ -621,16 +620,11 @@
           "OsbbRequests.Domain": "[1.0.0, )"
         }
       },
-      "osbbrequests.shared": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )"
-        }
-      },
       "osbbrequests.webapi": {
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.12, )",
+          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
           "OsbbRequests.Cognito": "[1.0.0, )",
           "OsbbRequests.Postgres": "[1.0.0, )"
         }

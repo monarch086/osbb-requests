@@ -15,7 +15,7 @@
 - `src/OsbbRequests.WebApi` - локальний ASP.NET Core API в Docker.
 - `src/OsbbRequests.Cognito` - спільний адаптер ідентичності Cognito.
 - `src/OsbbRequests.Postgres` - моделі EF Core, міграції та локальне сховище адміністративних операцій.
-- `src/OsbbRequests.Domain`, `src/OsbbRequests.Services` і `src/OsbbRequests.Shared` - моделі, бізнес-операції та допоміжний код.
+- `src/OsbbRequests.Domain` і `src/OsbbRequests.Services` - доменні моделі та прикладні бізнес-операції.
 - `src/Frontend` - Angular SPA: авторизація, заявки, мешканці, адміністратори та діалоги.
 - `tests/OsbbRequests.Bot.Tests` — тести команд, Telegram-клієнта й обробки сповіщень. `tests/OsbbRequests.WebApi.Tests` — тести API, EF Core та PostgreSQL.
 - `serverless.yml` — Cognito та CloudFront з редіректом. `scripts` — команди локального запуску, міграцій та резервного копіювання.

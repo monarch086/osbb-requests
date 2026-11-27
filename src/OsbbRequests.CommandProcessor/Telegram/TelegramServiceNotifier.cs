@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace OsbbRequests.Shared.Telegram;
+namespace OsbbRequests.CommandProcessor.Telegram;
 
 public interface IServiceNotifier
 {

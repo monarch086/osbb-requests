@@ -2,6 +2,19 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "Microsoft.ICU.ICU4C.Runtime": {
+        "type": "Direct",
+        "requested": "[72.1.0.3, )",
+        "resolved": "72.1.0.3",
+        "contentHash": "Z42uzvs0TN9Y02xgHtRgPcumLRnvK3MHVHZ0Pr3OrnvyZYhBwqDgdYBOvoELcTsayUgwqrPLb+C5Fqqk66zlUg==",
+        "dependencies": {
+          "Microsoft.ICU.ICU4C.Runtime.linux-arm64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.linux-x64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.win-arm64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.win-x64": "72.1.0.3",
+          "Microsoft.ICU.ICU4C.Runtime.win-x86": "72.1.0.3"
+        }
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[17.13.0, )",
@@ -139,18 +152,6 @@
         "resolved": "10.0.15",
         "contentHash": "NjzLiZ1/bYx8VwLqHxNnCfDTQQbCY7P1dwT7JM5FiANiaSfI6UKHi0/sla+jyRbOIbPAMJkhWQ/9pH3tMf+IrQ=="
       },
-      "Microsoft.ICU.ICU4C.Runtime": {
-        "type": "Transitive",
-        "resolved": "72.1.0.3",
-        "contentHash": "Z42uzvs0TN9Y02xgHtRgPcumLRnvK3MHVHZ0Pr3OrnvyZYhBwqDgdYBOvoELcTsayUgwqrPLb+C5Fqqk66zlUg==",
-        "dependencies": {
-          "Microsoft.ICU.ICU4C.Runtime.linux-arm64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.linux-x64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.win-arm64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.win-x64": "72.1.0.3",
-          "Microsoft.ICU.ICU4C.Runtime.win-x86": "72.1.0.3"
-        }
-      },
       "Microsoft.ICU.ICU4C.Runtime.linux-arm64": {
         "type": "Transitive",
         "resolved": "72.1.0.3",
@@ -256,17 +257,16 @@
       "osbbrequests.commandlistener": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )",
           "OsbbRequests.CommandProcessor": "[1.0.0, )",
-          "OsbbRequests.Postgres": "[1.0.0, )",
-          "OsbbRequests.Shared": "[1.0.0, )"
+          "OsbbRequests.Postgres": "[1.0.0, )"
         }
       },
       "osbbrequests.commandprocessor": {
         "type": "Project",
         "dependencies": {
           "OsbbRequests.Domain": "[1.0.0, )",
-          "OsbbRequests.Services": "[1.0.0, )",
-          "OsbbRequests.Shared": "[1.0.0, )"
+          "OsbbRequests.Services": "[1.0.0, )"
         }
       },
       "osbbrequests.domain": {
@@ -285,12 +285,6 @@
         "type": "Project",
         "dependencies": {
           "OsbbRequests.Domain": "[1.0.0, )"
-        }
-      },
-      "osbbrequests.shared": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.ICU.ICU4C.Runtime": "[72.1.0.3, )"
         }
       }
     },

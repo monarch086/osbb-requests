@@ -11,7 +11,6 @@ using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Jobs;
 using OsbbRequests.Postgres.Bot;
-using OsbbRequests.Shared.Telegram;
 
 var builder = Host.CreateApplicationBuilder(args);
 var configuration = builder.Configuration;

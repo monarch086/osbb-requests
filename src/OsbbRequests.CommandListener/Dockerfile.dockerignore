@@ -9,8 +9,6 @@
 !src/OsbbRequests.CommandProcessor/**
 !src/OsbbRequests.Postgres/
 !src/OsbbRequests.Postgres/**
-!src/OsbbRequests.Shared/
-!src/OsbbRequests.Shared/**
 !src/OsbbRequests.Services/
 !src/OsbbRequests.Services/**
 !src/OsbbRequests.Domain/

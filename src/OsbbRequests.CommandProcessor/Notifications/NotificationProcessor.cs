@@ -1,5 +1,4 @@
 using OsbbRequests.CommandProcessor.Telegram;
-using OsbbRequests.Shared.Telegram;
 
 namespace OsbbRequests.CommandProcessor.Notifications;
 

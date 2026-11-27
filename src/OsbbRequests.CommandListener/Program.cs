@@ -6,7 +6,6 @@ using OsbbRequests.CommandProcessor.Commands;
 using OsbbRequests.CommandProcessor.Telegram;
 using OsbbRequests.DataImport.Storage;
 using OsbbRequests.Postgres.Bot;
-using OsbbRequests.Shared.Telegram;
 
 using var shutdown = new CancellationTokenSource();
 using var terminate = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>

@@ -1,5 +1,4 @@
 using System.Net.Sockets;
-using OsbbRequests.Shared.Telegram;
 
 namespace OsbbRequests.CommandProcessor.Telegram;
 

@@ -1,5 +1,3 @@
-using OsbbRequests.Shared.Telegram;
-
 namespace OsbbRequests.CommandProcessor.Telegram;
 
 public sealed class TelegramRecipientUnavailableException(int statusCode, TelegramOperation? operation = null, TelegramErrorResponse? response = null)

@@ -1,4 +1,4 @@
-namespace OsbbRequests.Shared.Telegram;
+namespace OsbbRequests.CommandProcessor.Telegram;
 
 public interface ISecretProvider
 {
