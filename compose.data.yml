@@ -35,28 +35,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-  importer:
-    image: osbb-requests-importer:local
-    build:
-      context: .
-      dockerfile: src/OsbbRequests.DataImport/Dockerfile
-    profiles: [tools]
-    command: [import, --stage, "${OSBB_SOURCE_STAGE:-dev}", --region, "${OSBB_SOURCE_REGION:-eu-central-1}"]
-    user: '${OSBB_IMPORTER_UID:-1000}:${OSBB_IMPORTER_GID:-1000}'
-    environment:
-      HOME: /app
-      AWS_PROFILE: ${AWS_PROFILE:-default}
-      OSBB_IMPORT_CONNECTION_STRING: ${OSBB_IMPORT_DOCKER_CONNECTION_STRING:?Set OSBB_IMPORT_DOCKER_CONNECTION_STRING}
-    volumes:
-      - type: bind
-        source: ${OSBB_AWS_DIRECTORY:-${HOME}/.aws}
-        target: /app/.aws
-        read_only: true
-        bind:
-          create_host_path: false
-    depends_on:
-      postgres:
-        condition: service_healthy
   command-listener:
     image: osbb-requests-command-listener:local
     build:
